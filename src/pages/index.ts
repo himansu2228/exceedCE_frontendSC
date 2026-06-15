@@ -1,0 +1,6 @@
+export { DashboardPage } from './DashboardPage'
+export { CoursesPage } from './CoursesPage'
+export { SubmissionsPage } from './SubmissionsPage'
+export { PipelinePage } from './PipelinePage'
+export { LogsPage } from './LogsPage'
+export { SettingsPage } from './SettingsPage'
