@@ -7,7 +7,7 @@ const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
   '/courses': 'Courses',
   '/submissions': 'Submissions',
-  '/pipeline': 'Pipeline Flow',
+  '/pipeline': 'CE Broker Pipeline',
   '/logs': 'Activity Logs',
   '/settings': 'Settings',
 }

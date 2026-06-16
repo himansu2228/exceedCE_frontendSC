@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   GraduationCap,
   Users,
-  GitBranch,
+  Workflow,
   Settings,
   FileText,
   ChevronLeft,
@@ -17,7 +17,7 @@ const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/courses', icon: GraduationCap, label: 'Courses' },
   { path: '/submissions', icon: Users, label: 'Submissions' },
-  { path: '/pipeline', icon: GitBranch, label: 'Pipeline Flow' },
+  { path: '/pipeline', icon: Workflow, label: 'CE Broker Pipeline' },
   { path: '/logs', icon: FileText, label: 'Logs' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]

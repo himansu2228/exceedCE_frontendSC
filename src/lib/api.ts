@@ -228,3 +228,49 @@ export interface LogEntry {
 export async function getLogs(limit: number = 50): Promise<LogEntry[]> {
   return fetchApi<LogEntry[]>(`/logs?limit=${limit}`)
 }
+
+// Settings
+export interface Settings {
+  // ExceedCE
+  exceedce_base_url: string
+  exceedce_api_key: string
+  
+  // CE Broker
+  ceb_endpoint: string
+  ceb_provider_id: string
+  ceb_upload_key: string
+  ceb_mode: 'test' | 'live'
+  ceb_dry_run: boolean
+  ceb_print_xml: boolean
+  
+  // SC Specific
+  ceb_sc_profession: string
+  ceb_default_profession: string
+  ceb_test_license_override: string
+  ceb_test_course_override: string
+  
+  // Ledger
+  ledger_path: string
+  
+  // Notifications
+  enable_notifications: boolean
+  email_on_error: boolean
+  email_recipients: string
+}
+
+export async function getSettings(): Promise<Settings> {
+  return fetchApi<Settings>('/settings')
+}
+
+export async function saveSettings(settings: Partial<Settings>): Promise<{ success: boolean; message: string }> {
+  return fetchApi<{ success: boolean; message: string }>('/settings', {
+    method: 'POST',
+    body: JSON.stringify(settings),
+  })
+}
+
+export async function resetSettings(): Promise<{ success: boolean; message: string; settings: Settings }> {
+  return fetchApi<{ success: boolean; message: string; settings: Settings }>('/settings/reset', {
+    method: 'POST',
+  })
+}

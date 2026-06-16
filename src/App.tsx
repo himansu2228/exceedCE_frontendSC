@@ -4,7 +4,7 @@ import {
   DashboardPage,
   CoursesPage,
   SubmissionsPage,
-  PipelinePage,
+  CEBrokerPipelinePage,
   LogsPage,
   SettingsPage,
 } from "@/pages"
@@ -17,7 +17,7 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="courses" element={<CoursesPage />} />
           <Route path="submissions" element={<SubmissionsPage />} />
-          <Route path="pipeline" element={<PipelinePage />} />
+          <Route path="pipeline" element={<CEBrokerPipelinePage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

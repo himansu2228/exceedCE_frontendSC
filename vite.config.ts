@@ -25,6 +25,17 @@ export default defineConfig({
           });
         },
       },
+      '/api/pipeline/events': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        // Disable buffering for SSE - critical for real-time streaming
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            // Remove content-length to prevent buffering
+            delete proxyRes.headers['content-length'];
+          });
+        },
+      },
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,

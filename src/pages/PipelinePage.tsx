@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,34 +27,47 @@ import {
   Zap,
   Settings,
   Clock,
+  Loader2,
 } from 'lucide-react'
+import { getSCCourses, type Course } from '@/lib/api'
 
-// Pipeline flow steps
-const pipelineSteps = [
+// Pipeline step type
+interface PipelineStep {
+  id: number
+  name: string
+  description: string
+  icon: React.ComponentType<{ className?: string }>
+  status: 'pending' | 'active' | 'completed' | 'error'
+  count: number
+  progress?: number
+}
+
+// Initial pipeline steps
+const getInitialSteps = (): PipelineStep[] => [
   {
     id: 1,
     name: 'Fetch Courses',
     description: 'Pull courses from ExceedCE API',
     icon: Database,
-    status: 'completed',
-    count: 156,
+    status: 'pending',
+    count: 0,
   },
   {
     id: 2,
     name: 'Filter SC',
     description: 'Filter South Carolina mapped courses',
     icon: Filter,
-    status: 'completed',
-    count: 9,
+    status: 'pending',
+    count: 0,
   },
   {
     id: 3,
     name: 'Get Completions',
     description: 'Fetch completed students per course',
     icon: Users,
-    status: 'active',
-    count: 45,
-    progress: 65,
+    status: 'pending',
+    count: 0,
+    progress: 0,
   },
   {
     id: 4,
@@ -82,13 +95,19 @@ const pipelineSteps = [
   },
 ]
 
-const scCourses = [
-  { id: 234, name: 'SC Investment Real Estate Fundamentals', ceb_id: '942527' },
-  { id: 347, name: 'SC The Hidden Value of Real Estate Tax', ceb_id: '1197572' },
-  { id: 123, name: 'SC Commercial Leasing Basics', ceb_id: '1188794' },
-  { id: 456, name: 'SC Environmental Issues for Real Estate', ceb_id: '942523' },
-  { id: 789, name: 'SC Core Course (24-26)', ceb_id: '1291177' },
-]
+// Processing stats type
+interface ProcessingStats {
+  currentCourse: string
+  courseIndex: number
+  totalCourses: number
+  currentStudent: string
+  studentIndex: number
+  totalStudents: number
+  submitted: number
+  failed: number
+  skipped: number
+  duplicate: number
+}
 
 export function PipelinePage() {
   const [isRunning, setIsRunning] = useState(false)
@@ -96,14 +115,210 @@ export function PipelinePage() {
   const [mode, setMode] = useState('test')
   const [selectedCourses, setSelectedCourses] = useState<string>('all')
   const [sinceDate, setSinceDate] = useState('')
+  
+  // Dynamic SC courses from API
+  const [scCourses, setScCourses] = useState<Course[]>([])
+  const [loadingCourses, setLoadingCourses] = useState(true)
+  
+  // Pipeline steps state (dynamic)
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(getInitialSteps())
+  
+  // Processing stats
+  const [processingStats, setProcessingStats] = useState<ProcessingStats>({
+    currentCourse: '',
+    courseIndex: 0,
+    totalCourses: 0,
+    currentStudent: '',
+    studentIndex: 0,
+    totalStudents: 0,
+    submitted: 0,
+    failed: 0,
+    skipped: 0,
+    duplicate: 0,
+  })
+  
+  // Last run timestamp
+  const [lastRun, setLastRun] = useState<Date | null>(null)
+  
+  // SSE connection ref
+  const eventSourceRef = useRef<EventSource | null>(null)
 
-  const handleStartPipeline = () => {
+  // Load SC courses from API
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        setLoadingCourses(true)
+        const courses = await getSCCourses()
+        setScCourses(courses)
+      } catch (error) {
+        console.error('Failed to load SC courses:', error)
+      } finally {
+        setLoadingCourses(false)
+      }
+    }
+    loadCourses()
+  }, [])
+
+  // Update pipeline step
+  const updateStep = useCallback((stepId: number, updates: Partial<PipelineStep>) => {
+    setPipelineSteps(prev => 
+      prev.map(step => step.id === stepId ? { ...step, ...updates } : step)
+    )
+  }, [])
+
+  // Reset pipeline
+  const resetPipeline = useCallback(() => {
+    setPipelineSteps(getInitialSteps())
+    setProcessingStats({
+      currentCourse: '',
+      courseIndex: 0,
+      totalCourses: 0,
+      currentStudent: '',
+      studentIndex: 0,
+      totalStudents: 0,
+      submitted: 0,
+      failed: 0,
+      skipped: 0,
+      duplicate: 0,
+    })
+  }, [])
+
+  // Connect to SSE for pipeline updates
+  const connectSSE = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+    }
+
+    const es = new EventSource('/api/pipeline/events')
+    eventSourceRef.current = es
+
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        
+        switch (data.type) {
+          case 'step-start':
+            updateStep(data.stepId, { status: 'active', count: 0, progress: 0 })
+            break
+            
+          case 'step-progress':
+            updateStep(data.stepId, { 
+              count: data.count, 
+              progress: data.progress 
+            })
+            break
+            
+          case 'step-complete':
+            updateStep(data.stepId, { 
+              status: 'completed', 
+              count: data.count,
+              progress: 100 
+            })
+            break
+            
+          case 'step-error':
+            updateStep(data.stepId, { status: 'error' })
+            break
+            
+          case 'processing':
+            setProcessingStats(prev => ({
+              ...prev,
+              currentCourse: data.course || prev.currentCourse,
+              courseIndex: data.courseIndex ?? prev.courseIndex,
+              totalCourses: data.totalCourses ?? prev.totalCourses,
+              currentStudent: data.student || prev.currentStudent,
+              studentIndex: data.studentIndex ?? prev.studentIndex,
+              totalStudents: data.totalStudents ?? prev.totalStudents,
+            }))
+            break
+            
+          case 'result':
+            setProcessingStats(prev => ({
+              ...prev,
+              submitted: data.submitted ?? prev.submitted,
+              failed: data.failed ?? prev.failed,
+              skipped: data.skipped ?? prev.skipped,
+              duplicate: data.duplicate ?? prev.duplicate,
+            }))
+            break
+            
+          case 'complete':
+            setIsRunning(false)
+            setLastRun(new Date())
+            break
+        }
+      } catch (err) {
+        console.error('SSE parse error:', err)
+      }
+    }
+
+    es.onerror = () => {
+      console.error('SSE connection error')
+      es.close()
+      eventSourceRef.current = null
+    }
+  }, [updateStep])
+
+  // Cleanup SSE on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+    }
+  }, [])
+
+  const handleStartPipeline = async () => {
+    resetPipeline()
     setIsRunning(true)
-    // In real app, this would call the API
+    connectSSE()
+    
+    try {
+      const courseIds = selectedCourses === 'all' 
+        ? undefined 
+        : [parseInt(selectedCourses, 10)]
+      
+      await fetch('/api/pipeline/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseIds,
+          sinceDate: sinceDate || undefined,
+          dryRun,
+          mode,
+        }),
+      })
+    } catch (error) {
+      console.error('Failed to start pipeline:', error)
+      setIsRunning(false)
+    }
   }
 
-  const handleStopPipeline = () => {
+  const handleStopPipeline = async () => {
+    try {
+      await fetch('/api/pipeline/stop', { method: 'POST' })
+    } catch (error) {
+      console.error('Failed to stop pipeline:', error)
+    }
+    
     setIsRunning(false)
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+  }
+  
+  // Format last run time
+  const formatLastRun = () => {
+    if (!lastRun) return 'Never'
+    const diff = Date.now() - lastRun.getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins === 1) return '1 min ago'
+    if (mins < 60) return `${mins} min ago`
+    const hours = Math.floor(mins / 60)
+    if (hours === 1) return '1 hour ago'
+    return `${hours} hours ago`
   }
 
   return (
@@ -156,12 +371,23 @@ export function PipelinePage() {
 
               <div className="space-y-2">
                 <Label>Course Selection</Label>
-                <Select value={selectedCourses} onValueChange={setSelectedCourses}>
+                <Select 
+                  value={selectedCourses} 
+                  onValueChange={setSelectedCourses}
+                  disabled={loadingCourses}
+                >
                   <SelectTrigger>
-                    <SelectValue />
+                    {loadingCourses ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Loading courses...</span>
+                      </div>
+                    ) : (
+                      <SelectValue />
+                    )}
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All SC Courses</SelectItem>
+                    <SelectItem value="all">All SC Courses ({scCourses.length})</SelectItem>
                     {scCourses.map((course) => (
                       <SelectItem key={course.id} value={String(course.id)}>
                         {course.name}
@@ -243,7 +469,7 @@ export function PipelinePage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Last Run</span>
-              <span className="text-sm">2 min ago</span>
+              <span className="text-sm">{formatLastRun()}</span>
             </div>
           </CardContent>
         </Card>
@@ -264,22 +490,28 @@ export function PipelinePage() {
                 {/* Step Card */}
                 <div
                   className={`
-                    relative flex flex-col items-center p-4 rounded-lg border-2 min-w-[140px]
+                    relative flex flex-col items-center p-4 rounded-lg border-2 min-w-[140px] transition-all duration-300
                     ${step.status === 'completed' ? 'border-green-500 bg-green-50' : ''}
-                    ${step.status === 'active' ? 'border-blue-500 bg-blue-50 animate-pulse-slow' : ''}
+                    ${step.status === 'active' ? 'border-blue-500 bg-blue-50 animate-pulse' : ''}
                     ${step.status === 'pending' ? 'border-slate-200 bg-slate-50' : ''}
+                    ${step.status === 'error' ? 'border-red-500 bg-red-50' : ''}
                   `}
                 >
                   {/* Icon */}
                   <div
                     className={`
-                      flex h-12 w-12 items-center justify-center rounded-full
+                      flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300
                       ${step.status === 'completed' ? 'bg-green-500 text-white' : ''}
                       ${step.status === 'active' ? 'bg-blue-500 text-white' : ''}
                       ${step.status === 'pending' ? 'bg-slate-200 text-slate-500' : ''}
+                      ${step.status === 'error' ? 'bg-red-500 text-white' : ''}
                     `}
                   >
-                    <step.icon className="h-6 w-6" />
+                    {step.status === 'active' ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      <step.icon className="h-6 w-6" />
+                    )}
                   </div>
 
                   {/* Step Info */}
@@ -293,7 +525,7 @@ export function PipelinePage() {
                   {/* Count Badge */}
                   {step.count > 0 && (
                     <Badge
-                      variant={step.status === 'completed' ? 'success' : 'secondary'}
+                      variant={step.status === 'completed' ? 'success' : step.status === 'error' ? 'destructive' : 'secondary'}
                       className="mt-2"
                     >
                       {step.count} items
@@ -301,11 +533,11 @@ export function PipelinePage() {
                   )}
 
                   {/* Progress Bar */}
-                  {step.status === 'active' && step.progress && (
+                  {step.status === 'active' && typeof step.progress === 'number' && (
                     <div className="w-full mt-2">
                       <Progress value={step.progress} className="h-2" />
                       <p className="text-xs text-center mt-1 text-blue-600">
-                        {step.progress}%
+                        {Math.round(step.progress)}%
                       </p>
                     </div>
                   )}
@@ -339,35 +571,49 @@ export function PipelinePage() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Current Course: SC Investment Real Estate Fundamentals</span>
-                  <span className="text-muted-foreground">3 of 9</span>
+                  <span>Current Course: {processingStats.currentCourse || 'Initializing...'}</span>
+                  <span className="text-muted-foreground">
+                    {processingStats.courseIndex} of {processingStats.totalCourses}
+                  </span>
                 </div>
-                <Progress value={33} className="h-2" />
+                <Progress 
+                  value={processingStats.totalCourses > 0 
+                    ? (processingStats.courseIndex / processingStats.totalCourses) * 100 
+                    : 0} 
+                  className="h-2" 
+                />
               </div>
 
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Current Student: Joseph Franco</span>
-                  <span className="text-muted-foreground">12 of 31</span>
+                  <span>Current Student: {processingStats.currentStudent || 'Waiting...'}</span>
+                  <span className="text-muted-foreground">
+                    {processingStats.studentIndex} of {processingStats.totalStudents}
+                  </span>
                 </div>
-                <Progress value={39} className="h-2" />
+                <Progress 
+                  value={processingStats.totalStudents > 0 
+                    ? (processingStats.studentIndex / processingStats.totalStudents) * 100 
+                    : 0} 
+                  className="h-2" 
+                />
               </div>
 
               <div className="grid grid-cols-4 gap-4 pt-4 border-t">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">8</p>
+                  <p className="text-2xl font-bold text-green-600">{processingStats.submitted}</p>
                   <p className="text-xs text-muted-foreground">Submitted</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-red-600">0</p>
+                  <p className="text-2xl font-bold text-red-600">{processingStats.failed}</p>
                   <p className="text-xs text-muted-foreground">Failed</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-yellow-600">2</p>
+                  <p className="text-2xl font-bold text-yellow-600">{processingStats.skipped}</p>
                   <p className="text-xs text-muted-foreground">Skipped</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-orange-600">1</p>
+                  <p className="text-2xl font-bold text-orange-600">{processingStats.duplicate}</p>
                   <p className="text-xs text-muted-foreground">Duplicate</p>
                 </div>
               </div>

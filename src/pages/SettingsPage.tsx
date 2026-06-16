@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,45 +24,106 @@ import {
   Bell,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
+import { getSettings, saveSettings, resetSettings, type Settings } from '@/lib/api'
+
+// Default settings for initial state
+const defaultSettings: Settings = {
+  exceedce_base_url: 'https://exceedce.com/api',
+  exceedce_api_key: '',
+  ceb_endpoint: 'https://api.cebroker.com/UploadXMLString',
+  ceb_provider_id: '',
+  ceb_upload_key: '',
+  ceb_mode: 'test',
+  ceb_dry_run: true,
+  ceb_print_xml: false,
+  ceb_sc_profession: 'RE',
+  ceb_default_profession: 'RE',
+  ceb_test_license_override: '',
+  ceb_test_course_override: '',
+  ledger_path: './data/submissions.json',
+  enable_notifications: true,
+  email_on_error: true,
+  email_recipients: '',
+}
 
 export function SettingsPage() {
+  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [config, setConfig] = useState<Settings>(defaultSettings)
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // Configuration state
-  const [config, setConfig] = useState({
-    // ExceedCE
-    exceedce_base_url: 'https://exceedce.com/api',
-    exceedce_api_key: '••••••••••••••••',
-    
-    // CE Broker
-    ceb_endpoint: 'https://api.cebroker.com/UploadXMLString',
-    ceb_provider_id: '32093',
-    ceb_upload_key: '••••••••',
-    ceb_mode: 'test',
-    ceb_dry_run: true,
-    ceb_print_xml: false,
-    
-    // SC Specific
-    ceb_sc_profession: 'RE',
-    ceb_default_profession: 'RE',
-    ceb_test_license_override: '99999999',
-    ceb_test_course_override: '900105',
-    
-    // Ledger
-    ledger_path: './data/submissions.json',
-    
-    // Notifications
-    enable_notifications: true,
-    email_on_error: true,
-    email_recipients: 'admin@example.com',
-  })
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  // Auto-clear status message after 5 seconds
+  useEffect(() => {
+    if (statusMessage) {
+      const timer = setTimeout(() => setStatusMessage(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [statusMessage])
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true)
+      const settings = await getSettings()
+      setConfig(settings)
+    } catch (error) {
+      console.error('Failed to load settings:', error)
+      setStatusMessage({ type: 'error', text: 'Failed to load settings from server' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleSave = async () => {
-    setIsSaving(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsSaving(false)
+    try {
+      setIsSaving(true)
+      const result = await saveSettings(config)
+      if (result.success) {
+        setStatusMessage({ type: 'success', text: 'Settings saved successfully!' })
+      } else {
+        setStatusMessage({ type: 'error', text: 'Failed to save settings' })
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error)
+      setStatusMessage({ type: 'error', text: 'Failed to save settings. Please try again.' })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleReset = async () => {
+    try {
+      setIsResetting(true)
+      const result = await resetSettings()
+      if (result.success && result.settings) {
+        setConfig(result.settings)
+        setStatusMessage({ type: 'success', text: 'Settings reset to defaults!' })
+      } else {
+        setStatusMessage({ type: 'error', text: 'Failed to reset settings' })
+      }
+    } catch (error) {
+      console.error('Failed to reset settings:', error)
+      setStatusMessage({ type: 'error', text: 'Failed to reset settings. Please try again.' })
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Loading settings...</span>
+      </div>
+    )
   }
 
   return (
@@ -374,24 +435,53 @@ export function SettingsPage() {
       </Tabs>
 
       {/* Save Button */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Reset to Defaults
-        </Button>
-        <Button onClick={handleSave} disabled={isSaving}>
-          {isSaving ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
-            </>
-          )}
-        </Button>
+      <div className="flex flex-col gap-3">
+        {/* Status Message */}
+        {statusMessage && (
+          <div
+            className={`flex items-center gap-2 p-3 rounded-lg ${
+              statusMessage.type === 'success'
+                ? 'bg-green-50 border border-green-200 text-green-800'
+                : 'bg-red-50 border border-red-200 text-red-800'
+            }`}
+          >
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+            ) : (
+              <AlertCircle className="h-5 w-5 text-red-600" />
+            )}
+            <span className="text-sm">{statusMessage.text}</span>
+          </div>
+        )}
+        
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={handleReset} disabled={isResetting || isSaving}>
+            {isResetting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Resetting...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Reset to Defaults
+              </>
+            )}
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving || isResetting}>
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   )
