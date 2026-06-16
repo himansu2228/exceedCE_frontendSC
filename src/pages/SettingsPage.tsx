@@ -154,7 +154,7 @@ export function SettingsPage() {
                   <Label>Pipeline Mode</Label>
                   <Select
                     value={config.ceb_mode}
-                    onValueChange={(v) => setConfig({ ...config, ceb_mode: v })}
+                    onValueChange={(v) => setConfig({ ...config, ceb_mode: v as 'test' | 'live' })}
                   >
                     <SelectTrigger>
                       <SelectValue />

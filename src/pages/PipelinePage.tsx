@@ -26,7 +26,6 @@ import {
   ArrowRight,
   Zap,
   Settings,
-  Clock,
   Loader2,
 } from 'lucide-react'
 import { getSCCourses, type Course } from '@/lib/api'

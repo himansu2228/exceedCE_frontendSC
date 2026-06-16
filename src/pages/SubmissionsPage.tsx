@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -28,7 +27,6 @@ import {
   Clock,
   Eye,
   Download,
-  Filter,
   Code,
   Loader2,
 } from 'lucide-react'
@@ -50,7 +48,7 @@ export function SubmissionsPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [selectedSubmission, setSelectedSubmission] = useState<SubmissionEntry | null>(null)
+  const [_selectedSubmission, setSelectedSubmission] = useState<SubmissionEntry | null>(null)
 
   // Fetch submissions from API
   useEffect(() => {

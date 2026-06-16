@@ -36,7 +36,7 @@ export function CoursesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [_selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [completions, setCompletions] = useState<Student[]>([])
   const [loadingCompletions, setLoadingCompletions] = useState(false)
 

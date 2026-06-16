@@ -197,13 +197,6 @@ export function RosterPipelinePage() {
     loadData()
   }, [])
 
-  // Update pipeline step
-  const updateStep = useCallback((stepId: number, updates: Partial<RosterPipelineStep>) => {
-    setPipelineSteps(prev => 
-      prev.map(step => step.id === stepId ? { ...step, ...updates } : step)
-    )
-  }, [])
-
   // Reset pipeline
   const resetPipeline = useCallback(() => {
     setPipelineSteps(getInitialSteps())
