@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { useNavigate } from 'react-router-dom'
-import { getNotifications, markAllNotificationsRead, clearAllNotifications, markNotificationsRead } from '@/lib/api'
+import { getNotifications, markAllNotificationsRead, clearAllNotifications, markNotificationsRead, apiUrl } from '@/lib/api'
 import type { Notification } from '@/lib/api'
 
 // Helper to format relative time
@@ -54,15 +54,17 @@ export function NotificationsDropdown() {
   useEffect(() => {
     let eventSource: EventSource | null = null
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+    let reconnectAttempts = 0
+    const maxReconnectAttempts = 8
     
     function connectSSE() {
-      // Use the API proxy path for SSE
-      eventSource = new EventSource('/api/notifications/stream')
+      eventSource = new EventSource(apiUrl('/api/notifications/stream'))
       
       eventSource.onopen = () => {
         console.log('[SSE] Connected to notifications stream')
         setIsConnected(true)
         setLoading(false)
+        reconnectAttempts = 0
       }
       
       eventSource.onmessage = (event) => {
@@ -91,11 +93,18 @@ export function NotificationsDropdown() {
         setIsConnected(false)
         eventSource?.close()
         
-        // Reconnect after 5 seconds
+        if (reconnectAttempts >= maxReconnectAttempts) {
+          console.error('[SSE] Max reconnect attempts reached; using polling fallback')
+          return
+        }
+
+        reconnectAttempts += 1
+        const retryDelay = Math.min(5000 * reconnectAttempts, 30000)
+
         reconnectTimeout = setTimeout(() => {
           console.log('[SSE] Attempting to reconnect...')
           connectSSE()
-        }, 5000)
+        }, retryDelay)
       }
     }
     

@@ -28,7 +28,7 @@ import {
   Settings,
   Loader2,
 } from 'lucide-react'
-import { getSCCourses, type Course } from '@/lib/api'
+import { getSCCourses, apiUrl, type Course } from '@/lib/api'
 
 // Pipeline step type
 interface PipelineStep {
@@ -188,7 +188,7 @@ export function PipelinePage() {
       eventSourceRef.current.close()
     }
 
-    const es = new EventSource('/api/pipeline/events')
+    const es = new EventSource(apiUrl('/api/pipeline/events'))
     eventSourceRef.current = es
 
     es.onmessage = (event) => {
@@ -277,7 +277,7 @@ export function PipelinePage() {
         ? undefined 
         : [parseInt(selectedCourses, 10)]
       
-      await fetch('/api/pipeline/start', {
+      await fetch(apiUrl('/api/pipeline/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -295,7 +295,7 @@ export function PipelinePage() {
 
   const handleStopPipeline = async () => {
     try {
-      await fetch('/api/pipeline/stop', { method: 'POST' })
+      await fetch(apiUrl('/api/pipeline/stop'), { method: 'POST' })
     } catch (error) {
       console.error('Failed to stop pipeline:', error)
     }

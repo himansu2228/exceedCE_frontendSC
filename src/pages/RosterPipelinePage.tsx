@@ -29,6 +29,7 @@ import {
   AlertCircle,
   Monitor,
 } from 'lucide-react'
+import { apiUrl } from '@/lib/api'
 
 // Roster Pipeline step type
 interface RosterPipelineStep {
@@ -180,13 +181,13 @@ export function RosterPipelinePage() {
     const loadData = async () => {
       try {
         // Load scheduler status
-        const schedRes = await fetch('/api/roster-pipeline/scheduler')
+        const schedRes = await fetch(apiUrl('/api/roster-pipeline/scheduler'))
         if (schedRes.ok) {
           setSchedulerStatus(await schedRes.json())
         }
         
         // Load history
-        const histRes = await fetch('/api/roster-pipeline/history')
+        const histRes = await fetch(apiUrl('/api/roster-pipeline/history'))
         if (histRes.ok) {
           setHistory(await histRes.json())
         }
@@ -220,7 +221,7 @@ export function RosterPipelinePage() {
       eventSourceRef.current.close()
     }
 
-    const es = new EventSource('/api/roster-pipeline/events')
+    const es = new EventSource(apiUrl('/api/roster-pipeline/events'))
     eventSourceRef.current = es
 
     es.onmessage = (event) => {
@@ -304,7 +305,7 @@ export function RosterPipelinePage() {
     connectSSE()
     
     try {
-      await fetch('/api/roster-pipeline/start', {
+      await fetch(apiUrl('/api/roster-pipeline/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -321,7 +322,7 @@ export function RosterPipelinePage() {
 
   const handleStopPipeline = async () => {
     try {
-      await fetch('/api/roster-pipeline/stop', { method: 'POST' })
+      await fetch(apiUrl('/api/roster-pipeline/stop'), { method: 'POST' })
     } catch (err) {
       console.error('Failed to stop pipeline:', err)
     }
@@ -335,7 +336,7 @@ export function RosterPipelinePage() {
 
   const handleUpdateScheduler = async (updates: Partial<SchedulerStatus>) => {
     try {
-      const res = await fetch('/api/roster-pipeline/scheduler/update', {
+      const res = await fetch(apiUrl('/api/roster-pipeline/scheduler/update'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -906,7 +907,7 @@ export function RosterPipelinePage() {
                   <div className="flex gap-3">
                     <Button
                       onClick={async () => {
-                        await fetch('/api/roster-pipeline/scheduler/run-now', {
+                        await fetch(apiUrl('/api/roster-pipeline/scheduler/run-now'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ dryRun: schedulerStatus.dryRun }),
@@ -923,7 +924,7 @@ export function RosterPipelinePage() {
                       variant="outline"
                       onClick={() => {
                         // Refresh scheduler status
-                        fetch('/api/roster-pipeline/scheduler')
+                        fetch(apiUrl('/api/roster-pipeline/scheduler'))
                           .then(res => res.json())
                           .then(setSchedulerStatus)
                           .catch(console.error)

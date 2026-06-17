@@ -14,6 +14,11 @@ const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
 const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
 const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
 
+export function apiUrl(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return API_ORIGIN ? `${API_ORIGIN}${normalizedPath}` : normalizedPath
+}
+
 export interface Course {
   id: number
   name: string

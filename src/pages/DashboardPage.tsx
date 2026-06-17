@@ -268,9 +268,9 @@ export function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[300px] min-h-[300px] min-w-0">
               {submissionTrend.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                   <AreaChart data={submissionTrend}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="date" className="text-xs" />
@@ -315,9 +315,9 @@ export function DashboardPage() {
             <CardTitle>Status Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center">
+            <div className="h-[300px] min-h-[300px] min-w-0 flex items-center justify-center">
               {statusDistribution.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                   <PieChart>
                     <Pie
                       data={statusDistribution}
@@ -352,9 +352,9 @@ export function DashboardPage() {
             <CardTitle>Course Completion Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[300px] min-h-[300px] min-w-0">
               {courseBreakdown.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                   <BarChart data={courseBreakdown} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" />
