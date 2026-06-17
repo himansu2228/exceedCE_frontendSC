@@ -1,4 +1,17 @@
-const API_BASE = '/api'
+const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
+
+const requestedApiOrigin = (
+  (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim() ||
+  (!import.meta.env.DEV ? DEFAULT_PROD_API_ORIGIN : '')
+)
+
+const isLocalhostOrigin = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(requestedApiOrigin)
+const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
+  ? DEFAULT_PROD_API_ORIGIN
+  : requestedApiOrigin
+
+const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
+const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
 
 export interface Course {
   id: number
