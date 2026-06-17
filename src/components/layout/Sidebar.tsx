@@ -35,19 +35,11 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex h-16 items-center justify-center border-b border-slate-700 px-4">
-        {collapsed ? (
-          <span className="text-2xl font-bold text-blue-400">E</span>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500">
-              <GraduationCap className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">ExceedCE</h1>
-              <p className="text-xs text-slate-400">CE Broker Dashboard</p>
-            </div>
-          </div>
-        )}
+        <img
+          src="https://exceedce-v4.s3.amazonaws.com/public/exceedcelogo-92e2adb1fbbffd331d17d2f64ebd4410.png"
+          alt="ExceedCE logo"
+          className={cn('h-10 w-auto object-contain', collapsed && 'h-8')}
+        />
       </div>
 
       {/* Navigation */}
