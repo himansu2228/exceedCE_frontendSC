@@ -1,18 +1,4 @@
-const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
-
-const rawApiOrigin = (
-  import.meta.env.VITE_API_URL ||
-  (!import.meta.env.DEV ? DEFAULT_PROD_API_ORIGIN : '')
-).trim()
-
-const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
-
-export function buildApiUrl(path: string): string {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  return API_ORIGIN ? `${API_ORIGIN}${normalizedPath}` : normalizedPath
-}
-
-const API_BASE = buildApiUrl('/api')
+const API_BASE = '/api'
 
 export interface Course {
   id: number
