@@ -1,14 +1,9 @@
 const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
 
-const requestedApiOrigin = (
+const rawApiOrigin = (
   import.meta.env.VITE_API_URL ||
   (!import.meta.env.DEV ? DEFAULT_PROD_API_ORIGIN : '')
 ).trim()
-
-const isLocalhostOrigin = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(requestedApiOrigin)
-const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
-  ? DEFAULT_PROD_API_ORIGIN
-  : requestedApiOrigin
 
 const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
 
