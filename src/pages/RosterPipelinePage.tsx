@@ -482,7 +482,7 @@ export function RosterPipelinePage() {
                     CE Broker Roster Page
                   </a>
                   <a
-                    href="https://verify.llronline.com/LicLookup/"
+                    href="https://verify.llronline.com/LicLookup/Rec/Rec.aspx?div=19"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
