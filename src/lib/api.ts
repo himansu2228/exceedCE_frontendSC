@@ -2,6 +2,7 @@ const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
 
 const requestedApiOrigin = (
   (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim() ||
+  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
   (!import.meta.env.DEV ? DEFAULT_PROD_API_ORIGIN : '')
 )
 

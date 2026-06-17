@@ -6,7 +6,7 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const apiUrl = env.API_URL || 'http://localhost:3000'
+  const apiUrl = env.VITE_API_URL || env.VITE_API_ORIGIN || env.API_URL || 'http://localhost:3000'
 
   return {
     plugins: [react(), tailwindcss()],
