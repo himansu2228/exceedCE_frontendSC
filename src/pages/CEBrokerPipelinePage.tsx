@@ -40,7 +40,7 @@ import {
   Monitor,
   Workflow,
 } from 'lucide-react'
-import { getSCCourses, type Course } from '@/lib/api'
+import { buildApiUrl, getSCCourses, type Course } from '@/lib/api'
 
 // ============== Types ==============
 
@@ -268,13 +268,13 @@ export function CEBrokerPipelinePage() {
     const loadData = async () => {
       try {
         // Load scheduler status
-        const schedRes = await fetch('/api/roster-pipeline/scheduler')
+        const schedRes = await fetch(buildApiUrl('/api/roster-pipeline/scheduler'))
         if (schedRes.ok) {
           setSchedulerStatus(await schedRes.json())
         }
         
         // Load history
-        const histRes = await fetch('/api/roster-pipeline/history')
+        const histRes = await fetch(buildApiUrl('/api/roster-pipeline/history'))
         if (histRes.ok) {
           setHistory(await histRes.json())
         }
@@ -324,7 +324,7 @@ export function CEBrokerPipelinePage() {
       xmlEventSourceRef.current.close()
     }
 
-    const es = new EventSource('/api/pipeline/events')
+    const es = new EventSource(buildApiUrl('/api/pipeline/events'))
     xmlEventSourceRef.current = es
 
     es.onmessage = (event) => {
@@ -401,7 +401,7 @@ export function CEBrokerPipelinePage() {
       rosterEventSourceRef.current.close()
     }
 
-    const es = new EventSource('/api/roster-pipeline/events')
+    const es = new EventSource(buildApiUrl('/api/roster-pipeline/events'))
     rosterEventSourceRef.current = es
 
     es.onmessage = (event) => {
@@ -492,7 +492,7 @@ export function CEBrokerPipelinePage() {
     connectRosterSSE()
     
     try {
-      await fetch('/api/roster-pipeline/start', {
+      await fetch(buildApiUrl('/api/roster-pipeline/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -519,7 +519,7 @@ export function CEBrokerPipelinePage() {
         ? undefined 
         : [parseInt(selectedCourses, 10)]
       
-      await fetch('/api/pipeline/start', {
+      await fetch(buildApiUrl('/api/pipeline/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -543,8 +543,8 @@ export function CEBrokerPipelinePage() {
     try {
       // Stop both pipelines
       await Promise.all([
-        fetch('/api/pipeline/stop', { method: 'POST' }),
-        fetch('/api/roster-pipeline/stop', { method: 'POST' }),
+        fetch(buildApiUrl('/api/pipeline/stop'), { method: 'POST' }),
+        fetch(buildApiUrl('/api/roster-pipeline/stop'), { method: 'POST' }),
       ])
     } catch (error) {
       console.error('Failed to stop pipeline:', error)
@@ -566,7 +566,7 @@ export function CEBrokerPipelinePage() {
   // Update scheduler
   const handleUpdateScheduler = async (updates: Partial<SchedulerStatus>) => {
     try {
-      const res = await fetch('/api/roster-pipeline/scheduler/update', {
+      const res = await fetch(buildApiUrl('/api/roster-pipeline/scheduler/update'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -1344,7 +1344,7 @@ export function CEBrokerPipelinePage() {
                   <div className="flex gap-3">
                     <Button
                       onClick={async () => {
-                        await fetch('/api/roster-pipeline/scheduler/run-now', {
+                        await fetch(buildApiUrl('/api/roster-pipeline/scheduler/run-now'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ dryRun: schedulerStatus.dryRun }),
@@ -1360,7 +1360,7 @@ export function CEBrokerPipelinePage() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        fetch('/api/roster-pipeline/scheduler')
+                        fetch(buildApiUrl('/api/roster-pipeline/scheduler'))
                           .then(res => res.json())
                           .then(setSchedulerStatus)
                           .catch(console.error)

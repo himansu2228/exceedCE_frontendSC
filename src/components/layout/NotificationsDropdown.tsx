@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { useNavigate } from 'react-router-dom'
-import { getNotifications, markAllNotificationsRead, clearAllNotifications, markNotificationsRead } from '@/lib/api'
+import { buildApiUrl, getNotifications, markAllNotificationsRead, clearAllNotifications, markNotificationsRead } from '@/lib/api'
 import type { Notification } from '@/lib/api'
 
 // Helper to format relative time
@@ -47,7 +47,6 @@ export function NotificationsDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
-  const [isConnected, setIsConnected] = useState(false)
   const navigate = useNavigate()
 
   // Real-time notifications using Server-Sent Events (SSE)
@@ -57,11 +56,10 @@ export function NotificationsDropdown() {
     
     function connectSSE() {
       // Use the API proxy path for SSE
-      eventSource = new EventSource('/api/notifications/stream')
+      eventSource = new EventSource(buildApiUrl('/api/notifications/stream'))
       
       eventSource.onopen = () => {
         console.log('[SSE] Connected to notifications stream')
-        setIsConnected(true)
         setLoading(false)
       }
       
@@ -88,7 +86,6 @@ export function NotificationsDropdown() {
       
       eventSource.onerror = (error) => {
         console.error('[SSE] Connection error:', error)
-        setIsConnected(false)
         eventSource?.close()
         
         // Reconnect after 5 seconds
@@ -105,10 +102,8 @@ export function NotificationsDropdown() {
     // Fallback: Initial fetch in case SSE takes time
     getNotifications(10)
       .then(data => {
-        if (!isConnected) {
-          setNotifications(data)
-          setLoading(false)
-        }
+        setNotifications(data)
+        setLoading(false)
       })
       .catch(err => {
         console.error('Failed to fetch notifications:', err)
