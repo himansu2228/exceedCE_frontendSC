@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
+const EXCEEDCE_LOGO_URL = 'https://exceedce-v4.s3.amazonaws.com/public/exceedcelogo-92e2adb1fbbffd331d17d2f64ebd4410.png'
+
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/courses', icon: GraduationCap, label: 'Courses' },
@@ -34,19 +36,19 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center justify-center border-b border-slate-700 px-4">
+      <div className="flex h-20 items-center justify-center border-b border-slate-700 px-3">
         {collapsed ? (
-          <span className="text-2xl font-bold text-blue-400">E</span>
+          <img
+            src={EXCEEDCE_LOGO_URL}
+            alt="ExceedCE logo"
+            className="h-10 w-10 rounded-md object-contain"
+          />
         ) : (
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500">
-              <GraduationCap className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">ExceedCE</h1>
-              <p className="text-xs text-slate-400">CE Broker Dashboard</p>
-            </div>
-          </div>
+          <img
+            src={EXCEEDCE_LOGO_URL}
+            alt="ExceedCE logo"
+            className="h-14 w-auto max-w-[180px] object-contain"
+          />
         )}
       </div>
 

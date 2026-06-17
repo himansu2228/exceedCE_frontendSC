@@ -11,6 +11,7 @@ const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
   : requestedApiOrigin
 
 const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
+const PROD_API_BASE = `${DEFAULT_PROD_API_ORIGIN}/api`
 
 export function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
@@ -88,19 +89,40 @@ export interface PipelineStatus {
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
-  
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`)
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options?.headers,
   }
-  
-  return response.json()
+
+  const request = async (baseUrl: string): Promise<T> => {
+    const response = await fetch(`${baseUrl}${endpoint}`, {
+      ...options,
+      headers,
+    })
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`)
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.toLowerCase().includes('application/json')) {
+      const bodyPreview = (await response.text()).slice(0, 120)
+      throw new Error(`Expected JSON but got ${contentType || 'unknown content-type'}: ${bodyPreview}`)
+    }
+
+    return response.json()
+  }
+
+  try {
+    return await request(API_BASE)
+  } catch (primaryError) {
+    const canRetryWithProdApi = !import.meta.env.DEV && API_BASE !== PROD_API_BASE
+    if (!canRetryWithProdApi) {
+      throw primaryError
+    }
+
+    return request(PROD_API_BASE)
+  }
 }
 
 // Dashboard
