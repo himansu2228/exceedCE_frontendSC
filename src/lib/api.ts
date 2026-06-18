@@ -3,7 +3,7 @@ const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
 const requestedApiOrigin = (
   (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim() ||
   (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
-  (!import.meta.env.DEV ? DEFAULT_PROD_API_ORIGIN : '')
+  (import.meta.env.DEV ? 'http://localhost:3000' : DEFAULT_PROD_API_ORIGIN)
 )
 
 const isLocalhostOrigin = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(requestedApiOrigin)
@@ -39,6 +39,29 @@ export interface Student {
   // Actual license from ExceedCE (before any test override)
   exceedce_license?: string
   exceedce_profession?: string
+}
+
+export interface CompletedEntry {
+  id: string
+  course_id: number
+  course_name: string
+  ceb_course_id: string | null
+  state: string
+  user_id: number | null
+  first_name: string
+  last_name: string
+  full_name: string
+  email: string
+  license_number: string
+  licensee_profession: string
+  date_completed: string | null
+  date_completed_iso: string | null
+}
+
+export interface CompletedEntriesResponse {
+  entries: CompletedEntry[]
+  total: number
+  courses_scanned: number
 }
 
 export interface SubmissionEntry {
@@ -119,6 +142,23 @@ export async function getSCCourses(): Promise<Course[]> {
 
 export async function getCourseCompletions(courseId: number): Promise<Student[]> {
   return fetchApi<Student[]>(`/courses/${courseId}/completions`)
+}
+
+export async function getCompletedEntries(filters?: {
+  courseId?: number
+  fromDate?: string
+  toDate?: string
+  search?: string
+}): Promise<CompletedEntriesResponse> {
+  const params = new URLSearchParams()
+
+  if (filters?.courseId) params.set('courseId', String(filters.courseId))
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  if (filters?.search) params.set('search', filters.search)
+
+  const query = params.toString()
+  return fetchApi<CompletedEntriesResponse>(`/completions${query ? `?${query}` : ''}`)
 }
 
 // Submissions

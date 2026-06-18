@@ -4,6 +4,7 @@ import {
   DashboardPage,
   CoursesPage,
   SubmissionsPage,
+  CompletedPage,
   CEBrokerPipelinePage,
   LogsPage,
   SettingsPage,
@@ -17,6 +18,7 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="courses" element={<CoursesPage />} />
           <Route path="submissions" element={<SubmissionsPage />} />
+          <Route path="completed" element={<CompletedPage />} />
           <Route path="pipeline" element={<CEBrokerPipelinePage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
