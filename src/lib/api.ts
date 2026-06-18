@@ -256,6 +256,50 @@ export async function getPipelineStatus(): Promise<PipelineStatus> {
   return fetchApi<PipelineStatus>('/pipeline/status')
 }
 
+export interface RosterPipelineEntry {
+  id: string
+  user_id: number | null
+  first_name: string
+  last_name: string
+  email: string
+  course_id: number | null
+  course_name: string
+  licenseNumber: string
+  completion_date: string | null
+}
+
+export interface RosterEntriesResponse {
+  total: number
+  entries: RosterPipelineEntry[]
+}
+
+export interface RosterPostSummary {
+  successful: number
+  failed: number
+  skipped: number
+}
+
+export async function getRosterPipelineEntries(filters?: { sinceDate?: string; courseIds?: number[] }): Promise<RosterEntriesResponse> {
+  const params = new URLSearchParams()
+  if (filters?.sinceDate) params.set('sinceDate', filters.sinceDate)
+  if (filters?.courseIds && filters.courseIds.length > 0) {
+    params.set('courseIds', filters.courseIds.join(','))
+  }
+
+  const query = params.toString()
+  return fetchApi<RosterEntriesResponse>(`/roster-pipeline/entries${query ? `?${query}` : ''}`)
+}
+
+export async function postSelectedRosterEntries(payload: {
+  entries: RosterPipelineEntry[]
+  dryRun?: boolean
+}): Promise<{ message: string; summary: RosterPostSummary }> {
+  return fetchApi<{ message: string; summary: RosterPostSummary }>('/roster-pipeline/post-selected', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function startPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/pipeline/start', {
     method: 'POST',

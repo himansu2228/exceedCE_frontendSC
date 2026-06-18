@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -95,6 +96,55 @@ interface HistoryEntry {
   failed: number
   skipped: number
   errors: Array<{ error: string }>
+  entries?: Array<{
+    student: string
+    course: string
+    licenseNumber: string
+    profession: string | null
+    success: boolean
+    skipped: boolean
+    error: string | null
+    reason: string | null
+    timestamp: string
+    dryRun?: boolean
+  }>
+}
+
+interface RosterFeedEntry {
+  student: string
+  course: string
+  licenseNumber: string
+  profession: string | null
+  status: 'posted' | 'skipped' | 'failed'
+  mode: 'dry-run' | 'live'
+  timestamp: string
+  reason?: string | null
+  error?: string | null
+}
+
+function mapRosterEntryToFeed(entry: {
+  student: string
+  course: string
+  licenseNumber: string
+  profession: string | null
+  success: boolean
+  skipped: boolean
+  error: string | null
+  reason: string | null
+  timestamp: string
+  dryRun?: boolean
+}): RosterFeedEntry {
+  return {
+    student: entry.student,
+    course: entry.course,
+    licenseNumber: entry.licenseNumber,
+    profession: entry.profession,
+    status: entry.success ? 'posted' : entry.skipped ? 'skipped' : 'failed',
+    mode: entry.dryRun ? 'dry-run' : 'live',
+    timestamp: entry.timestamp,
+    reason: entry.reason,
+    error: entry.error,
+  }
 }
 
 // ============== Initial Pipeline Steps ==============
@@ -193,6 +243,8 @@ const getInitialSteps = (): PipelineStep[] => [
 // ============== Main Component ==============
 
 export function CEBrokerPipelinePage() {
+  const location = useLocation()
+
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false)
   const [dryRun, setDryRun] = useState(true)
@@ -240,10 +292,34 @@ export function CEBrokerPipelinePage() {
   
   // Error state
   const [error, setError] = useState<string | null>(null)
+
+  // Active tab is derived from route so sidebar can open the roster tab directly
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'roster' | 'scheduler' | 'history'>(
+    location.pathname === '/roster-posting' ? 'roster' : 'pipeline'
+  )
+
+  // Live roster feed (in-memory while current run is active)
+  const [liveRosterFeed, setLiveRosterFeed] = useState<RosterFeedEntry[]>([])
   
   // SSE connection refs (one for each pipeline)
   const xmlEventSourceRef = useRef<EventSource | null>(null)
   const rosterEventSourceRef = useRef<EventSource | null>(null)
+
+  // Keep tab in sync with route changes from sidebar clicks
+  useEffect(() => {
+    setActiveTab(location.pathname === '/roster-posting' ? 'roster' : 'pipeline')
+  }, [location.pathname])
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const histRes = await fetch(apiUrl('/api/roster-pipeline/history'))
+      if (histRes.ok) {
+        setHistory(await histRes.json())
+      }
+    } catch (err) {
+      console.error('Failed to load history:', err)
+    }
+  }, [])
 
   // ============== Load Initial Data ==============
 
@@ -272,18 +348,14 @@ export function CEBrokerPipelinePage() {
         if (schedRes.ok) {
           setSchedulerStatus(await schedRes.json())
         }
-        
-        // Load history
-        const histRes = await fetch(apiUrl('/api/roster-pipeline/history'))
-        if (histRes.ok) {
-          setHistory(await histRes.json())
-        }
+
+        await loadHistory()
       } catch (err) {
         console.error('Failed to load data:', err)
       }
     }
     loadData()
-  }, [])
+  }, [loadHistory])
 
   // ============== Pipeline Step Management ==============
 
@@ -314,6 +386,7 @@ export function CEBrokerPipelinePage() {
     })
     setError(null)
     setCurrentPhase('idle')
+    setLiveRosterFeed([])
   }, [])
 
   // ============== SSE Connection Management ==============
@@ -435,6 +508,26 @@ export function CEBrokerPipelinePage() {
               studentIndex: data.current ?? prev.studentIndex,
               totalStudents: data.total ?? prev.totalStudents,
             }))
+
+            if (data.student) {
+              setLiveRosterFeed(prev => {
+                const next: RosterFeedEntry = {
+                  student: data.student,
+                  course: 'Current run',
+                  licenseNumber: data.licenseNumber || '-',
+                  profession: data.profession || null,
+                  status: 'posted',
+                  mode: dryRun ? 'dry-run' : 'live',
+                  timestamp: new Date().toISOString(),
+                }
+
+                const deduped = prev.filter(
+                  item => !(item.student === next.student && item.licenseNumber === next.licenseNumber)
+                )
+
+                return [next, ...deduped].slice(0, 30)
+              })
+            }
             break
             
           case 'complete':
@@ -448,11 +541,18 @@ export function CEBrokerPipelinePage() {
                 failed: data.summary.failed || prev.failed,
                 skipped: data.summary.skipped || prev.skipped,
               }))
+
+              if (Array.isArray(data.summary.entries)) {
+                const mapped = data.summary.entries.map(mapRosterEntryToFeed)
+                setLiveRosterFeed(mapped.slice(0, 30))
+              }
             }
             // Mark all steps as completed
             setPipelineSteps(prev => 
               prev.map(step => ({ ...step, status: 'completed' }))
             )
+
+            loadHistory().catch(() => {})
             break
             
           case 'error':
@@ -484,6 +584,30 @@ export function CEBrokerPipelinePage() {
       }
     }
   }, [])
+
+  const handleStartRosterOnly = async () => {
+    resetPipeline()
+    setIsRunning(true)
+    setCurrentPhase('roster')
+    connectRosterSSE()
+
+    try {
+      await fetch(apiUrl('/api/roster-pipeline/start'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sinceDate: sinceDate || undefined,
+          dryRun: mode === 'live' ? dryRun : true,
+          courseIds: selectedCourses === 'all' ? null : [selectedCourses],
+        }),
+      })
+    } catch (err) {
+      console.error('Failed to start roster-only pipeline:', err)
+      setIsRunning(false)
+      setCurrentPhase('idle')
+      setError('Failed to start roster posting')
+    }
+  }
 
   // ============== Pipeline Control ==============
 
@@ -597,6 +721,13 @@ export function CEBrokerPipelinePage() {
   const xmlSteps = pipelineSteps.filter(s => s.phase === 'xml')
   const rosterSteps = pipelineSteps.filter(s => s.phase === 'roster')
 
+  const rosterHistoryFeed: RosterFeedEntry[] = history
+    .flatMap(run =>
+      (run.entries || []).map(mapRosterEntryToFeed)
+    )
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 50)
+
   // ============== Render ==============
 
   return (
@@ -615,9 +746,10 @@ export function CEBrokerPipelinePage() {
       </div>
 
       {/* Tabs for different views */}
-      <Tabs defaultValue="pipeline" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pipeline' | 'roster' | 'scheduler' | 'history')} className="space-y-6">
         <TabsList>
           <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+          <TabsTrigger value="roster">Roster Post</TabsTrigger>
           <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
@@ -1146,6 +1278,101 @@ export function CEBrokerPipelinePage() {
                   <p className="text-xs text-muted-foreground">Roster Posted</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ============== Roster Post Tab ============== */}
+        <TabsContent value="roster" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileEdit className="h-5 w-5" />
+                Roster Posting Control
+              </CardTitle>
+              <CardDescription>
+                See live roster creation and either auto-post via pipeline or manually post in CE Broker.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Button onClick={handleStartPipeline} disabled={isRunning}>
+                  <Play className="h-4 w-4 mr-2" />
+                  Start Full Pipeline
+                </Button>
+                <Button variant="secondary" onClick={handleStartRosterOnly} disabled={isRunning}>
+                  <Zap className="h-4 w-4 mr-2" />
+                  Start Roster Only
+                </Button>
+                <Button asChild variant="outline">
+                  <a
+                    href="https://providers.cebroker.com/#rosters/create/1291177"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Manual Post in CE Broker
+                  </a>
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={isRunning ? 'default' : 'secondary'}>
+                  {isRunning ? 'Pipeline Running' : 'Pipeline Idle'}
+                </Badge>
+                <Badge variant={currentPhase === 'roster' ? 'success' : 'outline'}>
+                  {currentPhase === 'roster' ? 'Roster Phase Active' : 'Roster Phase Inactive'}
+                </Badge>
+                <Badge variant={mode === 'live' && !dryRun ? 'destructive' : 'outline'}>
+                  {mode === 'live' && !dryRun ? 'Live Post Mode' : 'Safe Dry Run'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className={isRunning && currentPhase === 'roster' ? 'h-5 w-5 animate-spin' : 'h-5 w-5'} />
+                Live Roster Feed
+              </CardTitle>
+              <CardDescription>
+                Latest roster entries from current run and recent automatic runs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {(liveRosterFeed.length > 0 || rosterHistoryFeed.length > 0) ? (
+                <div className="space-y-3">
+                  {(liveRosterFeed.length > 0 ? liveRosterFeed : rosterHistoryFeed).slice(0, 15).map((entry, index) => (
+                    <div key={`${entry.licenseNumber}-${entry.timestamp}-${index}`} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium text-sm">{entry.student}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={entry.status === 'posted' ? 'success' : entry.status === 'skipped' ? 'secondary' : 'destructive'}>
+                            {entry.status === 'posted' ? 'Posted' : entry.status === 'skipped' ? 'Skipped' : 'Failed'}
+                          </Badge>
+                          <Badge variant="outline">{entry.mode}</Badge>
+                        </div>
+                      </div>
+                      <div className="mt-2 grid gap-1 text-xs text-muted-foreground md:grid-cols-2">
+                        <p>License: {entry.licenseNumber || '-'}</p>
+                        <p>Profession: {entry.profession || '-'}</p>
+                        <p>Course: {entry.course || '-'}</p>
+                        <p>{new Date(entry.timestamp).toLocaleString()}</p>
+                      </div>
+                      {(entry.reason || entry.error) && (
+                        <p className="mt-2 text-xs text-amber-700">
+                          {entry.reason || entry.error}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  No roster activity yet. Start full pipeline or roster-only run to see live entries here.
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

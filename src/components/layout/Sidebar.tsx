@@ -5,6 +5,7 @@ import {
   Users,
   CalendarCheck2,
   Workflow,
+  ClipboardList,
   Settings,
   FileText,
   ChevronLeft,
@@ -20,6 +21,7 @@ const navItems = [
   { path: '/submissions', icon: Users, label: 'Submissions' },
   { path: '/completed', icon: CalendarCheck2, label: 'Completed' },
   { path: '/pipeline', icon: Workflow, label: 'CE Broker Pipeline' },
+  { path: '/roster-posting', icon: ClipboardList, label: 'Roster Post' },
   { path: '/logs', icon: FileText, label: 'Logs' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
