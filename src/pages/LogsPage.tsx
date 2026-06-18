@@ -86,6 +86,45 @@ export function LogsPage() {
     })
   }
 
+  const statTiles = [
+    {
+      label: 'Success',
+      value: logs.filter((l) => l.level === 'success').length.toLocaleString(),
+      icon: CheckCircle2,
+      accent: 'from-emerald-500 to-green-500',
+      ring: 'ring-emerald-200',
+      bg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+    {
+      label: 'Errors',
+      value: logs.filter((l) => l.level === 'error').length.toLocaleString(),
+      icon: XCircle,
+      accent: 'from-rose-500 to-red-500',
+      ring: 'ring-rose-200',
+      bg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+    },
+    {
+      label: 'Warnings',
+      value: logs.filter((l) => l.level === 'warning').length.toLocaleString(),
+      icon: AlertTriangle,
+      accent: 'from-amber-500 to-yellow-500',
+      ring: 'ring-amber-200',
+      bg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+    },
+    {
+      label: 'Info',
+      value: logs.filter((l) => l.level === 'info').length.toLocaleString(),
+      icon: Info,
+      accent: 'from-blue-500 to-indigo-500',
+      ring: 'ring-blue-200',
+      bg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+    },
+  ]
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -108,59 +147,23 @@ export function LogsPage() {
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {logs.filter((l) => l.level === 'success').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Success</p>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        {statTiles.map((tile) => (
+          <Card key={tile.label} className="relative overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
+            <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${tile.accent}`} />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:text-[11px]">{tile.label}</p>
+                  <p className="mt-1 text-xl font-semibold leading-tight text-foreground sm:text-2xl">{tile.value}</p>
+                </div>
+                <div className={`rounded-md p-1.5 ring-1 ${tile.ring} ${tile.bg}`}>
+                  <tile.icon className={`h-3.5 w-3.5 ${tile.iconColor}`} />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <XCircle className="h-8 w-8 text-red-500" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {logs.filter((l) => l.level === 'error').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Errors</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-yellow-500" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {logs.filter((l) => l.level === 'warning').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Warnings</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Info className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {logs.filter((l) => l.level === 'info').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Info</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Logs */}
@@ -210,7 +213,7 @@ export function LogsPage() {
             {filteredLogs.map((log) => (
               <div
                 key={log.id}
-                className="flex items-start gap-4 rounded-lg border p-4 hover:bg-slate-50 transition-colors"
+                className="flex items-start gap-4 rounded-xl border border-border/70 bg-card/60 p-4 transition-colors hover:bg-muted/30"
               >
                 {/* Level Icon */}
                 <div className="mt-0.5">{levelIcons[log.level]}</div>
@@ -231,7 +234,7 @@ export function LogsPage() {
                       {Object.entries(log.details).map(([key, value]) => (
                         <span
                           key={key}
-                          className="text-xs bg-slate-100 rounded px-2 py-1"
+                          className="rounded px-2 py-1 text-xs bg-muted"
                         >
                           <span className="text-muted-foreground">{key}:</span>{' '}
                           <span className="font-mono">{String(value)}</span>

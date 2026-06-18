@@ -78,6 +78,36 @@ export function CoursesPage() {
   const totalEnrolled = courses.reduce((sum, c) => sum + (c.total_enrolled || 0), 0)
   const totalCompleted = courses.reduce((sum, c) => sum + (c.total_completed || 0), 0)
 
+  const statTiles = [
+    {
+      label: 'SC Courses',
+      value: courses.length.toLocaleString(),
+      icon: GraduationCap,
+      accent: 'from-blue-500 to-indigo-500',
+      ring: 'ring-blue-200',
+      bg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+    },
+    {
+      label: 'Total Enrolled',
+      value: totalEnrolled.toLocaleString(),
+      icon: Users,
+      accent: 'from-amber-500 to-orange-500',
+      ring: 'ring-amber-200',
+      bg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+    },
+    {
+      label: 'Total Completed',
+      value: totalCompleted.toLocaleString(),
+      icon: CheckCircle2,
+      accent: 'from-emerald-500 to-green-500',
+      ring: 'ring-emerald-200',
+      bg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+  ]
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -100,48 +130,23 @@ export function CoursesPage() {
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-                <GraduationCap className="h-6 w-6 text-blue-600" />
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
+        {statTiles.map((tile) => (
+          <Card key={tile.label} className="relative overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
+            <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${tile.accent}`} />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:text-[11px]">{tile.label}</p>
+                  <p className="mt-1 text-xl font-semibold leading-tight text-foreground sm:text-2xl">{tile.value}</p>
+                </div>
+                <div className={`rounded-md p-1.5 ring-1 ${tile.ring} ${tile.bg}`}>
+                  <tile.icon className={`h-3.5 w-3.5 ${tile.iconColor}`} />
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{courses.length}</p>
-                <p className="text-sm text-muted-foreground">SC Courses</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100">
-                <Users className="h-6 w-6 text-indigo-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalEnrolled}</p>
-                <p className="text-sm text-muted-foreground">Total Enrolled</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalCompleted}</p>
-                <p className="text-sm text-muted-foreground">Total Completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Courses Table */}

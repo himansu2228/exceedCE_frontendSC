@@ -22,23 +22,29 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen: boolean
+  onMobileClose: () => void
+}
+
+export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
 
   return (
     <aside
       className={cn(
-        'relative flex flex-col bg-slate-900 text-white transition-all duration-300',
-        collapsed ? 'w-16' : 'w-64'
+        'brand-sidebar fixed inset-y-0 left-0 z-50 flex flex-col border-r border-white/10 text-white transition-all duration-300 lg:relative lg:translate-x-0',
+        collapsed ? 'w-16' : 'w-64',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center justify-center border-b border-slate-700 px-4">
+      <div className="flex h-16 items-center justify-center border-b border-white/10 px-4">
         <img
-          src="https://exceedce-v4.s3.amazonaws.com/public/exceedcelogo-92e2adb1fbbffd331d17d2f64ebd4410.png"
+          src={collapsed ? '/exceedce.com-favicon.ico' : 'https://exceedce-v4.s3.amazonaws.com/public/exceedcelogo-92e2adb1fbbffd331d17d2f64ebd4410.png'}
           alt="ExceedCE logo"
-          className={cn('h-10 w-auto object-contain', collapsed && 'h-8')}
+          className={cn('h-10 w-auto object-contain', collapsed && 'h-8 w-8')}
         />
       </div>
 
@@ -50,11 +56,12 @@ export function Sidebar() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={onMobileClose}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-primary/20 text-primary-foreground ring-1 ring-primary/40'
+                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
               )}
             >
               <item.icon className="h-5 w-5 shrink-0" />
@@ -68,7 +75,7 @@ export function Sidebar() {
       <Button
         variant="ghost"
         size="icon"
-        className="absolute -right-3 top-20 h-6 w-6 rounded-full border bg-slate-800 text-white hover:bg-slate-700"
+        className="absolute -right-3 top-20 hidden h-6 w-6 rounded-full border border-white/20 bg-slate-900/90 text-white hover:bg-slate-800 lg:inline-flex"
         onClick={() => setCollapsed(!collapsed)}
       >
         {collapsed ? (
@@ -79,7 +86,7 @@ export function Sidebar() {
       </Button>
 
       {/* Footer */}
-      <div className={cn('border-t border-slate-700 p-4', collapsed && 'px-2')}>
+      <div className={cn('border-t border-white/10 p-4', collapsed && 'px-2')}>
         {!collapsed && (
           <div className="text-xs text-slate-400">
             <p>South Carolina Pipeline</p>

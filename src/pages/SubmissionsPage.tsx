@@ -135,6 +135,59 @@ export function SubmissionsPage() {
     duplicate: submissions.filter((s) => s.submission.status === 'duplicate').length,
   }
 
+  const statTiles = [
+    {
+      key: 'all',
+      label: 'Total',
+      value: stats.total.toLocaleString(),
+      icon: Search,
+      accent: 'from-blue-500 to-indigo-500',
+      ring: 'ring-blue-200',
+      bg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+    },
+    {
+      key: 'ok',
+      label: 'Successful',
+      value: stats.ok.toLocaleString(),
+      icon: CheckCircle2,
+      accent: 'from-emerald-500 to-green-500',
+      ring: 'ring-emerald-200',
+      bg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+    {
+      key: 'error',
+      label: 'Errors',
+      value: stats.error.toLocaleString(),
+      icon: XCircle,
+      accent: 'from-rose-500 to-red-500',
+      ring: 'ring-rose-200',
+      bg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+    },
+    {
+      key: 'skipped',
+      label: 'Skipped',
+      value: stats.skipped.toLocaleString(),
+      icon: AlertTriangle,
+      accent: 'from-amber-500 to-yellow-500',
+      ring: 'ring-amber-200',
+      bg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+    },
+    {
+      key: 'duplicate',
+      label: 'Duplicates',
+      value: stats.duplicate.toLocaleString(),
+      icon: Clock,
+      accent: 'from-orange-500 to-amber-500',
+      ring: 'ring-orange-200',
+      bg: 'bg-orange-50',
+      iconColor: 'text-orange-600',
+    },
+  ]
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -157,37 +210,30 @@ export function SubmissionsPage() {
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card className="cursor-pointer hover:border-blue-300" onClick={() => setStatusFilter('all')}>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold">{stats.total}</p>
-            <p className="text-sm text-muted-foreground">Total</p>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-green-300" onClick={() => setStatusFilter('ok')}>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold text-green-600">{stats.ok}</p>
-            <p className="text-sm text-muted-foreground">Successful</p>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-red-300" onClick={() => setStatusFilter('error')}>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold text-red-600">{stats.error}</p>
-            <p className="text-sm text-muted-foreground">Errors</p>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-yellow-300" onClick={() => setStatusFilter('skipped')}>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold text-yellow-600">{stats.skipped}</p>
-            <p className="text-sm text-muted-foreground">Skipped</p>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-orange-300" onClick={() => setStatusFilter('duplicate')}>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold text-orange-600">{stats.duplicate}</p>
-            <p className="text-sm text-muted-foreground">Duplicates</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-5">
+        {statTiles.map((tile) => {
+          const active = statusFilter === tile.key
+          return (
+            <Card
+              key={tile.key}
+              className={`relative cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px] ${active ? 'ring-2 ring-primary/35 border-primary/45' : ''}`}
+              onClick={() => setStatusFilter(tile.key)}
+            >
+              <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${tile.accent}`} />
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:text-[11px]">{tile.label}</p>
+                    <p className="mt-1 text-xl font-semibold leading-tight text-foreground sm:text-2xl">{tile.value}</p>
+                  </div>
+                  <div className={`rounded-md p-1.5 ring-1 ${tile.ring} ${tile.bg}`}>
+                    <tile.icon className={`h-3.5 w-3.5 ${tile.iconColor}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Submissions Table */}

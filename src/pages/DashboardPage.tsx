@@ -13,6 +13,7 @@ import {
   Activity,
   TrendingUp,
   Loader2,
+  Sparkles,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -118,6 +119,49 @@ export function DashboardPage() {
     ? (stats.successful_submissions / stats.total_submissions * 100).toFixed(1)
     : '0.0'
 
+  const topStats = [
+    {
+      title: 'Total Courses',
+      value: stats.total_courses.toLocaleString(),
+      description: 'SC mapped courses',
+      icon: GraduationCap,
+      accent: 'from-blue-500 to-indigo-500',
+      ring: 'ring-blue-200',
+      bg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+    },
+    {
+      title: 'Total Submissions',
+      value: stats.total_submissions.toLocaleString(),
+      description: 'All time records',
+      icon: Users,
+      accent: 'from-amber-500 to-orange-500',
+      ring: 'ring-amber-200',
+      bg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+    },
+    {
+      title: 'Success Rate',
+      value: `${successRate}%`,
+      description: 'Submission success',
+      icon: FileCheck,
+      accent: 'from-violet-500 to-fuchsia-500',
+      ring: 'ring-violet-200',
+      bg: 'bg-violet-50',
+      iconColor: 'text-violet-600',
+    },
+    {
+      title: 'Pipeline Status',
+      value: pipelineStatus?.is_running ? 'Running' : 'Idle',
+      description: pipelineStatus?.current_course || 'Ready to run',
+      icon: Activity,
+      accent: 'from-emerald-500 to-teal-500',
+      ring: 'ring-emerald-200',
+      bg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+  ]
+
   // Build status distribution from real stats
   const statusDistribution = [
     { name: 'Successful', value: stats.successful_submissions, color: '#22c55e' },
@@ -126,141 +170,121 @@ export function DashboardPage() {
     { name: 'Duplicate', value: stats.duplicate_submissions, color: '#f97316' },
   ].filter(item => item.value > 0)
 
+  const summaryTiles = [
+    {
+      label: 'Successful',
+      value: stats.successful_submissions.toLocaleString(),
+      icon: CheckCircle2,
+      accent: 'from-emerald-500 to-green-500',
+      bg: 'bg-emerald-50',
+      ring: 'ring-emerald-200',
+      iconColor: 'text-emerald-600',
+    },
+    {
+      label: 'Failed',
+      value: stats.failed_submissions.toLocaleString(),
+      icon: XCircle,
+      accent: 'from-rose-500 to-red-500',
+      bg: 'bg-rose-50',
+      ring: 'ring-rose-200',
+      iconColor: 'text-rose-600',
+    },
+    {
+      label: 'Skipped',
+      value: stats.skipped_submissions.toLocaleString(),
+      icon: AlertTriangle,
+      accent: 'from-amber-500 to-yellow-500',
+      bg: 'bg-amber-50',
+      ring: 'ring-amber-200',
+      iconColor: 'text-amber-600',
+    },
+    {
+      label: 'Duplicates',
+      value: stats.duplicate_submissions.toLocaleString(),
+      icon: Clock,
+      accent: 'from-orange-500 to-amber-500',
+      bg: 'bg-orange-50',
+      ring: 'ring-orange-200',
+      iconColor: 'text-orange-600',
+    },
+  ]
+
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Courses
-            </CardTitle>
-            <GraduationCap className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_courses}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              SC mapped courses
-            </p>
-          </CardContent>
-        </Card>
+    <div className="space-y-4 sm:space-y-6 animate-fadeIn">
+      <div className="flex items-start gap-3">
+        <div className="relative mt-0.5 shrink-0">
+          <div className="absolute inset-0 rounded-xl bg-primary/30 blur-md opacity-70" />
+          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-md shadow-primary/25">
+            <TrendingUp className="h-4 w-4" />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold text-foreground sm:text-xl">Overview Dashboard</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">CE automation performance</p>
+        </div>
+      </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Submissions
-            </CardTitle>
-            <Users className="h-4 w-4 text-indigo-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_submissions}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              All time submissions
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Success Rate
-            </CardTitle>
-            <FileCheck className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{successRate}%</div>
-            <Progress value={parseFloat(successRate)} className="h-2 mt-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pipeline Status
-            </CardTitle>
-            <Activity className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              {pipelineStatus?.is_running ? (
-                <>
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                  </span>
-                  <span className="text-lg font-semibold text-green-600">Running</span>
-                </>
-              ) : (
-                <>
-                  <span className="relative flex h-3 w-3">
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-gray-400"></span>
-                  </span>
-                  <span className="text-lg font-semibold text-gray-600">Idle</span>
-                </>
+      {/* Vaani-style compact tiles */}
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        {topStats.map((stat) => (
+          <Card
+            key={stat.title}
+            className="relative overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]"
+          >
+            <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${stat.accent}`} />
+            <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-2">
+              <div className="flex items-start justify-between gap-2">
+                <CardTitle className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:text-[11px]">
+                  {stat.title}
+                </CardTitle>
+                <div className={`rounded-md p-1.5 ring-1 ${stat.ring} ${stat.bg}`}>
+                  <stat.icon className={`h-3.5 w-3.5 ${stat.iconColor}`} />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+              <div className="text-xl font-semibold leading-tight text-foreground sm:text-2xl">{stat.value}</div>
+              <p className="mt-1 truncate text-[11px] text-muted-foreground sm:text-xs">{stat.description}</p>
+              {stat.title === 'Success Rate' && (
+                <Progress value={parseFloat(successRate)} className="mt-2 h-1.5" />
               )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {pipelineStatus?.current_course || 'Ready to run'}
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mb-1 flex items-center gap-2 sm:mb-2">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:text-[11px]">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          Performance Analytics
+        </span>
+        <div className="h-px flex-1 bg-border/70" />
       </div>
 
       {/* Status Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.successful_submissions}</p>
-                <p className="text-sm text-muted-foreground">Successful</p>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        {summaryTiles.map((tile) => (
+          <Card key={tile.label} className="relative overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
+            <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${tile.accent}`} />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:text-[11px]">{tile.label}</p>
+                  <p className="mt-1 text-xl font-semibold leading-tight text-foreground sm:text-2xl">{tile.value}</p>
+                </div>
+                <div className={`rounded-md p-1.5 ring-1 ${tile.ring} ${tile.bg}`}>
+                  <tile.icon className={`h-3.5 w-3.5 ${tile.iconColor}`} />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <XCircle className="h-8 w-8 text-red-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.failed_submissions}</p>
-                <p className="text-sm text-muted-foreground">Failed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-yellow-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.skipped_submissions}</p>
-                <p className="text-sm text-muted-foreground">Skipped</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Clock className="h-8 w-8 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.duplicate_submissions}</p>
-                <p className="text-sm text-muted-foreground">Duplicates</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Submission Trend */}
-        <Card>
+        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
@@ -310,7 +334,7 @@ export function DashboardPage() {
         </Card>
 
         {/* Status Distribution */}
-        <Card>
+        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
           <CardHeader>
             <CardTitle>Status Distribution</CardTitle>
           </CardHeader>
@@ -345,9 +369,9 @@ export function DashboardPage() {
       </div>
 
       {/* Course Breakdown & Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Course Breakdown */}
-        <Card>
+        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
           <CardHeader>
             <CardTitle>Course Completion Breakdown</CardTitle>
           </CardHeader>
@@ -381,7 +405,7 @@ export function DashboardPage() {
         </Card>
 
         {/* Recent Activity */}
-        <Card>
+        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
