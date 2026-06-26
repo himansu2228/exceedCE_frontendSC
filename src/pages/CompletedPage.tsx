@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -22,11 +23,36 @@ import { Loader2, XCircle, Search, CalendarCheck2, Users, GraduationCap, Filter 
 import { formatDate } from '@/lib/utils'
 import { getCompletedEntries, getSCCourses, type CompletedEntry, type Course } from '@/lib/api'
 
+const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
+
+function readCachedCompletedEntries(): CompletedEntry[] {
+  try {
+    const raw = localStorage.getItem(COMPLETED_ENTRIES_CACHE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed?.entries) ? parsed.entries : []
+  } catch {
+    return []
+  }
+}
+
+function writeCachedCompletedEntries(entries: CompletedEntry[]) {
+  try {
+    localStorage.setItem(COMPLETED_ENTRIES_CACHE_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      entries,
+    }))
+  } catch {
+    // Ignore client-side storage failures.
+  }
+}
+
 export function CompletedPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [entries, setEntries] = useState<CompletedEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
 
   const [courseFilter, setCourseFilter] = useState('all')
   const [fromDate, setFromDate] = useState('')
@@ -41,16 +67,26 @@ export function CompletedPage() {
   const fetchCompletedEntries = async () => {
     setLoading(true)
     setError(null)
+    setWarning(null)
     try {
       const response = await getCompletedEntries({
         courseId: courseFilter === 'all' ? undefined : Number(courseFilter),
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         search: searchTerm.trim() || undefined,
+        resolveProfession: true,
+        timeoutMs: 12000,
       })
       setEntries(response.entries)
+      writeCachedCompletedEntries(response.entries)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch completed users')
+      const fallbackEntries = readCachedCompletedEntries()
+      if (fallbackEntries.length > 0) {
+        setEntries(fallbackEntries)
+        setWarning('Live completed records timed out. Showing the latest cached snapshot.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch completed users')
+      }
     } finally {
       setLoading(false)
     }
@@ -82,8 +118,10 @@ export function CompletedPage() {
     setLoading(true)
     setError(null)
     try {
-      const response = await getCompletedEntries()
+      const response = await getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 })
       setEntries(response.entries)
+      writeCachedCompletedEntries(response.entries)
+      setWarning(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset filters')
     } finally {
@@ -152,6 +190,12 @@ export function CompletedPage() {
 
   return (
     <div className="animate-fadeIn space-y-6">
+      {warning && (
+        <Alert>
+          <AlertDescription>{warning}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
         {statTiles.map((tile) => (
           <Card key={tile.label} className="relative overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">

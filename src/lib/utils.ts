@@ -26,6 +26,8 @@ export function formatDateTime(dateStr: string | Date): string {
 }
 
 export function getStatusColor(status: string): string {
+  if (!status) return 'bg-gray-100 text-gray-800 border-gray-200'
+  
   const statusMap: Record<string, string> = {
     'ok': 'bg-green-100 text-green-800 border-green-200',
     'success': 'bg-green-100 text-green-800 border-green-200',

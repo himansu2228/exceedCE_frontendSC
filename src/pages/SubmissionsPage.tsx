@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Table,
   TableBody,
@@ -29,10 +30,52 @@ import {
   Download,
   Code,
   Loader2,
+  Zap,
+  RefreshCw,
 } from 'lucide-react'
 import { formatDateTime, getStatusColor } from '@/lib/utils'
-import { getSubmissions } from '@/lib/api'
-import type { SubmissionEntry } from '@/lib/api'
+import { getCompletedEntries, getSubmissions, resolveLicenseProfession, relookupAllProfessions } from '@/lib/api'
+import type { CompletedEntry, SubmissionEntry } from '@/lib/api'
+
+// Map profession names to CE Broker codes
+const PROFESSION_TO_CODE: Record<string, string> = {
+  'associate': 'RELS',
+  'salesperson': 'RELS',
+  'real estate salesperson': 'RELS',
+  'broker': 'REB',
+  'real estate broker': 'REB',
+  'broker-in-charge': 'BIC',
+  'property manager': 'PM',
+  // Already codes
+  'rels': 'RELS',
+  'reb': 'REB',
+  'rebr': 'REB',
+  'bic': 'BIC',
+  'pm': 'PM',
+}
+
+// Invalid profession values that shouldn't be displayed
+const INVALID_PROFESSIONS = new Set(['rn', 'registered nurse', 're', 'n/a', 'none', ''])
+
+// Map raw profession to display code
+function mapProfessionToCode(raw: string | null | undefined): string {
+  if (!raw) return ''
+  const normalized = raw.toLowerCase().trim()
+  
+  // Skip invalid values
+  if (INVALID_PROFESSIONS.has(normalized)) return ''
+  
+  // Check if already a valid code
+  const mapped = PROFESSION_TO_CODE[normalized]
+  if (mapped) return mapped
+  
+  // Return original if it looks like a valid CE Broker code (2-4 uppercase letters)
+  if (/^[A-Z]{2,4}$/i.test(raw.trim())) return raw.trim().toUpperCase()
+  
+  // If looks like a name (has spaces or long), just return empty
+  // This will trigger the "Resolve" button to appear
+  return ''
+}
 
 const statusIcons: Record<string, React.ReactNode> = {
   ok: <CheckCircle2 className="h-4 w-4 text-green-500" />,
@@ -44,11 +87,151 @@ const statusIcons: Record<string, React.ReactNode> = {
 
 export function SubmissionsPage() {
   const [submissions, setSubmissions] = useState<SubmissionEntry[]>([])
+  const [completedEntries, setCompletedEntries] = useState<CompletedEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [completedFallbackNotice, setCompletedFallbackNotice] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [_selectedSubmission, setSelectedSubmission] = useState<SubmissionEntry | null>(null)
+  const [lookupInProgress, setLookupInProgress] = useState<Set<string>>(new Set())
+  const [lookupResults, setLookupResults] = useState<Map<string, string>>(new Map())
+  const [batchLookupInProgress, setBatchLookupInProgress] = useState(false)
+  const [batchLookupResult, setBatchLookupResult] = useState<string | null>(null)
+
+  const normalizeLicense = (value?: string | null) => String(value || '').trim().toUpperCase()
+
+  const professionLookup = useMemo(() => {
+    const byUserId = new Map<number, string>()
+    const byLicense = new Map<string, string>()
+    const byEmail = new Map<string, string>()
+
+    for (const entry of completedEntries) {
+      const rawProfession = String(entry.licensee_profession || '').trim()
+      // Map and validate profession - skip invalid values
+      const profession = mapProfessionToCode(rawProfession)
+      if (!profession) continue
+
+      if (typeof entry.user_id === 'number' && !byUserId.has(entry.user_id)) {
+        byUserId.set(entry.user_id, profession)
+      }
+
+      const license = normalizeLicense(entry.license_number)
+      if (license && !byLicense.has(license)) {
+        byLicense.set(license, profession)
+      }
+
+      const email = String(entry.email || '').trim().toLowerCase()
+      if (email && !byEmail.has(email)) {
+        byEmail.set(email, profession)
+      }
+    }
+
+    return { byUserId, byLicense, byEmail }
+  }, [completedEntries])
+
+  const getSubmissionProfession = (sub: SubmissionEntry): string => {
+    // First try exceedce_profession (actual profession name from CE Broker/LLR lookup)
+    const exceedceProfession = String(sub.student?.exceedce_profession || '').trim()
+    const mappedExceedce = mapProfessionToCode(exceedceProfession)
+    if (mappedExceedce) return mappedExceedce
+
+    // Then try licensee_profession (stored code)
+    const licenseeProfession = String(sub.student?.licensee_profession || '').trim()
+    const mappedLicensee = mapProfessionToCode(licenseeProfession)
+    if (mappedLicensee) return mappedLicensee
+
+    // Fallback to lookup from completed entries
+    if (typeof sub.student?.user_id === 'number') {
+      const fromUser = professionLookup.byUserId.get(sub.student.user_id)
+      const mappedUser = mapProfessionToCode(fromUser)
+      if (mappedUser) return mappedUser
+    }
+
+    const license = normalizeLicense(sub.student?.exceedce_license || sub.student?.license_number)
+    if (license) {
+      const fromLicense = professionLookup.byLicense.get(license)
+      const mappedLicense = mapProfessionToCode(fromLicense)
+      if (mappedLicense) return mappedLicense
+    }
+
+    const email = String(sub.student?.email || '').trim().toLowerCase()
+    if (email) {
+      const fromEmail = professionLookup.byEmail.get(email)
+      const mappedEmail = mapProfessionToCode(fromEmail)
+      if (mappedEmail) return mappedEmail
+    }
+
+    // Check if we have a real-time lookup result
+    if (license) {
+      const fromLookup = lookupResults.get(license)
+      const mappedLookup = mapProfessionToCode(fromLookup)
+      if (mappedLookup) return mappedLookup
+    }
+
+    return ''
+  }
+
+  // Real-time LLR license resolution
+  const handleResolveLicenseRealtime = async (licenseNumber: string) => {
+    if (!licenseNumber) return
+    
+    const normalized = normalizeLicense(licenseNumber)
+    if (!normalized) return
+
+    // Skip if already resolved or in progress
+    if (lookupResults.has(normalized) || lookupInProgress.has(normalized)) {
+      return
+    }
+
+    setLookupInProgress(prev => new Set(prev).add(normalized))
+
+    try {
+      const result = await resolveLicenseProfession(normalized)
+      if (result.found && result.professionCode) {
+        setLookupResults(prev => new Map(prev).set(normalized, result.professionCode || 'RE'))
+      } else if (result.error) {
+        console.warn(`LLR lookup error for ${normalized}: ${result.error}`)
+      }
+    } catch (err) {
+      console.error(`LLR lookup failed for ${normalized}:`, err)
+    } finally {
+      setLookupInProgress(prev => {
+        const next = new Set(prev)
+        next.delete(normalized)
+        return next
+      })
+    }
+  }
+
+  // Batch re-lookup professions from CE Broker
+  const handleBatchRelookupProfessions = async () => {
+    setBatchLookupInProgress(true)
+    setBatchLookupResult(null)
+    try {
+      const result = await relookupAllProfessions()
+      if (result.success) {
+        setBatchLookupResult(`Updated ${result.successful}/${result.total} licenses. ${result.multiple > 0 ? `${result.multiple} had multiple professions.` : ''} ${result.failed > 0 ? `${result.failed} failed.` : ''}`)
+        // Refresh the data
+        const [submissionResult, completedResult] = await Promise.allSettled([
+          getSubmissions(),
+          getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 }),
+        ])
+        if (submissionResult.status === 'fulfilled') {
+          setSubmissions(submissionResult.value)
+        }
+        if (completedResult.status === 'fulfilled') {
+          setCompletedEntries(completedResult.value.entries)
+        }
+      } else {
+        setBatchLookupResult('Failed to re-lookup professions')
+      }
+    } catch (err) {
+      setBatchLookupResult(err instanceof Error ? err.message : 'Failed to re-lookup professions')
+    } finally {
+      setBatchLookupInProgress(false)
+    }
+  }
 
   // Fetch submissions from API
   useEffect(() => {
@@ -56,8 +239,25 @@ export function SubmissionsPage() {
       try {
         setLoading(true)
         setError(null)
-        const data = await getSubmissions()
-        setSubmissions(data)
+        setCompletedFallbackNotice(null)
+
+        const [submissionResult, completedResult] = await Promise.allSettled([
+          getSubmissions(),
+          getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 }),
+        ])
+
+        if (submissionResult.status !== 'fulfilled') {
+          throw submissionResult.reason
+        }
+
+        setSubmissions(submissionResult.value)
+
+        if (completedResult.status === 'fulfilled') {
+          setCompletedEntries(completedResult.value.entries)
+        } else {
+          setCompletedEntries([])
+          setCompletedFallbackNotice('Completed-enrichment data timed out, so profession badges may be partial right now.')
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch submissions')
       } finally {
@@ -87,17 +287,17 @@ export function SubmissionsPage() {
       headers.join(','),
       ...filteredSubmissions.map(sub => {
         const row = [
-          `"${sub.student.first_name} ${sub.student.last_name}"`,
-          `"${sub.student.email}"`,
-          `"${sub.exceed_course_name}"`,
-          sub.ceb_course_id,
-          sub.student.exceedce_license || sub.student.license_number || 'N/A',
-          sub.student.exceedce_profession || sub.student.licensee_profession || 'N/A',
-          sub.student.date_completed,
-          `"${formatDateTime(sub.submission.attempted_at)}"`,
-          sub.submission.status,
-          sub.submission.error_code || '',
-          `"${sub.submission.error_message || sub.submission.reason || ''}"`
+          `"${sub.student?.first_name || ''} ${sub.student?.last_name || ''}"`,
+          `"${sub.student?.email || ''}"`,
+          `"${sub.exceed_course_name || ''}"`,
+          sub.ceb_course_id || '',
+          sub.student?.exceedce_license || sub.student?.license_number || 'N/A',
+          getSubmissionProfession(sub) || 'N/A',
+          sub.student?.date_completed || '',
+          `"${formatDateTime(sub.submission?.attempted_at)}"`,
+          sub.submission?.status || '',
+          sub.submission?.error_code || '',
+          `"${sub.submission?.error_message || sub.submission?.reason || ''}"`
         ]
         return row.join(',')
       })
@@ -117,22 +317,22 @@ export function SubmissionsPage() {
 
   const filteredSubmissions = submissions.filter((sub) => {
     const matchesSearch =
-      sub.student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.exceed_course_name.toLowerCase().includes(searchTerm.toLowerCase())
+      (sub.student?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (sub.student?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (sub.student?.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (sub.exceed_course_name || '').toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'all' || sub.submission.status === statusFilter
+    const matchesStatus = statusFilter === 'all' || sub.submission?.status === statusFilter
 
     return matchesSearch && matchesStatus
   })
 
   const stats = {
     total: submissions.length,
-    ok: submissions.filter((s) => s.submission.status === 'ok').length,
-    error: submissions.filter((s) => s.submission.status === 'error').length,
-    skipped: submissions.filter((s) => s.submission.status === 'skipped').length,
-    duplicate: submissions.filter((s) => s.submission.status === 'duplicate').length,
+    ok: submissions.filter((s) => s.submission?.status === 'ok').length,
+    error: submissions.filter((s) => s.submission?.status === 'error').length,
+    skipped: submissions.filter((s) => s.submission?.status === 'skipped').length,
+    duplicate: submissions.filter((s) => s.submission?.status === 'duplicate').length,
   }
 
   const statTiles = [
@@ -209,6 +409,12 @@ export function SubmissionsPage() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {completedFallbackNotice && (
+        <Alert>
+          <AlertDescription>{completedFallbackNotice}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-5">
         {statTiles.map((tile) => {
@@ -251,11 +457,29 @@ export function SubmissionsPage() {
                   className="pl-9"
                 />
               </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleBatchRelookupProfessions}
+                disabled={batchLookupInProgress}
+              >
+                {batchLookupInProgress ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Fix Professions
+              </Button>
               <Button variant="outline" size="sm" onClick={handleExport}>
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
             </div>
+            {batchLookupResult && (
+              <div className="mt-2 text-sm text-muted-foreground">
+                {batchLookupResult}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -277,36 +501,36 @@ export function SubmissionsPage() {
                   <TableCell>
                     <div>
                       <p className="font-medium">
-                        {sub.student.first_name} {sub.student.last_name}
+                        {sub.student?.first_name || ''} {sub.student?.last_name || ''}
                       </p>
-                      <p className="text-xs text-muted-foreground">{sub.student.email}</p>
+                      <p className="text-xs text-muted-foreground">{sub.student?.email || ''}</p>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="max-w-[200px]">
-                      <p className="text-sm truncate">{sub.exceed_course_name}</p>
-                      <p className="text-xs text-muted-foreground">CEB: {sub.ceb_course_id}</p>
+                      <p className="text-sm truncate">{sub.exceed_course_name || ''}</p>
+                      <p className="text-xs text-muted-foreground">CEB: {sub.ceb_course_id || ''}</p>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div>
-                      <code className="text-sm">{sub.student.exceedce_license || sub.student.license_number || 'N/A'}</code>
-                      {(sub.student.exceedce_profession || sub.student.licensee_profession) && (
+                      <code className="text-sm">{sub.student?.exceedce_license || sub.student?.license_number || 'N/A'}</code>
+                      {getSubmissionProfession(sub) && (
                         <Badge variant="outline" className="ml-2 text-xs">
-                          {sub.student.exceedce_profession || sub.student.licensee_profession}
+                          {getSubmissionProfession(sub)}
                         </Badge>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{sub.student.date_completed}</TableCell>
+                  <TableCell className="text-sm">{sub.student?.date_completed || ''}</TableCell>
                   <TableCell className="text-sm">
-                    {formatDateTime(sub.submission.attempted_at)}
+                    {formatDateTime(sub.submission?.attempted_at)}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {statusIcons[sub.submission.status]}
-                      <Badge className={getStatusColor(sub.submission.status)}>
-                        {sub.submission.status}
+                      {statusIcons[sub.submission?.status || 'skipped']}
+                      <Badge className={getStatusColor(sub.submission?.status || '')}>
+                        {sub.submission?.status || 'unknown'}
                       </Badge>
                     </div>
                   </TableCell>
@@ -332,21 +556,42 @@ export function SubmissionsPage() {
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <h4 className="font-semibold text-sm text-muted-foreground mb-1">Student</h4>
-                              <p className="font-medium">{sub.student.first_name} {sub.student.last_name}</p>
-                              <p className="text-sm text-muted-foreground">{sub.student.email}</p>
+                              <p className="font-medium">{sub.student?.first_name || ''} {sub.student?.last_name || ''}</p>
+                              <p className="text-sm text-muted-foreground">{sub.student?.email || ''}</p>
                             </div>
                             <div>
                               <h4 className="font-semibold text-sm text-muted-foreground mb-1">License (ExceedCE)</h4>
-                              <p className="font-medium">{sub.student.exceedce_license || sub.student.license_number || 'N/A'}</p>
-                              <p className="text-sm text-muted-foreground">{sub.student.exceedce_profession || sub.student.licensee_profession || 'N/A'}</p>
+                              <p className="font-medium">{sub.student?.exceedce_license || sub.student?.license_number || 'N/A'}</p>
+                              <div className="flex items-center gap-2 mt-2">
+                                {getSubmissionProfession(sub) && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {getSubmissionProfession(sub)}
+                                  </Badge>
+                                )}
+                                {(sub.student?.exceedce_license || sub.student?.license_number) && !getSubmissionProfession(sub) && (
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => handleResolveLicenseRealtime(sub.student?.exceedce_license || sub.student?.license_number || '')}
+                                    disabled={lookupInProgress.has(normalizeLicense(sub.student?.exceedce_license || sub.student?.license_number))}
+                                  >
+                                    {lookupInProgress.has(normalizeLicense(sub.student?.exceedce_license || sub.student?.license_number)) ? (
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : (
+                                      <Zap className="h-3 w-3 mr-1" />
+                                    )}
+                                    Resolve
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                           
                           <div>
                             <h4 className="font-semibold text-sm text-muted-foreground mb-1">Course</h4>
-                            <p className="font-medium">{sub.exceed_course_name}</p>
+                            <p className="font-medium">{sub.exceed_course_name || ''}</p>
                             <p className="text-sm text-muted-foreground">
-                              ExceedCE ID: {sub.exceed_course_id} | CE Broker ID: {sub.ceb_course_id}
+                              ExceedCE ID: {sub.exceed_course_id || ''} | CE Broker ID: {sub.ceb_course_id || ''}
                             </p>
                           </div>
 
@@ -354,33 +599,33 @@ export function SubmissionsPage() {
                             <div>
                               <h4 className="font-semibold text-sm text-muted-foreground mb-1">Status</h4>
                               <div className="flex items-center gap-2">
-                                {statusIcons[sub.submission.status]}
-                                <Badge className={getStatusColor(sub.submission.status)}>
-                                  {sub.submission.status}
+                                {statusIcons[sub.submission?.status || 'skipped']}
+                                <Badge className={getStatusColor(sub.submission?.status || '')}>
+                                  {sub.submission?.status || 'unknown'}
                                 </Badge>
                               </div>
                             </div>
                             <div>
                               <h4 className="font-semibold text-sm text-muted-foreground mb-1">HTTP Status</h4>
-                              <p className="font-medium">{sub.submission.httpStatus || 'N/A'}</p>
+                              <p className="font-medium">{sub.submission?.httpStatus || 'N/A'}</p>
                             </div>
                           </div>
 
-                          {(sub.submission.error_code || sub.submission.error_message || sub.submission.reason) && (
+                          {(sub.submission?.error_code || sub.submission?.error_message || sub.submission?.reason) && (
                             <div className="rounded-lg bg-red-50 p-4 border border-red-200">
                               <h4 className="font-semibold text-red-800 mb-1">Error Details</h4>
-                              {sub.submission.error_code && (
+                              {sub.submission?.error_code && (
                                 <p className="text-sm text-red-700">Code: {sub.submission.error_code}</p>
                               )}
                               <p className="text-sm text-red-700">
-                                {sub.submission.error_message || sub.submission.reason}
+                                {sub.submission?.error_message || sub.submission?.reason}
                               </p>
                             </div>
                           )}
 
                           <div>
                             <h4 className="font-semibold text-sm text-muted-foreground mb-1">Attempted At</h4>
-                            <p className="font-medium">{formatDateTime(sub.submission.attempted_at)}</p>
+                            <p className="font-medium">{formatDateTime(sub.submission?.attempted_at)}</p>
                           </div>
                         </div>
                       </DialogContent>

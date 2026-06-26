@@ -123,27 +123,72 @@ interface RosterFeedEntry {
 }
 
 function mapRosterEntryToFeed(entry: {
-  student: string
-  course: string
-  licenseNumber: string
-  profession: string | null
-  success: boolean
-  skipped: boolean
-  error: string | null
-  reason: string | null
-  timestamp: string
+  student: string | { first_name?: string; last_name?: string; license_number?: string } | unknown
+  studentName?: string
+  course: string | { name?: string } | unknown
+  course_name?: string
+  licenseNumber?: string
+  license_number?: string
+  profession: string | null | unknown
+  success?: boolean
+  skipped?: boolean
+  error?: string | null | unknown
+  reason?: string | null | unknown
+  timestamp?: string
   dryRun?: boolean
 }): RosterFeedEntry {
+  // Handle student being either a string or an object
+  let studentName: string
+  if (typeof entry.student === 'string') {
+    studentName = entry.student
+  } else if (entry.studentName) {
+    studentName = entry.studentName
+  } else if (entry.student && typeof entry.student === 'object') {
+    const s = entry.student as { first_name?: string; last_name?: string }
+    studentName = `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown'
+  } else {
+    studentName = 'Unknown'
+  }
+
+  // Handle course being either a string or an object
+  let courseName: string
+  if (typeof entry.course === 'string') {
+    courseName = entry.course
+  } else if (entry.course_name) {
+    courseName = entry.course_name
+  } else if (entry.course && typeof entry.course === 'object') {
+    const c = entry.course as { name?: string }
+    courseName = c.name || '-'
+  } else {
+    courseName = '-'
+  }
+
+  // Handle license number
+  const licenseNum = entry.licenseNumber || entry.license_number || ''
+
+  // Handle profession - it could be an object too
+  let professionStr: string | null = null
+  if (typeof entry.profession === 'string') {
+    professionStr = entry.profession
+  } else if (entry.profession && typeof entry.profession === 'object') {
+    // Just use null if it's an object
+    professionStr = null
+  }
+
+  // Handle error/reason - they could be objects too
+  const errorStr = typeof entry.error === 'string' ? entry.error : null
+  const reasonStr = typeof entry.reason === 'string' ? entry.reason : null
+
   return {
-    student: entry.student,
-    course: entry.course,
-    licenseNumber: entry.licenseNumber,
-    profession: entry.profession,
+    student: studentName,
+    course: courseName,
+    licenseNumber: licenseNum,
+    profession: professionStr,
     status: entry.success ? 'posted' : entry.skipped ? 'skipped' : 'failed',
     mode: entry.dryRun ? 'dry-run' : 'live',
-    timestamp: entry.timestamp,
-    reason: entry.reason,
-    error: entry.error,
+    timestamp: entry.timestamp || new Date().toISOString(),
+    reason: reasonStr,
+    error: errorStr,
   }
 }
 
@@ -304,6 +349,16 @@ export function CEBrokerPipelinePage() {
   // SSE connection refs (one for each pipeline)
   const xmlEventSourceRef = useRef<EventSource | null>(null)
   const rosterEventSourceRef = useRef<EventSource | null>(null)
+  
+  // Refs to track current values for SSE callbacks (avoids stale closure issues)
+  const dryRunRef = useRef(dryRun)
+  const sinceDateRef = useRef(sinceDate)
+  const selectedCoursesRef = useRef(selectedCourses)
+  
+  // Keep refs in sync with state
+  useEffect(() => { dryRunRef.current = dryRun }, [dryRun])
+  useEffect(() => { sinceDateRef.current = sinceDate }, [sinceDate])
+  useEffect(() => { selectedCoursesRef.current = selectedCourses }, [selectedCourses])
 
   // Keep tab in sync with route changes from sidebar clicks
   useEffect(() => {
@@ -597,7 +652,7 @@ export function CEBrokerPipelinePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sinceDate: sinceDate || undefined,
-          dryRun: mode === 'live' ? dryRun : true,
+          dryRun,
           courseIds: selectedCourses === 'all' ? null : [selectedCourses],
         }),
       })
@@ -612,6 +667,7 @@ export function CEBrokerPipelinePage() {
   // ============== Pipeline Control ==============
 
   // Start Roster Phase (called after XML phase completes)
+  // Uses refs to avoid stale closure issues when called from SSE callback
   const startRosterPhase = async () => {
     connectRosterSSE()
     
@@ -620,8 +676,9 @@ export function CEBrokerPipelinePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sinceDate: sinceDate || undefined,
-          dryRun,
+          sinceDate: sinceDateRef.current || undefined,
+          dryRun: dryRunRef.current,
+          courseIds: selectedCoursesRef.current === 'all' ? null : [selectedCoursesRef.current],
         }),
       })
     } catch (err) {
@@ -840,7 +897,7 @@ export function CEBrokerPipelinePage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Completions Since</Label>
+                    <Label>Completion On</Label>
                     <Input
                       type="date"
                       value={sinceDate}
@@ -1343,30 +1400,39 @@ export function CEBrokerPipelinePage() {
             <CardContent>
               {(liveRosterFeed.length > 0 || rosterHistoryFeed.length > 0) ? (
                 <div className="space-y-3">
-                  {(liveRosterFeed.length > 0 ? liveRosterFeed : rosterHistoryFeed).slice(0, 15).map((entry, index) => (
-                    <div key={`${entry.licenseNumber}-${entry.timestamp}-${index}`} className="rounded-lg border p-3">
+                  {(liveRosterFeed.length > 0 ? liveRosterFeed : rosterHistoryFeed).slice(0, 15).map((entry, index) => {
+                    // Ensure all fields are strings, not objects
+                    const safeStr = (val: unknown): string => {
+                      if (val === null || val === undefined) return '-'
+                      if (typeof val === 'string') return val
+                      if (typeof val === 'number' || typeof val === 'boolean') return String(val)
+                      return '-'
+                    }
+                    
+                    return (
+                    <div key={`${safeStr(entry.licenseNumber)}-${safeStr(entry.timestamp)}-${index}`} className="rounded-lg border p-3">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-sm">{entry.student}</p>
+                        <p className="font-medium text-sm">{safeStr(entry.student)}</p>
                         <div className="flex items-center gap-2">
                           <Badge variant={entry.status === 'posted' ? 'success' : entry.status === 'skipped' ? 'secondary' : 'destructive'}>
                             {entry.status === 'posted' ? 'Posted' : entry.status === 'skipped' ? 'Skipped' : 'Failed'}
                           </Badge>
-                          <Badge variant="outline">{entry.mode}</Badge>
+                          <Badge variant="outline">{safeStr(entry.mode)}</Badge>
                         </div>
                       </div>
                       <div className="mt-2 grid gap-1 text-xs text-muted-foreground md:grid-cols-2">
-                        <p>License: {entry.licenseNumber || '-'}</p>
-                        <p>Profession: {entry.profession || '-'}</p>
-                        <p>Course: {entry.course || '-'}</p>
-                        <p>{new Date(entry.timestamp).toLocaleString()}</p>
+                        <p>License: {safeStr(entry.licenseNumber)}</p>
+                        <p>Profession: {safeStr(entry.profession)}</p>
+                        <p>Course: {safeStr(entry.course)}</p>
+                        <p>{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '-'}</p>
                       </div>
                       {(entry.reason || entry.error) && (
                         <p className="mt-2 text-xs text-amber-700">
-                          {entry.reason || entry.error}
+                          {safeStr(entry.reason) !== '-' ? safeStr(entry.reason) : safeStr(entry.error)}
                         </p>
                       )}
                     </div>
-                  ))}
+                  )})}
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">

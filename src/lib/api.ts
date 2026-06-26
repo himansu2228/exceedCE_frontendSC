@@ -110,14 +110,33 @@ export interface PipelineStatus {
   progress?: number
 }
 
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
+interface FetchApiOptions extends RequestInit {
+  timeoutMs?: number
+}
+
+async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise<T> {
+  const controller = new AbortController()
+  const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? 15000))
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`API timeout after ${timeoutMs}ms`)
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
   
   if (!response.ok) {
     throw new Error(`API error: ${response.status} ${response.statusText}`)
@@ -149,6 +168,8 @@ export async function getCompletedEntries(filters?: {
   fromDate?: string
   toDate?: string
   search?: string
+  resolveProfession?: boolean
+  timeoutMs?: number
 }): Promise<CompletedEntriesResponse> {
   const params = new URLSearchParams()
 
@@ -156,9 +177,12 @@ export async function getCompletedEntries(filters?: {
   if (filters?.fromDate) params.set('fromDate', filters.fromDate)
   if (filters?.toDate) params.set('toDate', filters.toDate)
   if (filters?.search) params.set('search', filters.search)
+  if (filters?.resolveProfession) params.set('resolveProfession', String(filters.resolveProfession))
 
   const query = params.toString()
-  return fetchApi<CompletedEntriesResponse>(`/completions${query ? `?${query}` : ''}`)
+  return fetchApi<CompletedEntriesResponse>(`/completions${query ? `?${query}` : ''}`, {
+    timeoutMs: filters?.timeoutMs,
+  })
 }
 
 // Submissions
@@ -168,6 +192,43 @@ export async function getSubmissions(): Promise<SubmissionEntry[]> {
 
 export async function getSubmissionStats(): Promise<DashboardStats> {
   return fetchApi<DashboardStats>('/submissions/stats')
+}
+
+// Re-lookup profession for a single license
+export interface RelookupProfessionResult {
+  success: boolean
+  licenseNumber: string
+  profession?: { code: string; name: string }
+  multiple?: boolean
+  professions?: Array<{ code: string; name: string; id?: number }>
+  entriesUpdated?: number
+  message?: string
+}
+
+export async function relookupProfession(licenseNumber: string): Promise<RelookupProfessionResult> {
+  return fetchApi<RelookupProfessionResult>('/submissions/relookup-profession', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ licenseNumber }),
+  })
+}
+
+// Batch re-lookup all professions
+export interface BatchRelookupResult {
+  success: boolean
+  total: number
+  successful: number
+  failed: number
+  multiple: number
+  updated: Array<{ license: string; profession: string; entriesUpdated: number }>
+  errors: Array<{ license: string; error: string }>
+}
+
+export async function relookupAllProfessions(): Promise<BatchRelookupResult> {
+  return fetchApi<BatchRelookupResult>('/submissions/relookup-all-professions', {
+    method: 'POST',
+    timeoutMs: 300000, // 5 minutes for batch operation
+  })
 }
 
 // Recent activity
@@ -293,6 +354,14 @@ export async function getRosterPipelineEntries(filters?: { sinceDate?: string; c
 export async function postSelectedRosterEntries(payload: {
   entries: RosterPipelineEntry[]
   dryRun?: boolean
+  submissionMode?: 'api' | 'browser'
+  apiVariant?: 'xml' | 'v2'
+  timeoutMs?: number
+  providerId?: string
+  uploadKey?: string
+  endpoint?: string
+  v2Endpoint?: string
+  v2BearerToken?: string
 }): Promise<{ message: string; summary: RosterPostSummary }> {
   return fetchApi<{ message: string; summary: RosterPostSummary }>('/roster-pipeline/post-selected', {
     method: 'POST',
@@ -375,5 +444,35 @@ export async function saveSettings(settings: Partial<Settings>): Promise<{ succe
 export async function resetSettings(): Promise<{ success: boolean; message: string; settings: Settings }> {
   return fetchApi<{ success: boolean; message: string; settings: Settings }>('/settings/reset', {
     method: 'POST',
+  })
+}
+
+// LLR License Lookup (Real-time Puppeteer-based)
+export interface LLRLookupResult {
+  license_number: string
+  found: boolean
+  profession?: string
+  professionCode?: string
+  error?: string | null
+  raw?: {
+    found?: boolean
+    profession?: string
+    professionCode?: string
+    status?: string
+    name?: string
+    expirationDate?: string
+  }
+}
+
+export async function resolveLicenseProfession(
+  licenseNumber: string,
+  saveToSubmissionKey?: string
+): Promise<LLRLookupResult> {
+  return fetchApi<LLRLookupResult>('/llr/lookup', {
+    method: 'POST',
+    body: JSON.stringify({
+      license_number: licenseNumber,
+      save_to_submission: saveToSubmissionKey,
+    }),
   })
 }

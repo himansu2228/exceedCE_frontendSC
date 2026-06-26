@@ -431,7 +431,7 @@ export function RosterPipelinePage() {
                 {/* Configuration Options */}
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Completions Since</Label>
+                    <Label>Completion On</Label>
                     <Input
                       type="date"
                       value={sinceDate}
@@ -439,7 +439,7 @@ export function RosterPipelinePage() {
                       placeholder="YYYY-MM-DD"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Process completions from this date (default: today)
+                      Process completions on this date (default: today)
                     </p>
                   </div>
 

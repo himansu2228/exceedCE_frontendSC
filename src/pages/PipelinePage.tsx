@@ -397,7 +397,7 @@ export function PipelinePage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Completions Since</Label>
+                <Label>Completion On</Label>
                 <Input
                   type="date"
                   value={sinceDate}
