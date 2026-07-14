@@ -340,6 +340,16 @@ export interface RosterPostSummary {
   skipped: number
 }
 
+export interface RosterVerificationStatus {
+  required: boolean
+  source: string | null
+  reason: string | null
+  provider: string | null
+  detectedAt: string | null
+  instructions: string | null
+  resolvedAt: string | null
+}
+
 export async function getRosterPipelineEntries(filters?: { sinceDate?: string; courseIds?: number[] }): Promise<RosterEntriesResponse> {
   const params = new URLSearchParams()
   if (filters?.sinceDate) params.set('sinceDate', filters.sinceDate)
@@ -366,6 +376,16 @@ export async function postSelectedRosterEntries(payload: {
   return fetchApi<{ message: string; summary: RosterPostSummary }>('/roster-pipeline/post-selected', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export async function getRosterVerificationStatus(): Promise<RosterVerificationStatus> {
+  return fetchApi<RosterVerificationStatus>('/roster-pipeline/verification-status')
+}
+
+export async function resolveRosterVerification(): Promise<{ success: boolean; verification: RosterVerificationStatus }> {
+  return fetchApi<{ success: boolean; verification: RosterVerificationStatus }>('/roster-pipeline/verification/resolve', {
+    method: 'POST',
   })
 }
 

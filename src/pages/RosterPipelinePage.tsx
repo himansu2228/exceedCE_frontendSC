@@ -28,8 +28,9 @@ import {
   ExternalLink,
   AlertCircle,
   Monitor,
+  ShieldAlert,
 } from 'lucide-react'
-import { apiUrl } from '@/lib/api'
+import { apiUrl, getRosterVerificationStatus, resolveRosterVerification, type RosterVerificationStatus } from '@/lib/api'
 
 // Roster Pipeline step type
 interface RosterPipelineStep {
@@ -172,6 +173,10 @@ export function RosterPipelinePage() {
   
   // Error state
   const [error, setError] = useState<string | null>(null)
+
+  // Manual verification state (CAPTCHA/challenge)
+  const [verification, setVerification] = useState<RosterVerificationStatus | null>(null)
+  const [resolvingVerification, setResolvingVerification] = useState(false)
   
   // SSE connection ref
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -191,6 +196,9 @@ export function RosterPipelinePage() {
         if (histRes.ok) {
           setHistory(await histRes.json())
         }
+
+        const verificationStatus = await getRosterVerificationStatus()
+        setVerification(verificationStatus)
       } catch (err) {
         console.error('Failed to load data:', err)
       }
@@ -213,6 +221,20 @@ export function RosterPipelinePage() {
       skipped: 0,
     })
     setError(null)
+  }, [])
+
+  const handleResolveVerification = useCallback(async () => {
+    setResolvingVerification(true)
+    try {
+      const response = await resolveRosterVerification()
+      setVerification(response.verification)
+      setError(null)
+    } catch (err) {
+      console.error('Failed to resolve verification:', err)
+      setError('Failed to mark verification as resolved')
+    } finally {
+      setResolvingVerification(false)
+    }
   }, [])
 
   // Connect to SSE for pipeline updates
@@ -271,6 +293,17 @@ export function RosterPipelinePage() {
             setPipelineSteps(prev => 
               prev.map(step => ({ ...step, status: 'completed' }))
             )
+            break
+
+          case 'verification-required':
+            setIsRunning(false)
+            setVerification(data.verification || null)
+            setError(null)
+            break
+
+          case 'verification-resolved':
+            setVerification(data.verification || null)
+            setError(null)
             break
             
           case 'error':
@@ -394,6 +427,30 @@ export function RosterPipelinePage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {verification?.required && (
+            <Alert>
+              <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>Manual Verification Required</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{verification.reason || 'A manual challenge was detected during roster processing.'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {verification.instructions || 'Complete the challenge in browser manually, then mark verification as resolved and re-run.'}
+                </p>
+                <div className="flex items-center gap-3">
+                  <Button size="sm" onClick={handleResolveVerification} disabled={resolvingVerification}>
+                    {resolvingVerification ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
+                    I Completed Verification
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Provider: {verification.provider || 'unknown'}
+                  </span>
+                </div>
+              </AlertDescription>
             </Alert>
           )}
 
@@ -523,6 +580,12 @@ export function RosterPipelinePage() {
                   <span className="text-sm text-muted-foreground">Scheduler</span>
                   <Badge variant={schedulerStatus?.enabled ? 'success' : 'secondary'}>
                     {schedulerStatus?.enabled ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Verification</span>
+                  <Badge variant={verification?.required ? 'warning' : 'success'}>
+                    {verification?.required ? 'Required' : 'Clear'}
                   </Badge>
                 </div>
               </CardContent>
