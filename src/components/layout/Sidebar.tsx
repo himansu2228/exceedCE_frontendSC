@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   GraduationCap,
@@ -10,10 +10,12 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { signOut } from '@/lib/auth'
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -34,6 +36,13 @@ interface SidebarProps {
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    signOut()
+    onMobileClose()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <aside
@@ -91,6 +100,20 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       {/* Footer */}
       <div className={cn('border-t border-white/10 p-4', collapsed && 'px-2')}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleLogout}
+          title="Logout"
+          className={cn(
+            'mb-3 flex w-full items-center rounded-lg border border-red-500/40 bg-red-500/20 px-3 py-2.5 text-red-200 transition-colors hover:bg-red-500/30 hover:text-red-100',
+            collapsed && 'justify-center px-2'
+          )}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span className="ml-2 text-sm font-medium">Logout</span>}
+        </Button>
+
         {!collapsed && (
           <div className="text-xs text-slate-400">
             <p>South Carolina Pipeline</p>

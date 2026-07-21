@@ -133,3 +133,68 @@ h6 {
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
 }
+
+@keyframes premiumFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0);
+  }
+}
+
+@keyframes premiumFloatDelayed {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, 12px, 0);
+  }
+}
+
+@keyframes premiumAppear {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes premiumSheenSweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+.premium-float {
+  animation: premiumFloat 8s ease-in-out infinite;
+}
+
+.premium-float-delayed {
+  animation: premiumFloatDelayed 10s ease-in-out infinite;
+}
+
+.premium-float-slow {
+  animation: premiumFloat 12s ease-in-out infinite;
+}
+
+.premium-enter {
+  animation: premiumAppear 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.premium-stagger {
+  animation: premiumAppear 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.premium-sheen {
+  background: linear-gradient(120deg, transparent 42%, rgba(255, 255, 255, 0.45) 50%, transparent 58%);
+  animation: premiumSheenSweep 6s ease-in-out infinite;
+}
