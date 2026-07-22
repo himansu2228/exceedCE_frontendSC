@@ -104,6 +104,21 @@ export function SubmissionsPage() {
   const [totalSubmissions, setTotalSubmissions] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
+  const enrichFromCompletedEntries = async () => {
+    try {
+      setCompletedFallbackNotice(null)
+      const completed = await getCompletedEntries({
+        page: 1,
+        perPage: 2000,
+        timeoutMs: 15000,
+      })
+      setCompletedEntries(completed.entries)
+    } catch {
+      setCompletedEntries([])
+      setCompletedFallbackNotice('Completed-enrichment data is temporarily unavailable, so profession badges may be partial right now.')
+    }
+  }
+
   const normalizeLicense = (value?: string | null) => String(value || '').trim().toUpperCase()
 
   const professionLookup = useMemo(() => {
@@ -225,7 +240,7 @@ export function SubmissionsPage() {
             search: searchTerm.trim() || undefined,
             status: statusFilter,
           }),
-          getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 }),
+          getCompletedEntries({ page: 1, perPage: 2000, timeoutMs: 15000 }),
         ])
         if (submissionResult.status === 'fulfilled') {
           setSubmissions(submissionResult.value.items)
@@ -249,37 +264,20 @@ export function SubmissionsPage() {
     try {
       setLoading(true)
       setError(null)
-      if (loadCompleted) {
-        setCompletedFallbackNotice(null)
-      }
+      const submissionResult = await getSubmissionsPaginated({
+        page,
+        perPage,
+        search: searchTerm.trim() || undefined,
+        status: statusFilter,
+      })
 
-      const [submissionResult, completedResult] = await Promise.allSettled([
-        getSubmissionsPaginated({
-          page,
-          perPage,
-          search: searchTerm.trim() || undefined,
-          status: statusFilter,
-        }),
-        loadCompleted
-          ? getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 })
-          : Promise.resolve({ entries: completedEntries, total: completedEntries.length, courses_scanned: 0 }),
-      ])
-
-      if (submissionResult.status !== 'fulfilled') {
-        throw submissionResult.reason
-      }
-
-      setSubmissions(submissionResult.value.items)
-      setTotalSubmissions(submissionResult.value.total)
-      setTotalPages(submissionResult.value.totalPages)
+      setSubmissions(submissionResult.items)
+      setTotalSubmissions(submissionResult.total)
+      setTotalPages(submissionResult.totalPages)
 
       if (loadCompleted) {
-        if (completedResult.status === 'fulfilled') {
-          setCompletedEntries(completedResult.value.entries)
-        } else {
-          setCompletedEntries([])
-          setCompletedFallbackNotice('Completed-enrichment data timed out, so profession badges may be partial right now.')
-        }
+        // Keep enrichments decoupled so submission data never waits on heavy completed lookups.
+        void enrichFromCompletedEntries()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch submissions')
