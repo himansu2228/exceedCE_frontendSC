@@ -228,14 +228,14 @@ export function CoursesPage() {
                             View
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-3xl">
+                        <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden">
                           <DialogHeader>
                             <DialogTitle>{course.name}</DialogTitle>
                             <DialogDescription>
                               CE Broker ID: {course.ceb_course_id} | State: {course.state}
                             </DialogDescription>
                           </DialogHeader>
-                          <div className="mt-4">
+                          <div className="mt-4 overflow-y-auto pr-1">
                             <h4 className="font-semibold mb-3">Completed Students</h4>
                             {loadingCompletions ? (
                               <div className="flex items-center justify-center py-8">
@@ -245,30 +245,32 @@ export function CoursesPage() {
                             ) : completions.length === 0 ? (
                               <p className="text-muted-foreground text-center py-8">No completed students found</p>
                             ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Name</TableHead>
-                                  <TableHead>Email</TableHead>
-                                  <TableHead>License #</TableHead>
-                                  <TableHead>Completed</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {completions.map((student) => (
-                                  <TableRow key={student.user_id}>
-                                    <TableCell className="font-medium">
-                                      {student.first_name} {student.last_name}
-                                    </TableCell>
-                                    <TableCell>{student.email}</TableCell>
-                                    <TableCell>
-                                      <code className="text-sm">{(student as any).exceedce_license || student.license_number || 'N/A'}</code>
-                                    </TableCell>
-                                    <TableCell>{student.date_completed || 'N/A'}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                              <div className="max-h-[calc(85vh-13rem)] overflow-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Name</TableHead>
+                                      <TableHead>Email</TableHead>
+                                      <TableHead>License #</TableHead>
+                                      <TableHead>Completed</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {completions.map((student) => (
+                                      <TableRow key={student.user_id}>
+                                        <TableCell className="font-medium">
+                                          {student.first_name} {student.last_name}
+                                        </TableCell>
+                                        <TableCell>{student.email}</TableCell>
+                                        <TableCell>
+                                          <code className="text-sm">{(student as any).exceedce_license || student.license_number || 'N/A'}</code>
+                                        </TableCell>
+                                        <TableCell>{student.date_completed || 'N/A'}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
                             )}
                           </div>
                         </DialogContent>
