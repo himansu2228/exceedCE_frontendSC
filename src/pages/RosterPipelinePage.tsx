@@ -31,6 +31,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { apiUrl, getRosterVerificationStatus, resolveRosterVerification, type RosterVerificationStatus } from '@/lib/api'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 
 // Roster Pipeline step type
 interface RosterPipelineStep {
@@ -167,6 +168,10 @@ export function RosterPipelinePage() {
   
   // History
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPerPage, setHistoryPerPage] = useState(10)
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyTotalPages, setHistoryTotalPages] = useState(1)
   
   // Last run timestamp
   const [lastRun, setLastRun] = useState<Date | null>(null)
@@ -181,6 +186,21 @@ export function RosterPipelinePage() {
   // SSE connection ref
   const eventSourceRef = useRef<EventSource | null>(null)
 
+  const loadHistory = useCallback(async () => {
+    const params = new URLSearchParams({
+      page: String(historyPage),
+      perPage: String(historyPerPage),
+    })
+
+    const histRes = await fetch(apiUrl(`/api/roster-pipeline/history?${params.toString()}`))
+    if (!histRes.ok) return
+
+    const payload = await histRes.json()
+    setHistory(Array.isArray(payload.items) ? payload.items : [])
+    setHistoryTotal(Number(payload.total) || 0)
+    setHistoryTotalPages(Number(payload.totalPages) || 1)
+  }, [historyPage, historyPerPage])
+
   // Load scheduler status and history
   useEffect(() => {
     const loadData = async () => {
@@ -191,11 +211,7 @@ export function RosterPipelinePage() {
           setSchedulerStatus(await schedRes.json())
         }
         
-        // Load history
-        const histRes = await fetch(apiUrl('/api/roster-pipeline/history'))
-        if (histRes.ok) {
-          setHistory(await histRes.json())
-        }
+        await loadHistory()
 
         const verificationStatus = await getRosterVerificationStatus()
         setVerification(verificationStatus)
@@ -204,7 +220,7 @@ export function RosterPipelinePage() {
       }
     }
     loadData()
-  }, [])
+  }, [loadHistory])
 
   // Reset pipeline
   const resetPipeline = useCallback(() => {
@@ -1050,6 +1066,19 @@ export function RosterPipelinePage() {
                       </div>
                     </div>
                   ))}
+
+                  <PaginationControls
+                    page={historyPage}
+                    totalPages={historyTotalPages}
+                    totalItems={historyTotal}
+                    pageSize={historyPerPage}
+                    pageSizeOptions={[5, 10, 20, 50]}
+                    onPageChange={setHistoryPage}
+                    onPageSizeChange={(size) => {
+                      setHistoryPerPage(size)
+                      setHistoryPage(1)
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

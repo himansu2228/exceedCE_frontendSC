@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import {
   postSelectedRosterEntries,
   type RosterPipelineEntry,
 } from '@/lib/api'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 
 export function RosterPostingEntriesPage() {
   const [entries, setEntries] = useState<RosterPipelineEntry[]>([])
@@ -23,6 +24,10 @@ export function RosterPostingEntriesPage() {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [totalEntries, setTotalEntries] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
   const loadEntries = useCallback(async () => {
     setLoading(true)
@@ -30,15 +35,26 @@ export function RosterPostingEntriesPage() {
     setSuccess(null)
 
     try {
-      const data = await getRosterPipelineEntries({ sinceDate })
+      const data = await getRosterPipelineEntries({ sinceDate, page, perPage })
       setEntries(data.entries || [])
+      setTotalEntries(data.total || 0)
+      setTotalPages(data.totalPages || 1)
       setSelectedIds({})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load roster entries')
     } finally {
       setLoading(false)
     }
-  }, [sinceDate])
+  }, [sinceDate, page, perPage])
+
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage)
+    setSelectedIds({})
+  }
+
+  useEffect(() => {
+    void loadEntries()
+  }, [loadEntries])
 
   const selectedEntries = useMemo(
     () => entries.filter((entry) => selectedIds[entry.id]),
@@ -175,7 +191,7 @@ export function RosterPostingEntriesPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             Entries
-            <Badge variant="secondary">{entries.length}</Badge>
+            <Badge variant="secondary">{totalEntries}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -189,50 +205,67 @@ export function RosterPostingEntriesPage() {
               No entries found. Load entries first.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-3 px-2 text-left">
-                      <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
-                    </th>
-                    <th className="py-3 px-2 text-left">Student</th>
-                    <th className="py-3 px-2 text-left">License</th>
-                    <th className="py-3 px-2 text-left">Course</th>
-                    <th className="py-3 px-2 text-left">Date</th>
-                    <th className="py-3 px-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="border-b last:border-none">
-                      <td className="py-3 px-2">
-                        <input
-                          type="checkbox"
-                          checked={!!selectedIds[entry.id]}
-                          onChange={(e) =>
-                            setSelectedIds((prev) => ({ ...prev, [entry.id]: e.target.checked }))
-                          }
-                        />
-                      </td>
-                      <td className="py-3 px-2 font-medium">{entry.first_name} {entry.last_name}</td>
-                      <td className="py-3 px-2">{entry.licenseNumber || '-'}</td>
-                      <td className="py-3 px-2">{entry.course_name}</td>
-                      <td className="py-3 px-2">{entry.completion_date ? new Date(entry.completion_date).toLocaleString() : '-'}</td>
-                      <td className="py-3 px-2 text-right">
-                        <Button
-                          size="sm"
-                          onClick={() => handleSinglePost(entry)}
-                          disabled={posting || loading || postingIds[entry.id]}
-                        >
-                          {postingIds[entry.id] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                          Post
-                        </Button>
-                      </td>
+            <div>
+              <div className="mb-4">
+                <PaginationControls
+                  page={page}
+                  totalPages={totalPages}
+                  totalItems={totalEntries}
+                  pageSize={perPage}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={(size) => {
+                    setPerPage(size)
+                    setPage(1)
+                    setSelectedIds({})
+                  }}
+                />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[960px] text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="py-3 px-2 text-left">
+                        <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+                      </th>
+                      <th className="py-3 px-2 text-left">Student</th>
+                      <th className="py-3 px-2 text-left">License</th>
+                      <th className="py-3 px-2 text-left">Course</th>
+                      <th className="py-3 px-2 text-left">Date</th>
+                      <th className="py-3 px-2 text-right">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {entries.map((entry) => (
+                      <tr key={entry.id} className="border-b last:border-none">
+                        <td className="py-3 px-2">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedIds[entry.id]}
+                            onChange={(e) =>
+                              setSelectedIds((prev) => ({ ...prev, [entry.id]: e.target.checked }))
+                            }
+                          />
+                        </td>
+                        <td className="py-3 px-2 font-medium">{entry.first_name} {entry.last_name}</td>
+                        <td className="py-3 px-2">{entry.licenseNumber || '-'}</td>
+                        <td className="py-3 px-2">{entry.course_name}</td>
+                        <td className="py-3 px-2">{entry.completion_date ? new Date(entry.completion_date).toLocaleString() : '-'}</td>
+                        <td className="py-3 px-2 text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => handleSinglePost(entry)}
+                            disabled={posting || loading || postingIds[entry.id]}
+                          >
+                            {postingIds[entry.id] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                            Post
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>

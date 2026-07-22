@@ -22,7 +22,8 @@ import {
   Filter,
   Loader2,
 } from 'lucide-react'
-import { getLogs, type LogEntry } from '@/lib/api'
+import { getLogsPaginated, type LogEntry } from '@/lib/api'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 
 const levelIcons: Record<string, React.ReactNode> = {
   success: <CheckCircle2 className="h-4 w-4 text-green-500" />,
@@ -44,14 +45,25 @@ export function LogsPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [totalLogs, setTotalLogs] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
   // Fetch logs from API
   const fetchLogs = async () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await getLogs(100)
-      setLogs(data)
+      const data = await getLogsPaginated({
+        page,
+        perPage,
+        search: searchTerm.trim() || undefined,
+        level: levelFilter,
+      })
+      setLogs(data.items)
+      setTotalLogs(data.total)
+      setTotalPages(data.totalPages)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch logs')
     } finally {
@@ -60,14 +72,8 @@ export function LogsPage() {
   }
 
   useEffect(() => {
-    fetchLogs()
-  }, [])
-
-  const filteredLogs = logs.filter((log) => {
-    const matchesSearch = log.message.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesLevel = levelFilter === 'all' || log.level === levelFilter
-    return matchesSearch && matchesLevel
-  })
+    void fetchLogs()
+  }, [page, perPage, searchTerm, levelFilter])
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -180,11 +186,17 @@ export function LogsPage() {
                 <Input
                   placeholder="Search logs..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setPage(1)
+                  }}
                   className="pl-9"
                 />
               </div>
-              <Select value={levelFilter} onValueChange={setLevelFilter}>
+              <Select value={levelFilter} onValueChange={(value) => {
+                setLevelFilter(value)
+                setPage(1)
+              }}>
                 <SelectTrigger className="w-32">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />
@@ -210,7 +222,7 @@ export function LogsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {filteredLogs.map((log) => (
+            {logs.map((log) => (
               <div
                 key={log.id}
                 className="flex items-start gap-4 rounded-xl border border-border/70 bg-card/60 p-4 transition-colors hover:bg-muted/30"
@@ -254,12 +266,26 @@ export function LogsPage() {
             ))}
           </div>
 
-          {filteredLogs.length === 0 && (
+          {logs.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No logs found matching your criteria</p>
             </div>
           )}
+
+          <div className="mt-4">
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalLogs}
+              pageSize={perPage}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPerPage(size)
+                setPage(1)
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

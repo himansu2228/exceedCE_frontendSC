@@ -42,6 +42,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import { getSCCourses, apiUrl, type Course } from '@/lib/api'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 
 // ============== Types ==============
 
@@ -331,6 +332,10 @@ export function CEBrokerPipelinePage() {
   
   // History
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPerPage, setHistoryPerPage] = useState(10)
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyTotalPages, setHistoryTotalPages] = useState(1)
   
   // Last run timestamp
   const [lastRun, setLastRun] = useState<Date | null>(null)
@@ -367,14 +372,21 @@ export function CEBrokerPipelinePage() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const histRes = await fetch(apiUrl('/api/roster-pipeline/history'))
+      const params = new URLSearchParams({
+        page: String(historyPage),
+        perPage: String(historyPerPage),
+      })
+      const histRes = await fetch(apiUrl(`/api/roster-pipeline/history?${params.toString()}`))
       if (histRes.ok) {
-        setHistory(await histRes.json())
+        const payload = await histRes.json()
+        setHistory(Array.isArray(payload.items) ? payload.items : [])
+        setHistoryTotal(Number(payload.total) || 0)
+        setHistoryTotalPages(Number(payload.totalPages) || 1)
       }
     } catch (err) {
       console.error('Failed to load history:', err)
     }
-  }, [])
+  }, [historyPage, historyPerPage])
 
   // ============== Load Initial Data ==============
 
@@ -1716,6 +1728,19 @@ export function CEBrokerPipelinePage() {
                       </div>
                     </div>
                   ))}
+
+                  <PaginationControls
+                    page={historyPage}
+                    totalPages={historyTotalPages}
+                    totalItems={historyTotal}
+                    pageSize={historyPerPage}
+                    pageSizeOptions={[5, 10, 20, 50]}
+                    onPageChange={setHistoryPage}
+                    onPageSizeChange={(size) => {
+                      setHistoryPerPage(size)
+                      setHistoryPage(1)
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

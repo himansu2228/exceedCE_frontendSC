@@ -29,51 +29,80 @@ import {
   Loader2,
   XCircle,
 } from 'lucide-react'
-import { getSCCourses, getCourseCompletions, type Course, type Student } from '@/lib/api'
+import {
+  getSCCoursesPaginated,
+  getCourseCompletionsPaginated,
+  type Course,
+  type Student,
+} from '@/lib/api'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 
 export function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
+  const [totalCourses, setTotalCourses] = useState(0)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [_selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [completions, setCompletions] = useState<Student[]>([])
+  const [completionsTotal, setCompletionsTotal] = useState(0)
+  const [completionsPage, setCompletionsPage] = useState(1)
+  const [completionsPerPage, setCompletionsPerPage] = useState(20)
+  const [completionsTotalPages, setCompletionsTotalPages] = useState(1)
   const [loadingCompletions, setLoadingCompletions] = useState(false)
 
-  // Fetch courses from API
-  useEffect(() => {
-    async function fetchCourses() {
-      try {
-        setLoading(true)
-        setError(null)
-        const data = await getSCCourses()
-        setCourses(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch courses')
-      } finally {
-        setLoading(false)
-      }
+  const fetchCourses = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await getSCCoursesPaginated({
+        page,
+        perPage,
+        search: searchTerm.trim() || undefined,
+      })
+      setCourses(data.items)
+      setTotalCourses(data.total)
+      setTotalPages(data.totalPages)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch courses')
+    } finally {
+      setLoading(false)
     }
-    fetchCourses()
-  }, [])
+  }
+
+  useEffect(() => {
+    void fetchCourses()
+  }, [page, perPage, searchTerm])
 
   // Fetch completions when a course is selected
-  const handleViewCourse = async (course: Course) => {
-    setSelectedCourse(course)
+  const fetchCourseCompletions = async (courseId: number, targetPage: number, targetPerPage: number) => {
     setLoadingCompletions(true)
     try {
-      const data = await getCourseCompletions(course.id)
-      setCompletions(data)
-    } catch (err) {
+      const data = await getCourseCompletionsPaginated(courseId, {
+        page: targetPage,
+        perPage: targetPerPage,
+      })
+      setCompletions(data.items)
+      setCompletionsTotal(data.total)
+      setCompletionsPage(data.page)
+      setCompletionsTotalPages(data.totalPages)
+    } catch {
       setCompletions([])
+      setCompletionsTotal(0)
+      setCompletionsTotalPages(1)
     } finally {
       setLoadingCompletions(false)
     }
   }
 
-  const filteredCourses = courses.filter((course) =>
-    course.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const handleViewCourse = async (course: Course) => {
+    setSelectedCourse(course)
+    setCompletionsPage(1)
+    await fetchCourseCompletions(course.id, 1, completionsPerPage)
+  }
 
   const totalEnrolled = courses.reduce((sum, c) => sum + (c.total_enrolled || 0), 0)
   const totalCompleted = courses.reduce((sum, c) => sum + (c.total_completed || 0), 0)
@@ -81,7 +110,7 @@ export function CoursesPage() {
   const statTiles = [
     {
       label: 'SC Courses',
-      value: courses.length.toLocaleString(),
+      value: totalCourses.toLocaleString(),
       icon: GraduationCap,
       accent: 'from-blue-500 to-indigo-500',
       ring: 'ring-blue-200',
@@ -159,13 +188,30 @@ export function CoursesPage() {
               <Input
                 placeholder="Search courses..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setPage(1)
+                }}
                 className="pl-9"
               />
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalCourses}
+              pageSize={perPage}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPerPage(size)
+                setPage(1)
+              }}
+            />
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -179,7 +225,7 @@ export function CoursesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCourses.map((course) => {
+              {courses.map((course) => {
                 const enrolled = course.total_enrolled || 0
                 const completed = course.total_completed || 0
                 const completionRate = enrolled > 0 ? ((completed / enrolled) * 100).toFixed(0) : '0'
@@ -245,7 +291,7 @@ export function CoursesPage() {
                             ) : completions.length === 0 ? (
                               <p className="text-muted-foreground text-center py-8">No completed students found</p>
                             ) : (
-                              <div className="max-h-[calc(85vh-13rem)] overflow-auto">
+                              <div className="max-h-[calc(85vh-13rem)] overflow-auto space-y-3">
                                 <Table>
                                   <TableHeader>
                                     <TableRow>
@@ -270,6 +316,22 @@ export function CoursesPage() {
                                     ))}
                                   </TableBody>
                                 </Table>
+
+                                <PaginationControls
+                                  page={completionsPage}
+                                  totalPages={completionsTotalPages}
+                                  totalItems={completionsTotal}
+                                  pageSize={completionsPerPage}
+                                  onPageChange={(nextPage) => {
+                                    if (!selectedCourse) return
+                                    void fetchCourseCompletions(selectedCourse.id, nextPage, completionsPerPage)
+                                  }}
+                                  onPageSizeChange={(nextPerPage) => {
+                                    if (!selectedCourse) return
+                                    setCompletionsPerPage(nextPerPage)
+                                    void fetchCourseCompletions(selectedCourse.id, 1, nextPerPage)
+                                  }}
+                                />
                               </div>
                             )}
                           </div>

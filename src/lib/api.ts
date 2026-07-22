@@ -62,6 +62,49 @@ export interface CompletedEntriesResponse {
   entries: CompletedEntry[]
   total: number
   courses_scanned: number
+  page?: number
+  perPage?: number
+  totalPages?: number
+}
+
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  perPage: number
+  totalPages: number
+}
+
+function normalizePaginatedResponse<T>(
+  payload: unknown,
+  fallbackPage = 1,
+  fallbackPerPage = 20
+): PaginatedResponse<T> {
+  if (Array.isArray(payload)) {
+    const total = payload.length
+    return {
+      items: payload as T[],
+      total,
+      page: 1,
+      perPage: total || fallbackPerPage,
+      totalPages: 1,
+    }
+  }
+
+  const maybe = payload as Partial<PaginatedResponse<T>> | null
+  const items = Array.isArray(maybe?.items) ? maybe.items : []
+  const total = Number(maybe?.total)
+  const page = Number(maybe?.page)
+  const perPage = Number(maybe?.perPage)
+  const totalPages = Number(maybe?.totalPages)
+
+  return {
+    items,
+    total: Number.isFinite(total) ? total : items.length,
+    page: Number.isFinite(page) && page > 0 ? page : fallbackPage,
+    perPage: Number.isFinite(perPage) && perPage > 0 ? perPage : fallbackPerPage,
+    totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 1,
+  }
 }
 
 export interface SubmissionEntry {
@@ -159,8 +202,36 @@ export async function getSCCourses(): Promise<Course[]> {
   return fetchApi<Course[]>('/courses/sc')
 }
 
+export async function getSCCoursesPaginated(options?: {
+  page?: number
+  perPage?: number
+  search?: string
+}): Promise<PaginatedResponse<Course>> {
+  const params = new URLSearchParams()
+  if (options?.page) params.set('page', String(options.page))
+  if (options?.perPage) params.set('perPage', String(options.perPage))
+  if (options?.search) params.set('search', options.search)
+
+  const query = params.toString()
+  const raw = await fetchApi<PaginatedResponse<Course> | Course[]>(`/courses/sc${query ? `?${query}` : ''}`)
+  return normalizePaginatedResponse<Course>(raw, options?.page || 1, options?.perPage || 20)
+}
+
 export async function getCourseCompletions(courseId: number): Promise<Student[]> {
   return fetchApi<Student[]>(`/courses/${courseId}/completions`)
+}
+
+export async function getCourseCompletionsPaginated(
+  courseId: number,
+  options?: { page?: number; perPage?: number }
+): Promise<PaginatedResponse<Student>> {
+  const params = new URLSearchParams()
+  if (options?.page) params.set('page', String(options.page))
+  if (options?.perPage) params.set('perPage', String(options.perPage))
+
+  const query = params.toString()
+  const raw = await fetchApi<PaginatedResponse<Student> | Student[]>(`/courses/${courseId}/completions${query ? `?${query}` : ''}`)
+  return normalizePaginatedResponse<Student>(raw, options?.page || 1, options?.perPage || 20)
 }
 
 export async function getCompletedEntries(filters?: {
@@ -169,6 +240,8 @@ export async function getCompletedEntries(filters?: {
   toDate?: string
   search?: string
   resolveProfession?: boolean
+  page?: number
+  perPage?: number
   timeoutMs?: number
 }): Promise<CompletedEntriesResponse> {
   const params = new URLSearchParams()
@@ -178,6 +251,8 @@ export async function getCompletedEntries(filters?: {
   if (filters?.toDate) params.set('toDate', filters.toDate)
   if (filters?.search) params.set('search', filters.search)
   if (filters?.resolveProfession) params.set('resolveProfession', String(filters.resolveProfession))
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
 
   const query = params.toString()
   return fetchApi<CompletedEntriesResponse>(`/completions${query ? `?${query}` : ''}`, {
@@ -188,6 +263,23 @@ export async function getCompletedEntries(filters?: {
 // Submissions
 export async function getSubmissions(): Promise<SubmissionEntry[]> {
   return fetchApi<SubmissionEntry[]>('/submissions')
+}
+
+export async function getSubmissionsPaginated(options?: {
+  page?: number
+  perPage?: number
+  search?: string
+  status?: string
+}): Promise<PaginatedResponse<SubmissionEntry>> {
+  const params = new URLSearchParams()
+  if (options?.page) params.set('page', String(options.page))
+  if (options?.perPage) params.set('perPage', String(options.perPage))
+  if (options?.search) params.set('search', options.search)
+  if (options?.status && options.status !== 'all') params.set('status', options.status)
+
+  const query = params.toString()
+  const raw = await fetchApi<PaginatedResponse<SubmissionEntry> | SubmissionEntry[]>(`/submissions${query ? `?${query}` : ''}`)
+  return normalizePaginatedResponse<SubmissionEntry>(raw, options?.page || 1, options?.perPage || 20)
 }
 
 export async function getSubmissionStats(): Promise<DashboardStats> {
@@ -332,6 +424,9 @@ export interface RosterPipelineEntry {
 export interface RosterEntriesResponse {
   total: number
   entries: RosterPipelineEntry[]
+  page?: number
+  perPage?: number
+  totalPages?: number
 }
 
 export interface RosterPostSummary {
@@ -350,12 +445,19 @@ export interface RosterVerificationStatus {
   resolvedAt: string | null
 }
 
-export async function getRosterPipelineEntries(filters?: { sinceDate?: string; courseIds?: number[] }): Promise<RosterEntriesResponse> {
+export async function getRosterPipelineEntries(filters?: {
+  sinceDate?: string
+  courseIds?: number[]
+  page?: number
+  perPage?: number
+}): Promise<RosterEntriesResponse> {
   const params = new URLSearchParams()
   if (filters?.sinceDate) params.set('sinceDate', filters.sinceDate)
   if (filters?.courseIds && filters.courseIds.length > 0) {
     params.set('courseIds', filters.courseIds.join(','))
   }
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
 
   const query = params.toString()
   return fetchApi<RosterEntriesResponse>(`/roster-pipeline/entries${query ? `?${query}` : ''}`)
@@ -419,6 +521,23 @@ export interface LogEntry {
 
 export async function getLogs(limit: number = 50): Promise<LogEntry[]> {
   return fetchApi<LogEntry[]>(`/logs?limit=${limit}`)
+}
+
+export async function getLogsPaginated(options?: {
+  page?: number
+  perPage?: number
+  search?: string
+  level?: string
+}): Promise<PaginatedResponse<LogEntry>> {
+  const params = new URLSearchParams()
+  if (options?.page) params.set('page', String(options.page))
+  if (options?.perPage) params.set('perPage', String(options.perPage))
+  if (options?.search) params.set('search', options.search)
+  if (options?.level && options.level !== 'all') params.set('level', options.level)
+
+  const query = params.toString()
+  const raw = await fetchApi<PaginatedResponse<LogEntry> | LogEntry[]>(`/logs${query ? `?${query}` : ''}`)
+  return normalizePaginatedResponse<LogEntry>(raw, options?.page || 1, options?.perPage || 20)
 }
 
 // Settings

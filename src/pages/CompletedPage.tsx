@@ -22,6 +22,7 @@ import {
 import { Loader2, XCircle, Search, CalendarCheck2, Users, GraduationCap, Filter } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { getCompletedEntries, getSCCourses, type CompletedEntry, type Course } from '@/lib/api'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
 
@@ -53,6 +54,10 @@ export function CompletedPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [totalEntries, setTotalEntries] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
   const [courseFilter, setCourseFilter] = useState('all')
   const [fromDate, setFromDate] = useState('')
@@ -64,7 +69,10 @@ export function CompletedPage() {
     setCourses(data)
   }
 
-  const fetchCompletedEntries = async () => {
+  const fetchCompletedEntries = async (pageOverride?: number, perPageOverride?: number) => {
+    const targetPage = pageOverride ?? page
+    const targetPerPage = perPageOverride ?? perPage
+
     setLoading(true)
     setError(null)
     setWarning(null)
@@ -75,14 +83,22 @@ export function CompletedPage() {
         toDate: toDate || undefined,
         search: searchTerm.trim() || undefined,
         resolveProfession: true,
+        page: targetPage,
+        perPage: targetPerPage,
         timeoutMs: 12000,
       })
       setEntries(response.entries)
+      setTotalEntries(response.total)
+      setTotalPages(response.totalPages || 1)
+      setPage(response.page || targetPage)
+      setPerPage(response.perPage || targetPerPage)
       writeCachedCompletedEntries(response.entries)
     } catch (err) {
       const fallbackEntries = readCachedCompletedEntries()
       if (fallbackEntries.length > 0) {
         setEntries(fallbackEntries)
+        setTotalEntries(fallbackEntries.length)
+        setTotalPages(1)
         setWarning('Live completed records timed out. Showing the latest cached snapshot.')
       } else {
         setError(err instanceof Error ? err.message : 'Failed to fetch completed users')
@@ -106,7 +122,11 @@ export function CompletedPage() {
   }, [])
 
   const handleApplyFilters = async () => {
-    await fetchCompletedEntries()
+    if (page !== 1) {
+      setPage(1)
+      return
+    }
+    await fetchCompletedEntries(1, perPage)
   }
 
   const handleResetFilters = async () => {
@@ -114,12 +134,15 @@ export function CompletedPage() {
     setFromDate('')
     setToDate('')
     setSearchTerm('')
+    setPage(1)
 
     setLoading(true)
     setError(null)
     try {
-      const response = await getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 })
+      const response = await getCompletedEntries({ resolveProfession: true, page: 1, perPage, timeoutMs: 12000 })
       setEntries(response.entries)
+      setTotalEntries(response.total)
+      setTotalPages(response.totalPages || 1)
       writeCachedCompletedEntries(response.entries)
       setWarning(null)
     } catch (err) {
@@ -128,6 +151,12 @@ export function CompletedPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!loading) {
+      void fetchCompletedEntries(page, perPage)
+    }
+  }, [page, perPage])
 
   const totalUsers = useMemo(() => {
     const ids = new Set(entries.map((entry) => String(entry.user_id || `${entry.email}:${entry.full_name}`)))
@@ -142,7 +171,7 @@ export function CompletedPage() {
   const statTiles = [
     {
       label: 'Completed Records',
-      value: entries.length.toLocaleString(),
+      value: totalEntries.toLocaleString(),
       icon: CalendarCheck2,
       accent: 'from-emerald-500 to-green-500',
       ring: 'ring-emerald-200',
@@ -280,6 +309,20 @@ export function CompletedPage() {
         </CardHeader>
 
         <CardContent>
+          <div className="mb-4">
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalEntries}
+              pageSize={perPage}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPerPage(size)
+                setPage(1)
+              }}
+            />
+          </div>
+
           {entries.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
               No completed users found for selected filters.

@@ -34,8 +34,9 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { formatDateTime, getStatusColor } from '@/lib/utils'
-import { getCompletedEntries, getSubmissions, resolveLicenseProfession, relookupAllProfessions } from '@/lib/api'
+import { getCompletedEntries, getSubmissionsPaginated, resolveLicenseProfession, relookupAllProfessions } from '@/lib/api'
 import type { CompletedEntry, SubmissionEntry } from '@/lib/api'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 
 // Map profession names to CE Broker codes
 const PROFESSION_TO_CODE: Record<string, string> = {
@@ -98,6 +99,10 @@ export function SubmissionsPage() {
   const [lookupResults, setLookupResults] = useState<Map<string, string>>(new Map())
   const [batchLookupInProgress, setBatchLookupInProgress] = useState(false)
   const [batchLookupResult, setBatchLookupResult] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [totalSubmissions, setTotalSubmissions] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
   const normalizeLicense = (value?: string | null) => String(value || '').trim().toUpperCase()
 
@@ -214,11 +219,18 @@ export function SubmissionsPage() {
         setBatchLookupResult(`Updated ${result.successful}/${result.total} licenses. ${result.multiple > 0 ? `${result.multiple} had multiple professions.` : ''} ${result.failed > 0 ? `${result.failed} failed.` : ''}`)
         // Refresh the data
         const [submissionResult, completedResult] = await Promise.allSettled([
-          getSubmissions(),
+          getSubmissionsPaginated({
+            page,
+            perPage,
+            search: searchTerm.trim() || undefined,
+            status: statusFilter,
+          }),
           getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 }),
         ])
         if (submissionResult.status === 'fulfilled') {
-          setSubmissions(submissionResult.value)
+          setSubmissions(submissionResult.value.items)
+          setTotalSubmissions(submissionResult.value.total)
+          setTotalPages(submissionResult.value.totalPages)
         }
         if (completedResult.status === 'fulfilled') {
           setCompletedEntries(completedResult.value.entries)
@@ -233,39 +245,58 @@ export function SubmissionsPage() {
     }
   }
 
-  // Fetch submissions from API
-  useEffect(() => {
-    async function fetchSubmissions() {
-      try {
-        setLoading(true)
-        setError(null)
+  const fetchSubmissionsPage = async (loadCompleted = false) => {
+    try {
+      setLoading(true)
+      setError(null)
+      if (loadCompleted) {
         setCompletedFallbackNotice(null)
+      }
 
-        const [submissionResult, completedResult] = await Promise.allSettled([
-          getSubmissions(),
-          getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 }),
-        ])
+      const [submissionResult, completedResult] = await Promise.allSettled([
+        getSubmissionsPaginated({
+          page,
+          perPage,
+          search: searchTerm.trim() || undefined,
+          status: statusFilter,
+        }),
+        loadCompleted
+          ? getCompletedEntries({ resolveProfession: true, timeoutMs: 12000 })
+          : Promise.resolve({ entries: completedEntries, total: completedEntries.length, courses_scanned: 0 }),
+      ])
 
-        if (submissionResult.status !== 'fulfilled') {
-          throw submissionResult.reason
-        }
+      if (submissionResult.status !== 'fulfilled') {
+        throw submissionResult.reason
+      }
 
-        setSubmissions(submissionResult.value)
+      setSubmissions(submissionResult.value.items)
+      setTotalSubmissions(submissionResult.value.total)
+      setTotalPages(submissionResult.value.totalPages)
 
+      if (loadCompleted) {
         if (completedResult.status === 'fulfilled') {
           setCompletedEntries(completedResult.value.entries)
         } else {
           setCompletedEntries([])
           setCompletedFallbackNotice('Completed-enrichment data timed out, so profession badges may be partial right now.')
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch submissions')
-      } finally {
-        setLoading(false)
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch submissions')
+    } finally {
+      setLoading(false)
     }
-    fetchSubmissions()
+  }
+
+  useEffect(() => {
+    void fetchSubmissionsPage(true)
   }, [])
+
+  useEffect(() => {
+    if (!loading) {
+      void fetchSubmissionsPage(false)
+    }
+  }, [page, perPage, searchTerm, statusFilter])
 
   // Export submissions to CSV
   const handleExport = () => {
@@ -285,7 +316,7 @@ export function SubmissionsPage() {
 
     const csvRows = [
       headers.join(','),
-      ...filteredSubmissions.map(sub => {
+      ...submissions.map(sub => {
         const row = [
           `"${sub.student?.first_name || ''} ${sub.student?.last_name || ''}"`,
           `"${sub.student?.email || ''}"`,
@@ -315,20 +346,8 @@ export function SubmissionsPage() {
     URL.revokeObjectURL(url)
   }
 
-  const filteredSubmissions = submissions.filter((sub) => {
-    const matchesSearch =
-      (sub.student?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (sub.student?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (sub.student?.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (sub.exceed_course_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || sub.submission?.status === statusFilter
-
-    return matchesSearch && matchesStatus
-  })
-
   const stats = {
-    total: submissions.length,
+    total: totalSubmissions,
     ok: submissions.filter((s) => s.submission?.status === 'ok').length,
     error: submissions.filter((s) => s.submission?.status === 'error').length,
     skipped: submissions.filter((s) => s.submission?.status === 'skipped').length,
@@ -423,7 +442,10 @@ export function SubmissionsPage() {
             <Card
               key={tile.key}
               className={`relative cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px] ${active ? 'ring-2 ring-primary/35 border-primary/45' : ''}`}
-              onClick={() => setStatusFilter(tile.key)}
+              onClick={() => {
+                setStatusFilter(tile.key)
+                setPage(1)
+              }}
             >
               <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${tile.accent}`} />
               <CardContent className="p-3 sm:p-4">
@@ -453,7 +475,10 @@ export function SubmissionsPage() {
                 <Input
                   placeholder="Search submissions..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setPage(1)
+                  }}
                   className="pl-9"
                 />
               </div>
@@ -483,6 +508,20 @@ export function SubmissionsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalSubmissions}
+              pageSize={perPage}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPerPage(size)
+                setPage(1)
+              }}
+            />
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -496,7 +535,7 @@ export function SubmissionsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSubmissions.map((sub) => (
+              {submissions.map((sub) => (
                 <TableRow key={sub.key}>
                   <TableCell>
                     <div>
