@@ -25,7 +25,7 @@ export function RosterPostingEntriesPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(100)
   const [totalEntries, setTotalEntries] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 

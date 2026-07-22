@@ -23,7 +23,7 @@ export function PaginationControls({
   totalPages,
   totalItems,
   pageSize,
-  pageSizeOptions = [10, 20, 50, 100],
+  pageSizeOptions = [100, 50, 20, 10],
   onPageChange,
   onPageSizeChange,
   className,

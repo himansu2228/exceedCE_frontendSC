@@ -46,7 +46,7 @@ export function LogsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState('all')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(100)
   const [totalLogs, setTotalLogs] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 

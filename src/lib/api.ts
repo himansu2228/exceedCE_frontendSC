@@ -82,12 +82,17 @@ function normalizePaginatedResponse<T>(
 ): PaginatedResponse<T> {
   if (Array.isArray(payload)) {
     const total = payload.length
+    const perPage = Math.max(1, fallbackPerPage)
+    const totalPages = Math.max(1, Math.ceil(total / perPage))
+    const page = Math.min(Math.max(1, fallbackPage), totalPages)
+    const start = (page - 1) * perPage
+
     return {
-      items: payload as T[],
+      items: (payload as T[]).slice(start, start + perPage),
       total,
-      page: 1,
-      perPage: total || fallbackPerPage,
-      totalPages: 1,
+      page,
+      perPage,
+      totalPages,
     }
   }
 

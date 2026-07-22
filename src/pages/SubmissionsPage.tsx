@@ -100,7 +100,7 @@ export function SubmissionsPage() {
   const [batchLookupInProgress, setBatchLookupInProgress] = useState(false)
   const [batchLookupResult, setBatchLookupResult] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(100)
   const [totalSubmissions, setTotalSubmissions] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
