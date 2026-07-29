@@ -23,6 +23,7 @@ import { Loader2, XCircle, Search, CalendarCheck2, Users, GraduationCap, Filter 
 import { formatDate } from '@/lib/utils'
 import { getCompletedEntries, getSCCourses, type CompletedEntry, type Course } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
+import { getTenantAccessProfile } from '@/lib/auth'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
 
@@ -49,6 +50,7 @@ function writeCachedCompletedEntries(entries: CompletedEntry[]) {
 }
 
 export function CompletedPage() {
+  const tenant = getTenantAccessProfile()
   const [courses, setCourses] = useState<Course[]>([])
   const [entries, setEntries] = useState<CompletedEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -307,7 +309,7 @@ export function CompletedPage() {
             </div>
           </div>
         </CardHeader>
-
+          <CardTitle>{tenant.stateName} Completed Records</CardTitle>
         <CardContent>
           <div className="mb-4">
             <PaginationControls

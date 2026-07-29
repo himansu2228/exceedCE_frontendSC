@@ -38,6 +38,7 @@ import {
   getPipelineStatus,
 } from '@/lib/api'
 import type { DashboardStats, RecentActivity, SubmissionTrend, CourseBreakdown, PipelineStatus } from '@/lib/api'
+import { getTenantAccessProfile } from '@/lib/auth'
 
 // Helper to format relative time
 function formatRelativeTime(isoString: string): string {
@@ -55,6 +56,7 @@ function formatRelativeTime(isoString: string): string {
 }
 
 export function DashboardPage() {
+  const tenant = getTenantAccessProfile()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [submissionTrend, setSubmissionTrend] = useState<SubmissionTrend[]>([])
@@ -123,7 +125,7 @@ export function DashboardPage() {
     {
       title: 'Total Courses',
       value: stats.total_courses.toLocaleString(),
-      description: 'SC mapped courses',
+      description: `${tenant.stateName} mapped courses`,
       icon: GraduationCap,
       accent: 'from-blue-500 to-indigo-500',
       ring: 'ring-blue-200',

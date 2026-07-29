@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { MainLayout } from "@/components/layout"
 import {
   DashboardPage,
+  SuperAdminDashboardPage,
   CoursesPage,
   SubmissionsPage,
   CompletedPage,
@@ -12,7 +13,16 @@ import {
   SettingsPage,
   LoginPage,
 } from "@/pages"
-import { isAuthenticated, touchAuthSession } from "@/lib/auth"
+import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
+
+function HomeDashboardRoute() {
+  const tenant = getTenantAccessProfile()
+  if (tenant.isSuperAdmin) {
+    return <SuperAdminDashboardPage />
+  }
+
+  return <DashboardPage />
+}
 
 function RequireAuth() {
   const [authenticated, setAuthenticated] = useState(() => isAuthenticated())
@@ -56,7 +66,7 @@ function App() {
 
         <Route element={<RequireAuth />}>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<DashboardPage />} />
+            <Route index element={<HomeDashboardRoute />} />
             <Route path="courses" element={<CoursesPage />} />
             <Route path="submissions" element={<SubmissionsPage />} />
             <Route path="completed" element={<CompletedPage />} />

@@ -1,4 +1,5 @@
 export { DashboardPage } from './DashboardPage'
+export { SuperAdminDashboardPage } from './SuperAdminDashboardPage'
 export { CoursesPage } from './CoursesPage'
 export { SubmissionsPage } from './SubmissionsPage'
 export { CompletedPage } from './CompletedPage'

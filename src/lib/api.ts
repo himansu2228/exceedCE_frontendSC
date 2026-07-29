@@ -1,3 +1,5 @@
+import { getAccessToken, getTenantAccessProfile } from '@/lib/auth'
+
 const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
 
 const requestedApiOrigin = (
@@ -16,7 +18,20 @@ const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
 
 export function apiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  return API_ORIGIN ? `${API_ORIGIN}${normalizedPath}` : normalizedPath
+  const rawUrl = API_ORIGIN ? `${API_ORIGIN}${normalizedPath}` : normalizedPath
+  const token = getAccessToken()
+
+  if (!token) {
+    return rawUrl
+  }
+
+  const requiresQueryToken = /\/api\/.+(\/events|\/stream)(\?|$)/i.test(normalizedPath)
+  if (!requiresQueryToken) {
+    return rawUrl
+  }
+
+  const separator = rawUrl.includes('?') ? '&' : '?'
+  return `${rawUrl}${separator}authToken=${encodeURIComponent(token)}`
 }
 
 export interface Course {
@@ -162,6 +177,16 @@ interface FetchApiOptions extends RequestInit {
   timeoutMs?: number
 }
 
+function getTenantHeaders(): Record<string, string> {
+  const tenant = getTenantAccessProfile()
+  const token = getAccessToken()
+  return {
+    'x-dashboard-state': tenant.stateCode,
+    'x-dashboard-scope': tenant.isSuperAdmin ? 'global' : 'state',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
+
 async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise<T> {
   const controller = new AbortController()
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? 15000))
@@ -174,6 +199,7 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
+        ...getTenantHeaders(),
         ...options?.headers,
       },
     })
@@ -191,6 +217,31 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
   }
   
   return response.json()
+}
+
+export interface AdminOverview {
+  totalUsers: number
+  totalStates: number
+  totalSubmissions: number
+  successfulSubmissions: number
+  failedSubmissions: number
+  stateBreakdown: Array<{
+    state: string
+    users: number
+    submissions: number
+    successful: number
+    failed: number
+  }>
+}
+
+export interface DashboardUserListItem {
+  id: number
+  username: string
+  state: string
+  role: 'super_admin' | 'state_admin'
+  is_active: boolean
+  last_login_at: string | null
+  created_at: string | null
 }
 
 // Dashboard
@@ -412,6 +463,14 @@ export async function updatePipelineConfig(config: Partial<PipelineConfig>): Pro
 
 export async function getPipelineStatus(): Promise<PipelineStatus> {
   return fetchApi<PipelineStatus>('/pipeline/status')
+}
+
+export async function getAdminOverview(): Promise<AdminOverview> {
+  return fetchApi<AdminOverview>('/admin/overview')
+}
+
+export async function getDashboardUsers(): Promise<DashboardUserListItem[]> {
+  return fetchApi<DashboardUserListItem[]>('/admin/users')
 }
 
 export interface RosterPipelineEntry {

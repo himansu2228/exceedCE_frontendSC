@@ -36,8 +36,10 @@ import {
   type Student,
 } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
+import { getTenantAccessProfile } from '@/lib/auth'
 
 export function CoursesPage() {
+  const tenant = getTenantAccessProfile()
   const [courses, setCourses] = useState<Course[]>([])
   const [totalCourses, setTotalCourses] = useState(0)
   const [page, setPage] = useState(1)
@@ -109,7 +111,7 @@ export function CoursesPage() {
 
   const statTiles = [
     {
-      label: 'SC Courses',
+      label: `${tenant.stateName} Courses`,
       value: totalCourses.toLocaleString(),
       icon: GraduationCap,
       accent: 'from-blue-500 to-indigo-500',
@@ -182,7 +184,7 @@ export function CoursesPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>South Carolina Courses</CardTitle>
+            <CardTitle>{tenant.stateName} Courses</CardTitle>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input

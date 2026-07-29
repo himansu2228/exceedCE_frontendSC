@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { signOut } from '@/lib/auth'
+import { getTenantAccessProfile, signOut } from '@/lib/auth'
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -37,6 +37,11 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  const tenant = getTenantAccessProfile()
+
+  const tenantNavItems = tenant.isSuperAdmin
+    ? navItems
+    : navItems.filter((item) => item.path !== '/settings')
 
   const handleLogout = () => {
     signOut()
@@ -63,7 +68,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3">
-        {navItems.map((item) => {
+        {tenantNavItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
             <NavLink
@@ -116,7 +121,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
         {!collapsed && (
           <div className="text-xs text-slate-400">
-            <p>South Carolina Pipeline</p>
+            <p>{tenant.isSuperAdmin ? 'Global Control Tower' : `${tenant.stateName} Pipeline`}</p>
             <p className="mt-1">v1.0.0</p>
           </div>
         )}
