@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { MainLayout } from "@/components/layout"
 import {
   DashboardPage,
+  AdminPage,
   SuperAdminDashboardPage,
   CoursesPage,
   SubmissionsPage,
@@ -74,6 +75,7 @@ function App() {
             <Route path="roster-posting" element={<RosterPostingEntriesPage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="admin" element={<AdminPage />} />
           </Route>
         </Route>
       </Routes>

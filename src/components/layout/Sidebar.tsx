@@ -10,6 +10,7 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
   LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -45,10 +46,15 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const tenant = getTenantAccessProfile()
+  const isSuperAdmin = tenant.isSuperAdmin
 
-  const tenantNavItems = tenant.isSuperAdmin
-    ? navItems
-    : navItems.filter((item) => item.path !== '/settings')
+  const tenantNavItems = [
+    ...navItems.filter((item) => {
+      if (item.path === '/settings') return isSuperAdmin
+      return true
+    }),
+    ...(isSuperAdmin ? [{ path: '/admin', icon: ShieldCheck, label: 'Admin' }] : []),
+  ]
 
   const handleLogout = () => {
     signOut()
