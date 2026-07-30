@@ -209,8 +209,8 @@ const getInitialSteps = (): PipelineStep[] => [
   },
   {
     id: 2,
-    name: 'Filter SC',
-    description: 'Filter South Carolina mapped courses',
+    name: 'Filter State',
+    description: 'Filter active state mapped courses',
     icon: Filter,
     status: 'pending',
     count: 0,
@@ -898,7 +898,7 @@ export function CEBrokerPipelinePage() {
                         )}
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All SC Courses ({scCourses.length})</SelectItem>
+                        <SelectItem value="all">All State Courses ({scCourses.length})</SelectItem>
                         {scCourses.map((course) => (
                           <SelectItem key={course.id} value={String(course.id)}>
                             {course.name}

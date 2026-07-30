@@ -275,7 +275,7 @@ export function CompletedPage() {
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All SC Courses ({courses.length})</SelectItem>
+                  <SelectItem value="all">All State Courses ({courses.length})</SelectItem>
                   {courses.map((course) => (
                     <SelectItem key={course.id} value={String(course.id)}>
                       {course.name}
