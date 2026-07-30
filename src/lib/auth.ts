@@ -133,6 +133,11 @@ function getActiveStorage(): Storage | null {
   return null
 }
 
+function hasStoredToken(storage: Storage): boolean {
+  const token = storage.getItem(AUTH_TOKEN_STORAGE_KEY)
+  return typeof token === 'string' && token.trim().length > 0
+}
+
 function readStoredUser(storage: Storage | null): DashboardAuthUser | null {
   if (!storage) return null
 
@@ -161,6 +166,11 @@ export function isAuthenticated(): boolean {
       return false
     }
 
+    if (!hasStoredToken(window.localStorage)) {
+      clearStorage(window.localStorage)
+      return false
+    }
+
     return true
   }
 
@@ -168,6 +178,14 @@ export function isAuthenticated(): boolean {
 
   if (sessionActive) {
     if (isTimedOut(window.sessionStorage)) {
+      window.sessionStorage.removeItem(AUTH_SESSION_KEY)
+      window.sessionStorage.removeItem(AUTH_ACTIVITY_KEY)
+      window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
+      window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+      return false
+    }
+
+    if (!hasStoredToken(window.sessionStorage)) {
       window.sessionStorage.removeItem(AUTH_SESSION_KEY)
       window.sessionStorage.removeItem(AUTH_ACTIVITY_KEY)
       window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
