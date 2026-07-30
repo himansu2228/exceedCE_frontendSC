@@ -209,8 +209,8 @@ export function SuperAdminDashboardPage() {
                       <td className="px-3 py-2 font-medium">{user.username}</td>
                       <td className="px-3 py-2">{user.state}</td>
                       <td className="px-3 py-2">
-                        <Badge variant={user.role === 'super_admin' ? 'default' : 'secondary'}>
-                          {user.role === 'super_admin' ? 'Super Admin' : 'State Admin'}
+                        <Badge variant={user.role === 'super_admin' ? 'default' : user.role === 'admin-exceed' ? 'outline' : 'secondary'}>
+                          {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin-exceed' ? 'Admin-Exceed' : 'State Admin'}
                         </Badge>
                       </td>
                       <td className="px-3 py-2">

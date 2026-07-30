@@ -30,8 +30,17 @@ export function apiUrl(path: string): string {
     return rawUrl
   }
 
+  const tenant = getTenantAccessProfile()
+  const params: Record<string, string> = { authToken: token }
+  if (tenant.allowedStates) {
+    params.state = tenant.stateCode
+  }
+
   const separator = rawUrl.includes('?') ? '&' : '?'
-  return `${rawUrl}${separator}authToken=${encodeURIComponent(token)}`
+  const queryString = Object.entries(params)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&')
+  return `${rawUrl}${separator}${queryString}`
 }
 
 export interface Course {
@@ -238,7 +247,7 @@ export interface DashboardUserListItem {
   id: number
   username: string
   state: string
-  role: 'super_admin' | 'state_admin'
+  role: string
   is_active: boolean
   last_login_at: string | null
   created_at: string | null

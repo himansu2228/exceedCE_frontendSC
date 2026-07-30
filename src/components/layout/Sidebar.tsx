@@ -15,7 +15,14 @@ import {
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { getTenantAccessProfile, signOut } from '@/lib/auth'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { getTenantAccessProfile, signOut, setActiveState, normalizeStateCode } from '@/lib/auth'
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -68,6 +75,32 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3">
+        {!collapsed && tenant.allowedStates && (
+          <div className="px-1 pb-2">
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Active State</p>
+            <Select
+              value={tenant.stateCode}
+              onValueChange={(code) => {
+                setActiveState(code)
+                window.location.reload()
+              }}
+            >
+              <SelectTrigger className="h-8 w-full border-white/10 bg-white/5 text-xs text-slate-200">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {tenant.allowedStates.map((name) => {
+                  const code = normalizeStateCode(name)
+                  return (
+                    <SelectItem key={code} value={code}>
+                      {name}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {tenantNavItems.map((item) => {
           const isActive = location.pathname === item.path
           return (

@@ -3,6 +3,7 @@ const AUTH_SESSION_KEY = 'exceedce-authenticated-session'
 const AUTH_ACTIVITY_KEY = 'exceedce-last-activity'
 const AUTH_USER_STORAGE_KEY = 'exceedce-auth-user'
 const AUTH_TOKEN_STORAGE_KEY = 'exceedce-auth-token'
+const ACTIVE_STATE_KEY = 'exceedce-active-state'
 
 export const SESSION_TIMEOUT_MS = 30 * 60 * 1000
 
@@ -28,13 +29,15 @@ export interface DashboardAuthUser {
   id: number
   username: string
   state: string
-  role?: 'super_admin' | 'state_admin'
+  role?: string
+  allowedStates?: string[]
 }
 
 export interface TenantAccessProfile {
   isSuperAdmin: boolean
   stateCode: string
   stateName: string
+  allowedStates?: string[]
 }
 
 const STATE_NAME_BY_CODE: Record<string, string> = {
@@ -42,7 +45,7 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
   HI: 'Hawaii',
 }
 
-function normalizeStateCode(state: string | undefined | null): string {
+export function normalizeStateCode(state: string | undefined | null): string {
   const raw = String(state || '').trim().toUpperCase()
   if (!raw) return 'SC'
   if (raw === 'ALL' || raw === 'GLOBAL' || raw === 'ADMIN') return 'ALL'
@@ -54,6 +57,23 @@ function normalizeStateCode(state: string | undefined | null): string {
 function decodeStateName(stateCode: string): string {
   if (stateCode === 'ALL') return 'All States'
   return STATE_NAME_BY_CODE[stateCode] || stateCode
+}
+
+export function setActiveState(stateCode: string): void {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(ACTIVE_STATE_KEY, stateCode)
+  }
+}
+
+export function getActiveState(): string | null {
+  if (typeof window === 'undefined') return null
+  return window.localStorage.getItem(ACTIVE_STATE_KEY)
+}
+
+function clearActiveState(): void {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(ACTIVE_STATE_KEY)
+  }
 }
 
 function nowMs(): number {
@@ -245,6 +265,7 @@ export function signOut(): void {
   window.sessionStorage.removeItem(AUTH_ACTIVITY_KEY)
   window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
   window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+  clearActiveState()
 }
 
 export function getCurrentAuthUser(): DashboardAuthUser | null {
@@ -265,6 +286,21 @@ export function getTenantAccessProfile(): TenantAccessProfile {
   const normalizedState = normalizeStateCode(user?.state)
   const explicitSuperRole = user?.role === 'super_admin'
   const isSuperAdmin = explicitSuperRole || normalizedState === 'ALL'
+  const allowedStates = user?.allowedStates
+
+  if (allowedStates && allowedStates.length > 0) {
+    const activeState = getActiveState()
+    const normalizedActive = normalizeStateCode(activeState || '')
+    const isValid = allowedStates.some((s) => normalizeStateCode(s) === normalizedActive)
+    const fallbackCode = normalizeStateCode(allowedStates[0])
+    const stateCode = isValid ? normalizedActive : fallbackCode
+    return {
+      isSuperAdmin: false,
+      stateCode,
+      stateName: decodeStateName(stateCode),
+      allowedStates,
+    }
+  }
 
   return {
     isSuperAdmin,
