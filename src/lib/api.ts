@@ -1,4 +1,4 @@
-import { getAccessToken, getTenantAccessProfile } from '@/lib/auth'
+import { getAccessToken, getTenantAccessProfile, signOut } from '@/lib/auth'
 
 const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
 
@@ -197,6 +197,11 @@ function getTenantHeaders(): Record<string, string> {
 }
 
 async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise<T> {
+  const token = getAccessToken()
+  if (!token) {
+    throw new Error('AUTH_REQUIRED')
+  }
+
   const controller = new AbortController()
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? 15000))
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -222,6 +227,10 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
   }
   
   if (!response.ok) {
+    if (response.status === 401) {
+      signOut()
+      throw new Error('AUTH_REQUIRED')
+    }
     throw new Error(`API error: ${response.status} ${response.statusText}`)
   }
   

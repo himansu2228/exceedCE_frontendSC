@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useNavigate } from 'react-router-dom'
 import { getNotifications, markAllNotificationsRead, clearAllNotifications, markNotificationsRead, apiUrl } from '@/lib/api'
+import { getAccessToken } from '@/lib/auth'
 import type { Notification } from '@/lib/api'
 
 // Helper to format relative time
@@ -52,6 +53,13 @@ export function NotificationsDropdown() {
 
   // Real-time notifications using Server-Sent Events (SSE)
   useEffect(() => {
+    if (!getAccessToken()) {
+      setLoading(false)
+      setIsConnected(false)
+      setNotifications([])
+      return
+    }
+
     let eventSource: EventSource | null = null
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
     let reconnectAttempts = 0
