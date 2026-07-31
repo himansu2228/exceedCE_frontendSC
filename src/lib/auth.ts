@@ -44,6 +44,8 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
   SC: 'South Carolina',
   HI: 'Hawaii',
   NC: 'North Carolina',
+  MI: 'Michigan',
+  MO: 'Missouri',
 }
 
 const DEFAULT_MULTI_TENANT_STATES = Object.values(STATE_NAME_BY_CODE)
@@ -56,6 +58,8 @@ export function normalizeStateCode(state: string | undefined | null): string {
   if (raw === 'SOUTH CAROLINA' || raw.includes('SOUTH CAROLINA')) return 'SC'
   if (raw === 'HAWAII' || raw.includes('HAWAII')) return 'HI'
   if (raw === 'NORTH CAROLINA' || raw.includes('NORTH CAROLINA')) return 'NC'
+  if (raw === 'MICHIGAN' || raw.includes('MICHIGAN')) return 'MI'
+  if (raw === 'MISSOURI' || raw.includes('MISSOURI')) return 'MO'
   return raw
 }
 
@@ -311,9 +315,11 @@ export function getTenantAccessProfile(): TenantAccessProfile {
   const isSuperAdmin = explicitSuperRole || normalizedState === 'ALL'
   const hasExplicitAllowedStates = Array.isArray(user?.allowedStates) && user.allowedStates.length > 0
   const isAdminExceed = user?.role === 'admin-exceed'
-  const allowedStates = hasExplicitAllowedStates
-    ? user?.allowedStates
-    : (isAdminExceed && !explicitSuperRole ? DEFAULT_MULTI_TENANT_STATES : undefined)
+  const fallbackStates = isAdminExceed && !explicitSuperRole ? DEFAULT_MULTI_TENANT_STATES : []
+  const explicitStates = hasExplicitAllowedStates ? (user?.allowedStates ?? []) : []
+  const allowedStates = (explicitStates.length > 0 || fallbackStates.length > 0)
+    ? Array.from(new Set([...explicitStates, ...fallbackStates]))
+    : undefined
 
   if (allowedStates && allowedStates.length > 0) {
     const activeState = getActiveState()

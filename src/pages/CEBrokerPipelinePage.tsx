@@ -125,7 +125,7 @@ interface RosterFeedEntry {
 }
 
 interface StateFlowConfig {
-  stateCode: 'SC' | 'HI' | 'NC'
+  stateCode: 'SC' | 'HI' | 'NC' | 'MI' | 'MO'
   stateName: string
   rosterStepDescriptions: [string, string, string, string, string, string]
   lookupPortalLabel: string
@@ -133,7 +133,7 @@ interface StateFlowConfig {
   architectureLookupLabel: string
 }
 
-const STATE_FLOW_CONFIG: Record<'SC' | 'HI' | 'NC', StateFlowConfig> = {
+const STATE_FLOW_CONFIG: Record<'SC' | 'HI' | 'NC' | 'MI' | 'MO', StateFlowConfig> = {
   SC: {
     stateCode: 'SC',
     stateName: 'South Carolina',
@@ -179,11 +179,43 @@ const STATE_FLOW_CONFIG: Record<'SC' | 'HI' | 'NC', StateFlowConfig> = {
     lookupPortalUrl: 'https://license.ncrec.gov/ncrec/oecgi3.exe/O4W_LIC_SEARCH_NEW',
     architectureLookupLabel: 'NC Lookup',
   },
+  MI: {
+    stateCode: 'MI',
+    stateName: 'Michigan',
+    rosterStepDescriptions: [
+      'Verify MI lookup portal access',
+      'Resolve profession for Michigan',
+      'Authenticate to CE Broker',
+      'Prepare MI roster payload',
+      'Submit to CE Broker',
+      'Pipeline finished',
+    ],
+    lookupPortalLabel: 'Michigan License Lookup Portal',
+    lookupPortalUrl: 'https://www.michigan.gov/lara',
+    architectureLookupLabel: 'MI Lookup',
+  },
+  MO: {
+    stateCode: 'MO',
+    stateName: 'Missouri',
+    rosterStepDescriptions: [
+      'Verify MO lookup portal access',
+      'Resolve profession for Missouri',
+      'Authenticate to CE Broker',
+      'Prepare MO roster payload',
+      'Submit to CE Broker',
+      'Pipeline finished',
+    ],
+    lookupPortalLabel: 'Missouri License Lookup Portal',
+    lookupPortalUrl: 'https://pr.mo.gov/realestate.asp',
+    architectureLookupLabel: 'MO Lookup',
+  },
 }
 
 function getFlowConfigForState(stateCode: string): StateFlowConfig {
   if (stateCode === 'HI') return STATE_FLOW_CONFIG.HI
   if (stateCode === 'NC') return STATE_FLOW_CONFIG.NC
+  if (stateCode === 'MI') return STATE_FLOW_CONFIG.MI
+  if (stateCode === 'MO') return STATE_FLOW_CONFIG.MO
   return STATE_FLOW_CONFIG.SC
 }
 

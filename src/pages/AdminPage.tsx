@@ -47,6 +47,8 @@ const AVAILABLE_STATES = [
   { code: 'SC', name: 'South Carolina' },
   { code: 'HI', name: 'Hawaii' },
   { code: 'NC', name: 'North Carolina' },
+  { code: 'MI', name: 'Michigan' },
+  { code: 'MO', name: 'Missouri' },
 ]
 
 function formatDateTime(value: string | null): string {
@@ -121,6 +123,8 @@ const STATE_NAME_MAP: Record<string, string> = {
   SC: 'South Carolina',
   HI: 'Hawaii',
   NC: 'North Carolina',
+  MI: 'Michigan',
+  MO: 'Missouri',
   ALL: 'All States',
 }
 
