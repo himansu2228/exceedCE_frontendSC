@@ -15,6 +15,10 @@ const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
 
 const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
 const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
+const DEFAULT_API_TIMEOUT_MS = Math.max(
+  1000,
+  Number((import.meta.env.VITE_API_TIMEOUT_MS as string | undefined) ?? 45000)
+)
 
 export function apiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
@@ -203,7 +207,7 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
   }
 
   const controller = new AbortController()
-  const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? 15000))
+  const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? DEFAULT_API_TIMEOUT_MS))
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
   let response: Response

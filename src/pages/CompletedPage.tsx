@@ -87,7 +87,6 @@ export function CompletedPage() {
         resolveProfession: true,
         page: targetPage,
         perPage: targetPerPage,
-        timeoutMs: 12000,
       })
       setEntries(response.entries)
       setTotalEntries(response.total)
@@ -141,7 +140,7 @@ export function CompletedPage() {
     setLoading(true)
     setError(null)
     try {
-      const response = await getCompletedEntries({ resolveProfession: true, page: 1, perPage, timeoutMs: 12000 })
+      const response = await getCompletedEntries({ resolveProfession: true, page: 1, perPage })
       setEntries(response.entries)
       setTotalEntries(response.total)
       setTotalPages(response.totalPages || 1)
