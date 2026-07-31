@@ -45,10 +45,13 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
   HI: 'Hawaii',
 }
 
+const DEFAULT_MULTI_TENANT_STATES = Object.values(STATE_NAME_BY_CODE)
+
 export function normalizeStateCode(state: string | undefined | null): string {
   const raw = String(state || '').trim().toUpperCase()
   if (!raw) return 'SC'
   if (raw === 'ALL' || raw === 'GLOBAL' || raw === 'ADMIN') return 'ALL'
+  if (raw === 'MULTI') return 'ALL'
   if (raw === 'SOUTH CAROLINA' || raw.includes('SOUTH CAROLINA')) return 'SC'
   if (raw === 'HAWAII' || raw.includes('HAWAII')) return 'HI'
   return raw
@@ -304,7 +307,11 @@ export function getTenantAccessProfile(): TenantAccessProfile {
   const normalizedState = normalizeStateCode(user?.state)
   const explicitSuperRole = user?.role === 'super_admin'
   const isSuperAdmin = explicitSuperRole || normalizedState === 'ALL'
-  const allowedStates = user?.allowedStates
+  const hasExplicitAllowedStates = Array.isArray(user?.allowedStates) && user.allowedStates.length > 0
+  const isAdminExceed = user?.role === 'admin-exceed'
+  const allowedStates = hasExplicitAllowedStates
+    ? user?.allowedStates
+    : (isAdminExceed && !explicitSuperRole ? DEFAULT_MULTI_TENANT_STATES : undefined)
 
   if (allowedStates && allowedStates.length > 0) {
     const activeState = getActiveState()
