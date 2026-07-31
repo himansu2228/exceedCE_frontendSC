@@ -43,6 +43,7 @@ export interface TenantAccessProfile {
 const STATE_NAME_BY_CODE: Record<string, string> = {
   SC: 'South Carolina',
   HI: 'Hawaii',
+  NC: 'North Carolina',
 }
 
 const DEFAULT_MULTI_TENANT_STATES = Object.values(STATE_NAME_BY_CODE)
@@ -54,6 +55,7 @@ export function normalizeStateCode(state: string | undefined | null): string {
   if (raw === 'MULTI') return 'ALL'
   if (raw === 'SOUTH CAROLINA' || raw.includes('SOUTH CAROLINA')) return 'SC'
   if (raw === 'HAWAII' || raw.includes('HAWAII')) return 'HI'
+  if (raw === 'NORTH CAROLINA' || raw.includes('NORTH CAROLINA')) return 'NC'
   return raw
 }
 

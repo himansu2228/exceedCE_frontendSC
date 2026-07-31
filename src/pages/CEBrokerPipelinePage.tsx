@@ -41,7 +41,8 @@ import {
   Monitor,
   Workflow,
 } from 'lucide-react'
-import { getSCCourses, apiUrl, type Course } from '@/lib/api'
+import { getTenantCourses, apiUrl, type Course } from '@/lib/api'
+import { getTenantAccessProfile, normalizeStateCode } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 
 // ============== Types ==============
@@ -123,6 +124,69 @@ interface RosterFeedEntry {
   error?: string | null
 }
 
+interface StateFlowConfig {
+  stateCode: 'SC' | 'HI' | 'NC'
+  stateName: string
+  rosterStepDescriptions: [string, string, string, string, string, string]
+  lookupPortalLabel: string
+  lookupPortalUrl: string
+  architectureLookupLabel: string
+}
+
+const STATE_FLOW_CONFIG: Record<'SC' | 'HI' | 'NC', StateFlowConfig> = {
+  SC: {
+    stateCode: 'SC',
+    stateName: 'South Carolina',
+    rosterStepDescriptions: [
+      'Verify LLR SC access',
+      'Get profession from LLR SC',
+      'Authenticate to CE Broker',
+      'Fill roster form',
+      'Submit to CE Broker',
+      'Pipeline finished',
+    ],
+    lookupPortalLabel: 'LLR SC License Lookup',
+    lookupPortalUrl: 'https://verify.llronline.com/LicLookup/Rec/Rec.aspx?div=19',
+    architectureLookupLabel: 'LLR SC',
+  },
+  HI: {
+    stateCode: 'HI',
+    stateName: 'Hawaii',
+    rosterStepDescriptions: [
+      'Verify Hawaii portal access',
+      'Resolve profession for Hawaii',
+      'Authenticate to CE Broker',
+      'Prepare HI roster payload',
+      'Submit to CE Broker',
+      'Pipeline finished',
+    ],
+    lookupPortalLabel: 'Hawaii License Lookup Portal',
+    lookupPortalUrl: 'https://cca.hawaii.gov/pvl/boards/real-estate/',
+    architectureLookupLabel: 'HI Lookup',
+  },
+  NC: {
+    stateCode: 'NC',
+    stateName: 'North Carolina',
+    rosterStepDescriptions: [
+      'Verify NC lookup portal access',
+      'Resolve profession for North Carolina',
+      'Authenticate to CE Broker',
+      'Prepare NC roster payload',
+      'Submit to CE Broker',
+      'Pipeline finished',
+    ],
+    lookupPortalLabel: 'NCREC License Lookup Portal',
+    lookupPortalUrl: 'https://license.ncrec.gov/ncrec/oecgi3.exe/O4W_LIC_SEARCH_NEW',
+    architectureLookupLabel: 'NC Lookup',
+  },
+}
+
+function getFlowConfigForState(stateCode: string): StateFlowConfig {
+  if (stateCode === 'HI') return STATE_FLOW_CONFIG.HI
+  if (stateCode === 'NC') return STATE_FLOW_CONFIG.NC
+  return STATE_FLOW_CONFIG.SC
+}
+
 function mapRosterEntryToFeed(entry: {
   student: string | { first_name?: string; last_name?: string; license_number?: string } | unknown
   studentName?: string
@@ -196,7 +260,7 @@ function mapRosterEntryToFeed(entry: {
 // ============== Initial Pipeline Steps ==============
 
 // Combined pipeline steps: XML Pipeline → Roster Posting
-const getInitialSteps = (): PipelineStep[] => [
+const getInitialSteps = (flowConfig: StateFlowConfig): PipelineStep[] => [
   // Phase 1: XML Pipeline (Data Preparation)
   {
     id: 1,
@@ -239,7 +303,7 @@ const getInitialSteps = (): PipelineStep[] => [
   {
     id: 5,
     name: 'Check VPN',
-    description: 'Verify LLR SC access',
+    description: flowConfig.rosterStepDescriptions[0],
     icon: Shield,
     status: 'pending',
     phase: 'roster',
@@ -247,7 +311,7 @@ const getInitialSteps = (): PipelineStep[] => [
   {
     id: 6,
     name: 'Lookup Profession',
-    description: 'Get profession from LLR SC',
+    description: flowConfig.rosterStepDescriptions[1],
     icon: Globe,
     status: 'pending',
     phase: 'roster',
@@ -263,7 +327,7 @@ const getInitialSteps = (): PipelineStep[] => [
   {
     id: 8,
     name: 'Create Roster',
-    description: 'Fill roster form',
+    description: flowConfig.rosterStepDescriptions[3],
     icon: FileEdit,
     status: 'pending',
     phase: 'roster',
@@ -271,7 +335,7 @@ const getInitialSteps = (): PipelineStep[] => [
   {
     id: 9,
     name: 'Post Roster',
-    description: 'Submit to CE Broker',
+    description: flowConfig.rosterStepDescriptions[4],
     icon: Send,
     status: 'pending',
     phase: 'roster',
@@ -279,7 +343,7 @@ const getInitialSteps = (): PipelineStep[] => [
   {
     id: 10,
     name: 'Complete',
-    description: 'Pipeline finished',
+    description: flowConfig.rosterStepDescriptions[5],
     icon: CheckCircle2,
     status: 'pending',
     phase: 'roster',
@@ -290,6 +354,9 @@ const getInitialSteps = (): PipelineStep[] => [
 
 export function CEBrokerPipelinePage() {
   const location = useLocation()
+  const tenant = getTenantAccessProfile()
+  const activeStateCode = normalizeStateCode(tenant.stateCode || 'SC')
+  const flowConfig = getFlowConfigForState(activeStateCode)
 
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false)
@@ -301,11 +368,11 @@ export function CEBrokerPipelinePage() {
   })
   
   // Dynamic SC courses from API
-  const [scCourses, setScCourses] = useState<Course[]>([])
+  const [stateCourses, setStateCourses] = useState<Course[]>([])
   const [loadingCourses, setLoadingCourses] = useState(true)
   
   // Pipeline steps state
-  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(getInitialSteps())
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(() => getInitialSteps(flowConfig))
   
   // Current phase tracking
   const [currentPhase, setCurrentPhase] = useState<'idle' | 'xml' | 'roster'>('idle')
@@ -390,15 +457,15 @@ export function CEBrokerPipelinePage() {
 
   // ============== Load Initial Data ==============
 
-  // Load SC courses from API
+  // Load courses for active tenant state from API
   useEffect(() => {
     const loadCourses = async () => {
       try {
         setLoadingCourses(true)
-        const courses = await getSCCourses()
-        setScCourses(courses)
+        const courses = await getTenantCourses()
+        setStateCourses(courses)
       } catch (error) {
-        console.error('Failed to load SC courses:', error)
+        console.error('Failed to load tenant courses:', error)
       } finally {
         setLoadingCourses(false)
       }
@@ -435,7 +502,7 @@ export function CEBrokerPipelinePage() {
 
   // Reset pipeline
   const resetPipeline = useCallback(() => {
-    setPipelineSteps(getInitialSteps())
+    setPipelineSteps(getInitialSteps(flowConfig))
     setProcessingStats({
       currentCourse: '',
       courseIndex: 0,
@@ -454,7 +521,13 @@ export function CEBrokerPipelinePage() {
     setError(null)
     setCurrentPhase('idle')
     setLiveRosterFeed([])
-  }, [])
+  }, [flowConfig])
+
+  useEffect(() => {
+    if (!isRunning) {
+      setPipelineSteps(getInitialSteps(flowConfig))
+    }
+  }, [flowConfig, isRunning])
 
   // ============== SSE Connection Management ==============
 
@@ -814,7 +887,7 @@ export function CEBrokerPipelinePage() {
             CE Broker Pipeline
           </h1>
           <p className="text-muted-foreground mt-1">
-            Complete automation: ExceedCE → XML Processing → Roster Posting → CE Broker
+            Complete automation for {flowConfig.stateName}: ExceedCE → XML Processing → Roster Posting → CE Broker
           </p>
         </div>
       </div>
@@ -851,7 +924,7 @@ export function CEBrokerPipelinePage() {
                       Pipeline Control
                     </CardTitle>
                     <CardDescription>
-                      Full pipeline: Data fetch → Processing → Roster Posting
+                      Full pipeline for {flowConfig.stateName}: Data fetch → Processing → Roster Posting
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
@@ -903,8 +976,8 @@ export function CEBrokerPipelinePage() {
                         )}
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All State Courses ({scCourses.length})</SelectItem>
-                        {scCourses.map((course) => (
+                          <SelectItem value="all">All {flowConfig.stateName} Courses ({stateCourses.length})</SelectItem>
+                          {stateCourses.map((course) => (
                           <SelectItem key={course.id} value={String(course.id)}>
                             {course.name}
                           </SelectItem>
@@ -945,7 +1018,7 @@ export function CEBrokerPipelinePage() {
                     <AlertTitle>Live Mode Active</AlertTitle>
                     <AlertDescription>
                       Pipeline will POST real data to CE Broker and perform browser automation.
-                      Ensure VPN is connected for LLR SC lookup.
+                      Ensure VPN is connected for {flowConfig.lookupPortalLabel}.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -962,13 +1035,13 @@ export function CEBrokerPipelinePage() {
                     CE Broker Roster Page
                   </a>
                   <a
-                    href="https://verify.llronline.com/LicLookup/Rec/Rec.aspx?div=19"
+                    href={flowConfig.lookupPortalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    LLR SC License Lookup
+                    {flowConfig.lookupPortalLabel}
                   </a>
                 </div>
               </CardContent>
@@ -1026,7 +1099,7 @@ export function CEBrokerPipelinePage() {
             <CardHeader>
               <CardTitle>Complete Pipeline Flow</CardTitle>
               <CardDescription>
-                Full workflow: ExceedCE Data → XML Processing → Roster Posting → CE Broker
+                Full workflow for {flowConfig.stateName}: ExceedCE Data → XML Processing → Roster Posting → CE Broker
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1125,7 +1198,7 @@ export function CEBrokerPipelinePage() {
                   <Badge variant={currentPhase === 'roster' ? 'default' : 'outline'} className="text-xs">
                     Phase 2
                   </Badge>
-                  <span className="font-semibold text-sm">Roster Posting (Browser Automation)</span>
+                  <span className="font-semibold text-sm">Roster Posting ({flowConfig.stateName} Browser Automation)</span>
                 </div>
                 <div className="flex items-center justify-between overflow-x-auto pb-4 px-2">
                   {rosterSteps.map((step, index) => (
@@ -1294,7 +1367,7 @@ export function CEBrokerPipelinePage() {
             <CardHeader>
               <CardTitle>System Architecture</CardTitle>
               <CardDescription>
-                Complete data flow from ExceedCE to CE Broker
+                Complete {flowConfig.stateName} data flow from ExceedCE to CE Broker
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1321,12 +1394,12 @@ export function CEBrokerPipelinePage() {
 
                 <ArrowRight className="h-5 w-5 text-slate-400 shrink-0" />
 
-                {/* LLR SC */}
+                {/* State Lookup */}
                 <div className="flex flex-col items-center min-w-[80px]">
                   <div className="h-14 w-14 rounded-xl bg-orange-500 flex items-center justify-center text-white">
                     <Globe className="h-7 w-7" />
                   </div>
-                  <p className="mt-2 font-semibold text-xs">LLR SC</p>
+                  <p className="mt-2 font-semibold text-xs">{flowConfig.architectureLookupLabel}</p>
                   <p className="text-xs text-muted-foreground">Profession Lookup</p>
                 </div>
 

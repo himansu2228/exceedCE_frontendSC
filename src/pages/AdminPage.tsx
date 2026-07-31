@@ -46,6 +46,7 @@ import {
 const AVAILABLE_STATES = [
   { code: 'SC', name: 'South Carolina' },
   { code: 'HI', name: 'Hawaii' },
+  { code: 'NC', name: 'North Carolina' },
 ]
 
 function formatDateTime(value: string | null): string {
@@ -119,6 +120,7 @@ function StateSwitcher({ activeCode, onChangeCode }: StateSwitcherProps) {
 const STATE_NAME_MAP: Record<string, string> = {
   SC: 'South Carolina',
   HI: 'Hawaii',
+  NC: 'North Carolina',
   ALL: 'All States',
 }
 

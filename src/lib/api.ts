@@ -276,6 +276,10 @@ export async function getSCCourses(): Promise<Course[]> {
   return fetchApi<Course[]>('/courses/sc')
 }
 
+export async function getTenantCourses(): Promise<Course[]> {
+  return fetchApi<Course[]>('/courses/sc')
+}
+
 export async function getSCCoursesPaginated(options?: {
   page?: number
   perPage?: number
