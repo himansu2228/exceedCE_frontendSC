@@ -246,8 +246,11 @@ export function AdminPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md">
-            <ShieldCheck className="h-5 w-5" />
+          <div className="relative shrink-0">
+            <div className="absolute inset-0 rounded-xl bg-blue-500/30 blur-md opacity-70" />
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-amber-500 text-white shadow-md">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
           </div>
           <div>
             <h1 className="text-xl font-semibold text-foreground">Admin — Sales Report</h1>

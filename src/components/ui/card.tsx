@@ -8,14 +8,15 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-xl border text-card-foreground transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-px hover:shadow-md hover:border-primary/30",
+      "rounded-2xl border text-card-foreground transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-px hover:border-blue-300/50 hover:shadow-[0_22px_55px_-24px_rgba(37,99,235,0.28)]",
       className
     )}
     style={{
-      background: "hsl(var(--card) / 0.88)",
-      borderColor: "hsl(var(--border) / 0.65)",
-      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-      backdropFilter: "blur(10px)",
+      background: "rgba(255,255,255,0.82)",
+      borderColor: "rgba(228,228,231,0.75)",
+      boxShadow: "0 14px 44px -26px rgba(15,23,42,0.3)",
+      backdropFilter: "blur(14px)",
+      WebkitBackdropFilter: "blur(14px)",
       ...style,
     }}
     {...props}

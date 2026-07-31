@@ -804,8 +804,13 @@ export function CEBrokerPipelinePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Workflow className="h-8 w-8 text-blue-500" />
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
+            <span className="relative inline-flex shrink-0">
+              <span className="absolute inset-0 rounded-xl bg-blue-500/30 blur-md opacity-70" />
+              <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-amber-500 text-white shadow-md">
+                <Workflow className="h-5 w-5" />
+              </span>
+            </span>
             CE Broker Pipeline
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -1130,7 +1135,7 @@ export function CEBrokerPipelinePage() {
                         className={`
                           relative flex flex-col items-center p-3 rounded-lg border-2 min-w-[100px] transition-all duration-300
                           ${step.status === 'completed' ? 'border-green-500 bg-green-50' : ''}
-                          ${step.status === 'active' ? 'border-purple-500 bg-purple-50 animate-pulse' : ''}
+                          ${step.status === 'active' ? 'border-blue-500 bg-blue-50 animate-pulse' : ''}
                           ${step.status === 'pending' ? 'border-slate-200 bg-slate-50' : ''}
                           ${step.status === 'error' ? 'border-red-500 bg-red-50' : ''}
                         `}
@@ -1140,7 +1145,7 @@ export function CEBrokerPipelinePage() {
                           className={`
                             flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300
                             ${step.status === 'completed' ? 'bg-green-500 text-white' : ''}
-                            ${step.status === 'active' ? 'bg-purple-500 text-white' : ''}
+                            ${step.status === 'active' ? 'bg-gradient-to-br from-blue-600 to-amber-500 text-white' : ''}
                             ${step.status === 'pending' ? 'bg-slate-200 text-slate-500' : ''}
                             ${step.status === 'error' ? 'bg-red-500 text-white' : ''}
                           `}

@@ -28,7 +28,8 @@ export function Header({ onRefresh, isLoading, onMenuClick, mobileMenuOpen }: He
   const roleLabel = tenant.isSuperAdmin ? 'Super Admin' : `${tenant.stateName} Admin`
 
   return (
-    <header className="brand-header flex h-16 items-center justify-between border-b border-border/80 px-4 backdrop-blur-sm sm:px-6">
+    <header className="brand-header relative flex h-16 items-center justify-between px-4 sm:px-6">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent" />
       <div className="flex min-w-0 items-center gap-3">
         <Button
           variant="outline"
@@ -65,8 +66,8 @@ export function Header({ onRefresh, isLoading, onMenuClick, mobileMenuOpen }: He
 
         <NotificationsDropdown />
 
-        <div className="hidden items-center gap-2 rounded-lg bg-muted px-3 py-1.5 sm:flex">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <div className="hidden items-center gap-2 rounded-xl border border-zinc-200/70 bg-white/70 px-3 py-1.5 shadow-[0_8px_24px_-14px_rgba(15,23,42,0.35)] backdrop-blur-md sm:flex">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-amber-500 text-white shadow-[0_8px_18px_-8px_rgba(37,99,235,0.8)]">
             <User className="h-4 w-4" />
           </div>
           <div className="text-sm">

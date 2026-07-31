@@ -71,11 +71,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center justify-center border-b border-white/10 px-4">
+      <div className="relative flex h-16 items-center justify-center border-b border-white/10 px-4">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/60 to-transparent" />
+        <div className="pointer-events-none absolute -top-10 left-1/2 h-24 w-40 -translate-x-1/2 rounded-full bg-blue-500/30 blur-2xl" />
         <img
           src={collapsed ? '/exceedce.com-favicon.ico' : 'https://exceedce-v4.s3.amazonaws.com/public/exceedcelogo-92e2adb1fbbffd331d17d2f64ebd4410.png'}
           alt="ExceedCE logo"
-          className={cn('h-10 w-auto object-contain', collapsed && 'h-8 w-8')}
+          className={cn('relative h-10 w-auto object-contain', collapsed && 'h-8 w-8')}
         />
       </div>
 
@@ -83,7 +85,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       <nav className="flex-1 space-y-1 p-3">
         {!collapsed && tenant.allowedStates && (
           <div className="px-1 pb-2">
-            <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-500">Active State</p>
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-400">Active State</p>
             <Select
               value={tenant.stateCode}
               onValueChange={(code) => {
@@ -91,7 +93,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 window.location.reload()
               }}
             >
-              <SelectTrigger className="h-8 w-full border-white/10 bg-white/5 text-xs text-slate-200">
+              <SelectTrigger className="h-8 w-full border-white/15 bg-white/10 text-xs text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -115,13 +117,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               to={item.path}
               onClick={onMobileClose}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
                 isActive
-                  ? 'bg-primary/20 text-primary-foreground ring-1 ring-primary/40'
+                  ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white shadow-[0_14px_30px_-14px_rgba(37,99,235,0.9)] ring-1 ring-blue-400/40'
                   : 'text-slate-300 hover:bg-white/10 hover:text-white'
               )}
             >
-              <item.icon className="h-5 w-5 shrink-0" />
+              <item.icon className={cn('h-5 w-5 shrink-0', isActive && 'text-amber-300')} />
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
           )
@@ -132,7 +134,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="absolute -right-3 top-20 hidden h-6 w-6 rounded-full border border-white/20 bg-slate-900/90 text-white hover:bg-slate-800 lg:inline-flex"
+        className="absolute -right-3 top-20 hidden h-6 w-6 rounded-full border border-white/20 bg-slate-900/90 text-white shadow-[0_8px_20px_-8px_rgba(15,23,42,0.9)] hover:bg-slate-800 lg:inline-flex"
         onClick={() => setCollapsed(!collapsed)}
       >
         {collapsed ? (
@@ -150,7 +152,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           onClick={handleLogout}
           title="Logout"
           className={cn(
-            'mb-3 flex w-full items-center rounded-lg border border-red-500/40 bg-red-500/20 px-3 py-2.5 text-red-200 transition-colors hover:bg-red-500/30 hover:text-red-100',
+            'mb-3 flex w-full items-center rounded-lg border border-red-500/40 bg-red-500/20 px-3 py-2.5 text-red-200 backdrop-blur-md transition-colors hover:bg-red-500/30 hover:text-red-100',
             collapsed && 'justify-center px-2'
           )}
         >

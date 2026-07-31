@@ -123,8 +123,13 @@ export function RosterPostingEntriesPage() {
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <FileEdit className="h-8 w-8 text-blue-500" />
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
+            <span className="relative inline-flex shrink-0">
+              <span className="absolute inset-0 rounded-xl bg-blue-500/30 blur-md opacity-70" />
+              <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-amber-500 text-white shadow-md">
+                <FileEdit className="h-5 w-5" />
+              </span>
+            </span>
             Roster Entries
           </h1>
           <p className="text-muted-foreground mt-1">
