@@ -8,9 +8,14 @@ const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
   '/courses': 'Courses',
   '/submissions': 'Submissions',
+  '/completed': 'Completed',
   '/pipeline': 'CE Broker Pipeline',
+  '/roster-posting': 'Roster Post',
   '/logs': 'Activity Logs',
   '/settings': 'Settings',
+  '/sales/dashboard': 'Sales Dashboard',
+  '/sales/reports': 'Sales Reports',
+  '/sales/analytics': 'Sales Analytics',
 }
 
 interface HeaderProps {
@@ -22,9 +27,9 @@ interface HeaderProps {
 
 export function Header({ onRefresh, isLoading, onMenuClick, mobileMenuOpen }: HeaderProps) {
   const location = useLocation()
-  const title = pageTitles[location.pathname] || 'Dashboard'
   const authUser = getCurrentAuthUser()
   const tenant = getTenantAccessProfile()
+  const title = pageTitles[location.pathname] || (tenant.isSuperAdmin ? 'Sales' : 'Dashboard')
   const roleLabel = tenant.isSuperAdmin ? 'Super Admin' : `${tenant.stateName} Admin`
 
   return (

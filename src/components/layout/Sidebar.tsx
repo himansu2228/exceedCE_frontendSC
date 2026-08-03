@@ -6,11 +6,13 @@ import {
   CalendarCheck2,
   Workflow,
   ClipboardList,
+  BarChart3,
+  FileSpreadsheet,
+  ChartColumnBig,
   Settings,
   FileText,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
   LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -36,6 +38,12 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
+const superAdminSalesItems = [
+  { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
+  { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
+  { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
+]
+
 interface SidebarProps {
   mobileOpen: boolean
   onMobileClose: () => void
@@ -48,13 +56,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const tenant = getTenantAccessProfile()
   const isSuperAdmin = tenant.isSuperAdmin
 
-  const tenantNavItems = [
-    ...navItems.filter((item) => {
-      if (item.path === '/settings') return isSuperAdmin
-      return true
-    }),
-    ...(isSuperAdmin ? [{ path: '/admin', icon: ShieldCheck, label: 'Admin' }] : []),
-  ]
+  const tenantNavItems = isSuperAdmin
+    ? superAdminSalesItems
+    : navItems
 
   const handleLogout = () => {
     signOut()
@@ -110,7 +114,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           </div>
         )}
         {tenantNavItems.map((item) => {
-          const isActive = location.pathname === item.path
+          const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
           return (
             <NavLink
               key={item.path}

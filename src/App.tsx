@@ -3,8 +3,6 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { MainLayout } from "@/components/layout"
 import {
   DashboardPage,
-  AdminPage,
-  SuperAdminDashboardPage,
   CoursesPage,
   SubmissionsPage,
   CompletedPage,
@@ -13,16 +11,42 @@ import {
   LogsPage,
   SettingsPage,
   LoginPage,
+  SalesDashboardPage,
+  SalesReportsPage,
+  SalesAnalyticsPage,
 } from "@/pages"
 import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
 
 function HomeDashboardRoute() {
   const tenant = getTenantAccessProfile()
   if (tenant.isSuperAdmin) {
-    return <SuperAdminDashboardPage />
+    return <Navigate to="/sales/reports" replace />
   }
 
   return <DashboardPage />
+}
+
+function SuperAdminOnlyRoutes() {
+  const tenant = getTenantAccessProfile()
+  if (!tenant.isSuperAdmin) {
+    return <Navigate to="/" replace />
+  }
+
+  return <Outlet />
+}
+
+function StateAdminOnlyRoutes() {
+  const tenant = getTenantAccessProfile()
+  if (tenant.isSuperAdmin) {
+    return <Navigate to="/sales/reports" replace />
+  }
+
+  return <Outlet />
+}
+
+function RoleDefaultRedirect() {
+  const tenant = getTenantAccessProfile()
+  return <Navigate to={tenant.isSuperAdmin ? "/sales/reports" : "/"} replace />
 }
 
 function RequireAuth() {
@@ -68,14 +92,24 @@ function App() {
         <Route element={<RequireAuth />}>
           <Route path="/" element={<MainLayout />}>
             <Route index element={<HomeDashboardRoute />} />
-            <Route path="courses" element={<CoursesPage />} />
-            <Route path="submissions" element={<SubmissionsPage />} />
-            <Route path="completed" element={<CompletedPage />} />
-            <Route path="pipeline" element={<CEBrokerPipelinePage />} />
-            <Route path="roster-posting" element={<RosterPostingEntriesPage />} />
-            <Route path="logs" element={<LogsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="admin" element={<AdminPage />} />
+
+            <Route element={<StateAdminOnlyRoutes />}>
+              <Route path="courses" element={<CoursesPage />} />
+              <Route path="submissions" element={<SubmissionsPage />} />
+              <Route path="completed" element={<CompletedPage />} />
+              <Route path="pipeline" element={<CEBrokerPipelinePage />} />
+              <Route path="roster-posting" element={<RosterPostingEntriesPage />} />
+              <Route path="logs" element={<LogsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+
+            <Route element={<SuperAdminOnlyRoutes />}>
+              <Route path="sales/dashboard" element={<SalesDashboardPage />} />
+              <Route path="sales/reports" element={<SalesReportsPage />} />
+              <Route path="sales/analytics" element={<SalesAnalyticsPage />} />
+            </Route>
+
+            <Route path="*" element={<RoleDefaultRedirect />} />
           </Route>
         </Route>
       </Routes>
