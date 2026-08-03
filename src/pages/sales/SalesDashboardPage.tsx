@@ -1,63 +1,223 @@
-import { BarChart3, LineChart, TrendingUp } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import type { ComponentType } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { RefreshCw, AlertTriangle, IndianRupee, ShoppingCart, Activity, Percent } from 'lucide-react'
+import { getSalesDashboard } from '@/lib/api'
+import type { SalesDashboardResponse } from '@/lib/api'
+import { formatCurrency } from './shared'
 
-const metrics = [
-  { title: 'Total Orders', value: '2,431' },
-  { title: 'Gross Revenue', value: '$148,920' },
-  { title: 'Avg. Order Value', value: '$61.26' },
-]
+const PIE_COLORS = ['#1d4ed8', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b']
 
 export function SalesDashboardPage() {
-  return (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-blue-600 p-2 text-white shadow-md">
-          <BarChart3 className="h-5 w-5" />
+  const [data, setData] = useState<SalesDashboardResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await getSalesDashboard()
+      setData(response)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load dashboard')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const stateChart = useMemo(() => {
+    if (!data) return []
+    return data.revenueByState.slice(0, 8)
+  }, [data])
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-72" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
         </div>
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Sales Dashboard</h1>
-          <p className="text-sm text-muted-foreground">High-level sales KPIs for super admin.</p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-80 w-full" />
+          <Skeleton className="h-80 w-full" />
         </div>
       </div>
+    )
+  }
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {metrics.map((item) => (
-          <Card key={item.title}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{item.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{item.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+  if (error || !data) {
+    return (
+      <div className="flex h-64 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 text-red-700">
+        <AlertTriangle className="h-5 w-5" />
+        <span>{error || 'Unable to load sales dashboard'}</span>
+      </div>
+    )
+  }
+
+  const kpi = data.kpi
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Sales Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Live KPIs and revenue performance</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void load()}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh
+        </Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric title="Total Sales" value={formatCurrency(kpi.totalSales)} icon={IndianRupee} />
+        <Metric title="Orders" value={kpi.orders.toLocaleString()} icon={ShoppingCart} />
+        <Metric title="Avg Order Value" value={formatCurrency(kpi.averageOrderValue)} icon={Activity} />
+        <Metric title="Sales Growth" value={`${kpi.salesGrowthPercent.toFixed(2)}%`} icon={Percent} />
+        <Metric title="Today" value={formatCurrency(kpi.todaySales)} />
+        <Metric title="Weekly" value={formatCurrency(kpi.weeklySales)} />
+        <Metric title="Monthly" value={formatCurrency(kpi.monthlySales)} />
+        <Metric title="Yearly" value={formatCurrency(kpi.yearlySales)} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <LineChart className="h-4 w-4" />
-              Revenue Trend
-            </CardTitle>
+            <CardTitle>Revenue Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">Use this section to connect your month-over-month revenue chart.</p>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.revenueByMonth}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
+                  <Area type="monotone" dataKey="revenue" stroke="#2563eb" fill="#93c5fd" fillOpacity={0.35} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-4 w-4" />
-              Growth Insights
-            </CardTitle>
+            <CardTitle>Revenue by State</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">Add campaign conversion and channel attribution insights here.</p>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stateChart}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="state" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
+                  <Bar dataKey="revenue" fill="#0284c7" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Revenue by Course (Top 10)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.revenueByCourse} layout="vertical" margin={{ left: 12, right: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="course" type="category" width={170} />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
+                  <Bar dataKey="revenue" fill="#0f766e" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Order Status Mix</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Completed', value: kpi.completedOrders },
+                      { name: 'Pending', value: kpi.pendingOrders },
+                      { name: 'Refunded', value: kpi.refundedOrders },
+                      { name: 'Failed', value: kpi.failedPayments },
+                    ]}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={120}
+                    label
+                  >
+                    {PIE_COLORS.map((color, index) => (
+                      <Cell key={index} fill={color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
     </div>
+  )
+}
+
+function Metric({
+  title,
+  value,
+  icon: Icon,
+}: {
+  title: string
+  value: string
+  icon?: ComponentType<{ className?: string }>
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <span>{title}</span>
+          {Icon ? <Icon className="h-4 w-4" /> : null}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-semibold">{value}</p>
+      </CardContent>
+    </Card>
   )
 }

@@ -12,8 +12,17 @@ import {
   SettingsPage,
   LoginPage,
   SalesDashboardPage,
+  SalesOrdersPage,
+  SalesCustomersPage,
+  SalesProductsPage,
+  SalesRevenuePage,
+  SalesTransactionsPage,
+  SalesRefundsPage,
   SalesReportsPage,
   SalesAnalyticsPage,
+  SalesSyncLogsPage,
+  SalesFailedSyncsPage,
+  SalesSettingsPage,
 } from "@/pages"
 import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
 
@@ -105,8 +114,17 @@ function App() {
 
             <Route element={<SuperAdminOnlyRoutes />}>
               <Route path="sales/dashboard" element={<SalesDashboardPage />} />
+              <Route path="sales/orders" element={<SalesOrdersPage />} />
+              <Route path="sales/customers" element={<SalesCustomersPage />} />
+              <Route path="sales/products" element={<SalesProductsPage />} />
+              <Route path="sales/revenue" element={<SalesRevenuePage />} />
+              <Route path="sales/transactions" element={<SalesTransactionsPage />} />
+              <Route path="sales/refunds" element={<SalesRefundsPage />} />
               <Route path="sales/reports" element={<SalesReportsPage />} />
               <Route path="sales/analytics" element={<SalesAnalyticsPage />} />
+              <Route path="sales/sync-logs" element={<SalesSyncLogsPage />} />
+              <Route path="sales/failed-syncs" element={<SalesFailedSyncsPage />} />
+              <Route path="sales/settings" element={<SalesSettingsPage />} />
             </Route>
 
             <Route path="*" element={<RoleDefaultRedirect />} />

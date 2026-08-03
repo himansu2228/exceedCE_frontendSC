@@ -14,8 +14,17 @@ const pageTitles: Record<string, string> = {
   '/logs': 'Activity Logs',
   '/settings': 'Settings',
   '/sales/dashboard': 'Sales Dashboard',
+  '/sales/orders': 'Sales Orders',
+  '/sales/customers': 'Sales Customers',
+  '/sales/products': 'Sales Products / Courses',
+  '/sales/revenue': 'Sales Revenue',
+  '/sales/transactions': 'Sales Transactions',
+  '/sales/refunds': 'Sales Refunds',
   '/sales/reports': 'Sales Reports',
   '/sales/analytics': 'Sales Analytics',
+  '/sales/sync-logs': 'Sales Sync Logs',
+  '/sales/failed-syncs': 'Sales Failed Syncs',
+  '/sales/settings': 'Sales Settings',
 }
 
 interface HeaderProps {

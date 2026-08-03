@@ -705,3 +705,328 @@ export async function resolveLicenseProfession(
     }),
   })
 }
+
+export interface SalesKpi {
+  totalSales: number
+  revenue: number
+  orders: number
+  averageOrderValue: number
+  todaySales: number
+  weeklySales: number
+  monthlySales: number
+  yearlySales: number
+  salesGrowthPercent: number
+  pendingOrders: number
+  completedOrders: number
+  refundedOrders: number
+  failedPayments: number
+}
+
+export interface RevenueSeriesPoint {
+  month: string
+  revenue: number
+  orders: number
+}
+
+export interface RevenueByStatePoint {
+  state: string
+  revenue: number
+  orders: number
+}
+
+export interface RevenueByCoursePoint {
+  course: string
+  revenue: number
+  quantity: number
+}
+
+export interface TopCustomerPoint {
+  id: number
+  fullName: string
+  email: string
+  revenue: number
+  orders: number
+}
+
+export interface SalesDashboardResponse {
+  summary: {
+    totalRevenue: number
+    totalOrders: number
+    averageOrderValue: number
+    completedOrders: number
+    refundedOrders: number
+    failedPayments: number
+    pendingOrders: number
+  }
+  revenueByMonth: RevenueSeriesPoint[]
+  revenueByState: RevenueByStatePoint[]
+  revenueByCourse: RevenueByCoursePoint[]
+  topCustomers: TopCustomerPoint[]
+  kpi: SalesKpi
+}
+
+export interface SalesOrderItem {
+  id: number
+  productTitle: string
+  quantity: number
+  lineTotal: number
+  unitPrice: number
+  stateCode: string
+}
+
+export interface SalesOrder {
+  id: number
+  aomOrderId: number
+  orderDate: string
+  status: string
+  displayStatus: string
+  total: number
+  subTotal: number
+  taxAmount: number
+  discountAmount: number
+  couponUsed: string | null
+  currency: string
+  billingStateCode: string | null
+  shippingStateCode: string | null
+  source: string | null
+  customer: {
+    id: number
+    fullName: string
+    email: string
+    companyName: string | null
+    registeredAt: string | null
+  }
+  items: SalesOrderItem[]
+}
+
+export interface SalesCustomer {
+  id: number
+  aomUserId: number | null
+  fullName: string
+  email: string
+  companyName: string | null
+  source: string | null
+  registeredAt: string | null
+  stateCode: string | null
+  totalOrders: number
+  totalSpending: number
+  latestOrderDate: string | null
+}
+
+export interface SalesReportRow {
+  orderId: number
+  aomOrderId: number
+  itemId: number
+  weekOf: string | null
+  customer: string
+  state: string
+  company: string
+  course: string
+  amount: number
+  source: string
+  coupon: string
+  datePurchased: string | null
+  dateRegistered: string | null
+  runningTotal: number | null
+  currency: string
+  status: string
+  displayStatus: string
+  total: number
+  subTotal: number
+  taxAmount: number
+  discountAmount: number
+  email: string
+}
+
+export interface SalesSyncRun {
+  id: number
+  status: string
+  started_at: string
+  ended_at: string | null
+  requested_by: string | null
+  total_orders: number
+  processed_orders: number
+  inserted_orders: number
+  updated_orders: number
+  failed_orders: number
+  notes: string | null
+}
+
+export interface SalesSyncFailure {
+  id: number
+  run_id: number | null
+  aom_order_id: number | null
+  stage: string
+  error_message: string
+  payload: Record<string, unknown>
+  retry_count: number
+  last_attempt_at: string
+  resolved_at: string | null
+  run_status: string | null
+  run_started_at: string | null
+}
+
+export interface SalesMappingRow {
+  spreadsheetColumn: string
+  apiEndpoint: string
+  apiField: string
+  transformation: string
+  databaseColumn: string
+}
+
+export async function getSalesDashboard(): Promise<SalesDashboardResponse> {
+  return fetchApi<SalesDashboardResponse>('/sales/dashboard')
+}
+
+export async function getSalesAnalytics(filters?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<SalesDashboardResponse> {
+  const params = new URLSearchParams()
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  const query = params.toString()
+  return fetchApi<SalesDashboardResponse>(`/sales/analytics${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesOrders(filters?: {
+  page?: number
+  perPage?: number
+  search?: string
+  status?: string
+  fromDate?: string
+  toDate?: string
+  sortBy?: string
+  sortDir?: 'asc' | 'desc'
+}): Promise<PaginatedResponse<SalesOrder>> {
+  const params = new URLSearchParams()
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  if (filters?.search) params.set('search', filters.search)
+  if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  if (filters?.sortBy) params.set('sortBy', filters.sortBy)
+  if (filters?.sortDir) params.set('sortDir', filters.sortDir)
+
+  const query = params.toString()
+  return fetchApi<PaginatedResponse<SalesOrder>>(`/sales/orders${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesOrderById(id: number): Promise<SalesOrder> {
+  const result = await fetchApi<{ item: SalesOrder }>(`/sales/orders/${id}`)
+  return result.item
+}
+
+export async function getSalesCustomers(filters?: {
+  page?: number
+  perPage?: number
+  search?: string
+}): Promise<PaginatedResponse<SalesCustomer>> {
+  const params = new URLSearchParams()
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  if (filters?.search) params.set('search', filters.search)
+
+  const query = params.toString()
+  return fetchApi<PaginatedResponse<SalesCustomer>>(`/sales/customers${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesReports(filters?: {
+  page?: number
+  perPage?: number
+  fromDate?: string
+  toDate?: string
+  state?: string
+  source?: string
+  course?: string
+  customer?: string
+  orderStatus?: string
+}): Promise<PaginatedResponse<SalesReportRow> & { grandTotal: number }> {
+  const params = new URLSearchParams()
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  if (filters?.state) params.set('state', filters.state)
+  if (filters?.source) params.set('source', filters.source)
+  if (filters?.course) params.set('course', filters.course)
+  if (filters?.customer) params.set('customer', filters.customer)
+  if (filters?.orderStatus && filters.orderStatus !== 'all') params.set('orderStatus', filters.orderStatus)
+
+  const query = params.toString()
+  return fetchApi<PaginatedResponse<SalesReportRow> & { grandTotal: number }>(`/sales/reports${query ? `?${query}` : ''}`)
+}
+
+export function getSalesReportExportUrl(filters?: {
+  fromDate?: string
+  toDate?: string
+  state?: string
+  source?: string
+  course?: string
+  customer?: string
+  orderStatus?: string
+  format?: 'csv'
+}): string {
+  const params = new URLSearchParams()
+  params.set('format', filters?.format || 'csv')
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  if (filters?.state) params.set('state', filters.state)
+  if (filters?.source) params.set('source', filters.source)
+  if (filters?.course) params.set('course', filters.course)
+  if (filters?.customer) params.set('customer', filters.customer)
+  if (filters?.orderStatus && filters.orderStatus !== 'all') params.set('orderStatus', filters.orderStatus)
+  return apiUrl(`/api/sales/reports?${params.toString()}`)
+}
+
+export async function runSalesSync(payload?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<{
+  runId: number
+  status: string
+  totalOrders: number
+  processedOrders: number
+  insertedOrders: number
+  updatedOrders: number
+  failedOrders: number
+  notes: string | null
+}> {
+  return fetchApi('/sales/sync', {
+    method: 'POST',
+    body: JSON.stringify(payload || {}),
+    timeoutMs: 300000,
+  })
+}
+
+export async function getSalesSyncLogs(filters?: {
+  page?: number
+  perPage?: number
+}): Promise<PaginatedResponse<SalesSyncRun>> {
+  const params = new URLSearchParams()
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  const query = params.toString()
+  return fetchApi<PaginatedResponse<SalesSyncRun>>(`/sales/sync/logs${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesSyncFailures(filters?: {
+  page?: number
+  perPage?: number
+  unresolvedOnly?: boolean
+}): Promise<PaginatedResponse<SalesSyncFailure>> {
+  const params = new URLSearchParams()
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  if (typeof filters?.unresolvedOnly === 'boolean') {
+    params.set('unresolvedOnly', String(filters.unresolvedOnly))
+  }
+  const query = params.toString()
+  return fetchApi<PaginatedResponse<SalesSyncFailure>>(`/sales/sync/failures${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesMapping(): Promise<SalesMappingRow[]> {
+  const result = await fetchApi<{ items: SalesMappingRow[] }>('/sales/mapping')
+  return result.items
+}

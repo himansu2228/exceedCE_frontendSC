@@ -7,8 +7,16 @@ import {
   Workflow,
   ClipboardList,
   BarChart3,
+  ShoppingCart,
+  Users2,
+  Boxes,
+  Wallet,
+  Receipt,
+  RotateCcw,
   FileSpreadsheet,
   ChartColumnBig,
+  ListChecks,
+  ShieldAlert,
   Settings,
   FileText,
   ChevronLeft,
@@ -40,8 +48,17 @@ const navItems = [
 
 const superAdminSalesItems = [
   { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
+  { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
+  { path: '/sales/customers', icon: Users2, label: 'Customers' },
+  { path: '/sales/products', icon: Boxes, label: 'Products / Courses' },
+  { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
+  { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
+  { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
   { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
   { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
+  { path: '/sales/sync-logs', icon: ListChecks, label: 'Sync Logs' },
+  { path: '/sales/failed-syncs', icon: ShieldAlert, label: 'Failed Syncs' },
+  { path: '/sales/settings', icon: Settings, label: 'Sales Settings' },
 ]
 
 interface SidebarProps {
