@@ -2,6 +2,8 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { useEffect, useState } from 'react'
+import { getTenantAccessProfile } from '@/lib/auth'
+import { prefetchSuperAdminSidebarData } from '@/lib/api'
 
 export function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -16,6 +18,17 @@ export function MainLayout() {
 
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    const tenant = getTenantAccessProfile()
+    if (!tenant.isSuperAdmin) return
+
+    const timer = window.setTimeout(() => {
+      void prefetchSuperAdminSidebarData()
+    }, 120)
+
+    return () => window.clearTimeout(timer)
   }, [])
 
   return (

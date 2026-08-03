@@ -190,6 +190,67 @@ interface FetchApiOptions extends RequestInit {
   timeoutMs?: number
 }
 
+interface ResponseCacheEntry {
+  value: unknown
+  expiresAt: number
+}
+
+const DEFAULT_GET_CACHE_TTL_MS = Math.max(
+  1000,
+  Number((import.meta.env.VITE_GET_CACHE_TTL_MS as string | undefined) ?? 12000)
+)
+
+const GET_CACHE_OVERRIDES_MS: Array<{ test: RegExp; ttlMs: number }> = [
+  { test: /^\/sales\/(dashboard|analytics|revenue)(\?|$)/, ttlMs: 15000 },
+  { test: /^\/sales\/(orders|customers|reports)(\?|$)/, ttlMs: 30000 },
+  { test: /^\/sales\/sync\/(logs|failures)(\?|$)/, ttlMs: 20000 },
+  { test: /^\/notifications(\?|$)/, ttlMs: 5000 },
+]
+
+const inFlightGetRequests = new Map<string, Promise<unknown>>()
+const responseGetCache = new Map<string, ResponseCacheEntry>()
+
+function getCacheTtlMs(endpoint: string): number {
+  const override = GET_CACHE_OVERRIDES_MS.find((entry) => entry.test.test(endpoint))
+  return override ? override.ttlMs : DEFAULT_GET_CACHE_TTL_MS
+}
+
+function getRequestCacheKey(endpoint: string): string {
+  const tenant = getTenantAccessProfile()
+  const token = getAccessToken() || 'anonymous'
+  return `${tenant.stateCode}:${token}:${endpoint}`
+}
+
+function readCachedResponse<T>(cacheKey: string): T | null {
+  const entry = responseGetCache.get(cacheKey)
+  if (!entry) return null
+  if (entry.expiresAt <= Date.now()) {
+    responseGetCache.delete(cacheKey)
+    return null
+  }
+  return entry.value as T
+}
+
+function writeCachedResponse(cacheKey: string, endpoint: string, value: unknown): void {
+  responseGetCache.set(cacheKey, {
+    value,
+    expiresAt: Date.now() + getCacheTtlMs(endpoint),
+  })
+}
+
+export function invalidateApiCache(endpointPrefix?: string): void {
+  if (!endpointPrefix) {
+    responseGetCache.clear()
+    return
+  }
+
+  for (const key of responseGetCache.keys()) {
+    if (key.includes(endpointPrefix)) {
+      responseGetCache.delete(key)
+    }
+  }
+}
+
 function getTenantHeaders(): Record<string, string> {
   const tenant = getTenantAccessProfile()
   const token = getAccessToken()
@@ -206,39 +267,92 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
     throw new Error('AUTH_REQUIRED')
   }
 
+  const method = String(options?.method || 'GET').toUpperCase()
+  const cacheable = method === 'GET' && !options?.body
+  const cacheKey = cacheable ? getRequestCacheKey(endpoint) : null
+
+  if (cacheable && cacheKey) {
+    const cached = readCachedResponse<T>(cacheKey)
+    if (cached !== null) {
+      return cached
+    }
+
+    const pending = inFlightGetRequests.get(cacheKey)
+    if (pending) {
+      return pending as Promise<T>
+    }
+  }
+
   const controller = new AbortController()
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? DEFAULT_API_TIMEOUT_MS))
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
-  let response: Response
-  try {
-    response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...getTenantHeaders(),
-        ...options?.headers,
-      },
+  const requestPromise = (async () => {
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        method,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...getTenantHeaders(),
+          ...options?.headers,
+        },
+      })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`API timeout after ${timeoutMs}ms`)
+      }
+      throw error
+    } finally {
+      window.clearTimeout(timeoutId)
+    }
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        signOut()
+        invalidateApiCache()
+        throw new Error('AUTH_REQUIRED')
+      }
+      throw new Error(`API error: ${response.status} ${response.statusText}`)
+    }
+
+    const payload = await response.json() as T
+    if (cacheable && cacheKey) {
+      writeCachedResponse(cacheKey, endpoint, payload)
+    } else {
+      invalidateApiCache()
+    }
+    return payload
+  })()
+
+  if (cacheable && cacheKey) {
+    inFlightGetRequests.set(cacheKey, requestPromise as Promise<unknown>)
+    return requestPromise.finally(() => {
+      inFlightGetRequests.delete(cacheKey)
     })
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`API timeout after ${timeoutMs}ms`)
-    }
-    throw error
-  } finally {
-    window.clearTimeout(timeoutId)
   }
-  
-  if (!response.ok) {
-    if (response.status === 401) {
-      signOut()
-      throw new Error('AUTH_REQUIRED')
-    }
-    throw new Error(`API error: ${response.status} ${response.statusText}`)
-  }
-  
-  return response.json()
+
+  return requestPromise
+}
+
+export async function prefetchSuperAdminSidebarData(): Promise<void> {
+  const tenant = getTenantAccessProfile()
+  if (!tenant.isSuperAdmin) return
+
+  const endpoints = [
+    '/sales/dashboard',
+    '/sales/orders?page=1&perPage=20',
+    '/sales/customers?page=1&perPage=20',
+    '/sales/analytics',
+    '/sales/reports?page=1&perPage=50',
+    '/sales/sync/logs?page=1&perPage=20',
+    '/sales/sync/failures?page=1&perPage=20&unresolvedOnly=true',
+    '/notifications?limit=10',
+  ]
+
+  await Promise.allSettled(endpoints.map((endpoint) => fetchApi<unknown>(endpoint, { timeoutMs: 12000 })))
 }
 
 export interface AdminOverview {
