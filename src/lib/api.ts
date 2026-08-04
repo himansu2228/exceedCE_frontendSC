@@ -293,6 +293,7 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
       response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
         method,
+        cache: 'no-store',
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',

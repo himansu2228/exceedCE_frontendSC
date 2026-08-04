@@ -100,6 +100,7 @@ function decodeStateName(stateCode: string): string {
 export function setActiveState(stateCode: string): void {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(ACTIVE_STATE_KEY, stateCode)
+    window.dispatchEvent(new CustomEvent('exceedce:active-state-changed', { detail: { stateCode } }))
   }
 }
 

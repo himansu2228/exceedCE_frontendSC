@@ -23,7 +23,7 @@ import { Loader2, XCircle, Search, CalendarCheck2, Users, GraduationCap, Filter 
 import { formatDate } from '@/lib/utils'
 import { getCompletedEntries, getSCCourses, type CompletedEntry, type Course } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { getTenantAccessProfile } from '@/lib/auth'
+import { getActiveState, getTenantAccessProfile, normalizeStateCode } from '@/lib/auth'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
 
@@ -51,6 +51,10 @@ function writeCachedCompletedEntries(stateCode: string, entries: CompletedEntry[
 
 export function CompletedPage() {
   const tenant = getTenantAccessProfile()
+  const [activeStateCode, setActiveStateCode] = useState(() => {
+    const initial = getActiveState() || tenant.stateCode || 'SC'
+    return normalizeStateCode(initial)
+  })
   const [courses, setCourses] = useState<Course[]>([])
   const [entries, setEntries] = useState<CompletedEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,9 +75,10 @@ export function CompletedPage() {
     setCourses(data)
   }
 
-  const fetchCompletedEntries = async (pageOverride?: number, perPageOverride?: number) => {
+  const fetchCompletedEntries = async (pageOverride?: number, perPageOverride?: number, stateCodeOverride?: string) => {
     const targetPage = pageOverride ?? page
     const targetPerPage = perPageOverride ?? perPage
+    const stateCodeForCache = normalizeStateCode(stateCodeOverride || getTenantAccessProfile().stateCode || 'SC')
 
     setLoading(true)
     setError(null)
@@ -93,9 +98,9 @@ export function CompletedPage() {
       setTotalPages(response.totalPages || 1)
       setPage(response.page || targetPage)
       setPerPage(response.perPage || targetPerPage)
-      writeCachedCompletedEntries(tenant.stateCode, response.entries)
+      writeCachedCompletedEntries(stateCodeForCache, response.entries)
     } catch (err) {
-      const fallbackEntries = readCachedCompletedEntries(tenant.stateCode)
+      const fallbackEntries = readCachedCompletedEntries(stateCodeForCache)
       if (fallbackEntries.length > 0) {
         setEntries(fallbackEntries)
         setTotalEntries(fallbackEntries.length)
@@ -110,24 +115,50 @@ export function CompletedPage() {
   }
 
   useEffect(() => {
+    const syncActiveState = () => {
+      const current = normalizeStateCode(getActiveState() || getTenantAccessProfile().stateCode || 'SC')
+      setActiveStateCode((previous) => (previous === current ? previous : current))
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'exceedce-active-state') {
+        syncActiveState()
+      }
+    }
+
+    const onActiveStateChanged = () => {
+      syncActiveState()
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+    }
+  }, [])
+
+  useEffect(() => {
     async function initialize() {
       try {
+        setPage(1)
         await fetchCourseList()
-        await fetchCompletedEntries()
+        await fetchCompletedEntries(1, perPage, activeStateCode)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to initialize completed page')
         setLoading(false)
       }
     }
     initialize()
-  }, [])
+  }, [activeStateCode])
 
   const handleApplyFilters = async () => {
     if (page !== 1) {
       setPage(1)
       return
     }
-    await fetchCompletedEntries(1, perPage)
+    await fetchCompletedEntries(1, perPage, activeStateCode)
   }
 
   const handleResetFilters = async () => {
@@ -144,7 +175,7 @@ export function CompletedPage() {
       setEntries(response.entries)
       setTotalEntries(response.total)
       setTotalPages(response.totalPages || 1)
-      writeCachedCompletedEntries(tenant.stateCode, response.entries)
+      writeCachedCompletedEntries(activeStateCode, response.entries)
       setWarning(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset filters')
@@ -155,9 +186,9 @@ export function CompletedPage() {
 
   useEffect(() => {
     if (!loading) {
-      void fetchCompletedEntries(page, perPage)
+      void fetchCompletedEntries(page, perPage, activeStateCode)
     }
-  }, [page, perPage])
+  }, [page, perPage, activeStateCode])
 
   const totalUsers = useMemo(() => {
     const ids = new Set(entries.map((entry) => String(entry.user_id || `${entry.email}:${entry.full_name}`)))
