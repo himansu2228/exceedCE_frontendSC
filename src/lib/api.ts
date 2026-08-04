@@ -439,6 +439,7 @@ export async function getCompletedEntries(filters?: {
   resolveProfession?: boolean
   page?: number
   perPage?: number
+  refresh?: boolean
   timeoutMs?: number
 }): Promise<CompletedEntriesResponse> {
   const params = new URLSearchParams()
@@ -450,6 +451,7 @@ export async function getCompletedEntries(filters?: {
   if (filters?.resolveProfession) params.set('resolveProfession', String(filters.resolveProfession))
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  if (filters?.refresh) params.set('refresh', 'true')
   // Put the active state in the URL so the browser caches each state separately and a
   // state switch never reuses another state's cached response.
   params.set('state', getTenantAccessProfile().stateCode)

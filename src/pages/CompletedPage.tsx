@@ -75,7 +75,12 @@ export function CompletedPage() {
     setCourses(data)
   }
 
-  const fetchCompletedEntries = async (pageOverride?: number, perPageOverride?: number, stateCodeOverride?: string) => {
+  const fetchCompletedEntries = async (
+    pageOverride?: number,
+    perPageOverride?: number,
+    stateCodeOverride?: string,
+    forceRefresh = false,
+  ) => {
     const targetPage = pageOverride ?? page
     const targetPerPage = perPageOverride ?? perPage
     const stateCodeForCache = normalizeStateCode(stateCodeOverride || getTenantAccessProfile().stateCode || 'SC')
@@ -92,6 +97,7 @@ export function CompletedPage() {
         resolveProfession: true,
         page: targetPage,
         perPage: targetPerPage,
+        refresh: forceRefresh,
       })
       setEntries(response.entries)
       setTotalEntries(response.total)
@@ -144,7 +150,7 @@ export function CompletedPage() {
       try {
         setPage(1)
         await fetchCourseList()
-        await fetchCompletedEntries(1, perPage, activeStateCode)
+        await fetchCompletedEntries(1, perPage, activeStateCode, true)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to initialize completed page')
         setLoading(false)
