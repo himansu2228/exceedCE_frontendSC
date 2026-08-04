@@ -24,6 +24,44 @@ import { formatCurrency } from './shared'
 
 const PIE_COLORS = ['#1d4ed8', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b']
 
+// State code to full name mapping
+const STATE_NAMES: Record<string, string> = {
+  'NC': 'North Carolina',
+  'SC': 'South Carolina',
+  'HI': 'Hawaii',
+  'MI': 'Michigan',
+  'MO': 'Missouri',
+  'IL': 'Illinois',
+  'AL': 'Alabama',
+  'ID': 'Idaho',
+  'NV': 'Nevada',
+  'CA': 'California',
+  'WA': 'Washington',
+}
+
+// Custom tooltip for Revenue by State chart
+interface StateTooltipProps {
+  active?: boolean
+  payload?: Array<{ value: number; payload: { state: string; revenue: number } }>
+  label?: string
+}
+
+function CustomStateTooltip({ active, payload }: StateTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null
+  
+  const data = payload[0]?.payload
+  if (!data) return null
+  
+  const fullName = STATE_NAMES[data.state] || data.state
+  
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+      <p className="font-semibold text-slate-900">{fullName} ({data.state})</p>
+      <p className="text-sm text-slate-600">Revenue: {formatCurrency(data.revenue)}</p>
+    </div>
+  )
+}
+
 export function SalesDashboardPage() {
   const [data, setData] = useState<SalesDashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -134,7 +172,7 @@ export function SalesDashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="state" />
                   <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
+                  <Tooltip content={<CustomStateTooltip />} />
                   <Bar dataKey="revenue" fill="#0284c7" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
