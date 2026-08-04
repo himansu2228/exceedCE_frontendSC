@@ -40,6 +40,7 @@ import {
   getTenantAccessProfile,
   getActiveState,
   normalizeStateCode,
+  normalizeUserRole,
   setActiveState,
 } from '@/lib/auth'
 
@@ -66,9 +67,10 @@ interface StateSwitcherProps {
 function StateSwitcher({ activeCode, onChangeCode }: StateSwitcherProps) {
   const user = getCurrentAuthUser()
   const tenant = getTenantAccessProfile()
+  const normalizedRole = normalizeUserRole(user?.role)
 
-  const isSuperAdmin = user?.role === 'super_admin'
-  const isAdminExceed = user?.role === 'admin-exceed'
+  const isSuperAdmin = normalizedRole === 'super_admin'
+  const isAdminExceed = normalizedRole === 'admin-exceed'
 
   if (!isSuperAdmin && !isAdminExceed) return null
 
@@ -189,7 +191,8 @@ export function AdminPage() {
       // Include users directly belonging to this state
       if (userState === targetName || userState.includes(targetName)) return true
       // Include multi-state admin or super admins
-      if (u.role === 'super_admin' || u.role === 'admin-exceed') return true
+      const normalizedRole = normalizeUserRole(u.role)
+      if (normalizedRole === 'super_admin' || normalizedRole === 'admin-exceed') return true
       return false
     })
   }, [users, activeCode])
@@ -403,16 +406,16 @@ export function AdminPage() {
                       <td className="px-3 py-2">
                         <Badge
                           variant={
-                            u.role === 'super_admin'
+                            normalizeUserRole(u.role) === 'super_admin'
                               ? 'default'
-                              : u.role === 'admin-exceed'
+                              : normalizeUserRole(u.role) === 'admin-exceed'
                               ? 'outline'
                               : 'secondary'
                           }
                         >
-                          {u.role === 'super_admin'
+                          {normalizeUserRole(u.role) === 'super_admin'
                             ? 'Super Admin'
-                            : u.role === 'admin-exceed'
+                            : normalizeUserRole(u.role) === 'admin-exceed'
                             ? 'Admin-Exceed'
                             : 'State Admin'}
                         </Badge>

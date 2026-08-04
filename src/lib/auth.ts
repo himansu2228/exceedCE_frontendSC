@@ -50,6 +50,17 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
 
 const DEFAULT_MULTI_TENANT_STATES = Object.values(STATE_NAME_BY_CODE)
 
+export function normalizeUserRole(role: string | undefined | null): string {
+  const raw = String(role || '').trim().toLowerCase()
+  if (!raw) return ''
+
+  if (raw === 'super_admin' || raw === 'super-admin' || raw === 'superadmin') return 'super_admin'
+  if (raw === 'admin-exceed' || raw === 'admin_exceed' || raw === 'adminexceed') return 'admin-exceed'
+  if (raw === 'state_admin' || raw === 'state-admin' || raw === 'stateadmin') return 'state_admin'
+
+  return raw
+}
+
 export function normalizeStateCode(state: string | undefined | null): string {
   const raw = String(state || '').trim().toUpperCase()
   if (!raw) return 'SC'
@@ -311,10 +322,12 @@ export function getCurrentAuthUser(): DashboardAuthUser | null {
 export function getTenantAccessProfile(): TenantAccessProfile {
   const user = getCurrentAuthUser()
   const normalizedState = normalizeStateCode(user?.state)
-  const explicitSuperRole = user?.role === 'super_admin'
-  const isSuperAdmin = explicitSuperRole || normalizedState === 'ALL'
+  const normalizedRole = normalizeUserRole(user?.role)
+  const explicitSuperRole = normalizedRole === 'super_admin'
+  const implicitLegacySuper = !normalizedRole && normalizedState === 'ALL'
+  const isSuperAdmin = explicitSuperRole || implicitLegacySuper
   const hasExplicitAllowedStates = Array.isArray(user?.allowedStates) && user.allowedStates.length > 0
-  const isAdminExceed = user?.role === 'admin-exceed'
+  const isAdminExceed = normalizedRole === 'admin-exceed' || (!isSuperAdmin && normalizedState === 'ALL')
   const fallbackStates = isAdminExceed && !explicitSuperRole ? DEFAULT_MULTI_TENANT_STATES : []
   const explicitStates = hasExplicitAllowedStates ? (user?.allowedStates ?? []) : []
   const allowedStates = (explicitStates.length > 0 || fallbackStates.length > 0)
