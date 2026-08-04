@@ -449,6 +449,9 @@ export async function getCompletedEntries(filters?: {
   if (filters?.resolveProfession) params.set('resolveProfession', String(filters.resolveProfession))
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  // Put the active state in the URL so the browser caches each state separately and a
+  // state switch never reuses another state's cached response.
+  params.set('state', getTenantAccessProfile().stateCode)
 
   const query = params.toString()
   return fetchApi<CompletedEntriesResponse>(`/completions${query ? `?${query}` : ''}`, {

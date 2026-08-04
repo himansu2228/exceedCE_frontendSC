@@ -27,9 +27,9 @@ import { getTenantAccessProfile } from '@/lib/auth'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
 
-function readCachedCompletedEntries(): CompletedEntry[] {
+function readCachedCompletedEntries(stateCode: string): CompletedEntry[] {
   try {
-    const raw = localStorage.getItem(COMPLETED_ENTRIES_CACHE_KEY)
+    const raw = localStorage.getItem(`${COMPLETED_ENTRIES_CACHE_KEY}.${stateCode}`)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed?.entries) ? parsed.entries : []
@@ -38,9 +38,9 @@ function readCachedCompletedEntries(): CompletedEntry[] {
   }
 }
 
-function writeCachedCompletedEntries(entries: CompletedEntry[]) {
+function writeCachedCompletedEntries(stateCode: string, entries: CompletedEntry[]) {
   try {
-    localStorage.setItem(COMPLETED_ENTRIES_CACHE_KEY, JSON.stringify({
+    localStorage.setItem(`${COMPLETED_ENTRIES_CACHE_KEY}.${stateCode}`, JSON.stringify({
       savedAt: Date.now(),
       entries,
     }))
@@ -93,9 +93,9 @@ export function CompletedPage() {
       setTotalPages(response.totalPages || 1)
       setPage(response.page || targetPage)
       setPerPage(response.perPage || targetPerPage)
-      writeCachedCompletedEntries(response.entries)
+      writeCachedCompletedEntries(tenant.stateCode, response.entries)
     } catch (err) {
-      const fallbackEntries = readCachedCompletedEntries()
+      const fallbackEntries = readCachedCompletedEntries(tenant.stateCode)
       if (fallbackEntries.length > 0) {
         setEntries(fallbackEntries)
         setTotalEntries(fallbackEntries.length)
@@ -144,7 +144,7 @@ export function CompletedPage() {
       setEntries(response.entries)
       setTotalEntries(response.total)
       setTotalPages(response.totalPages || 1)
-      writeCachedCompletedEntries(response.entries)
+      writeCachedCompletedEntries(tenant.stateCode, response.entries)
       setWarning(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset filters')
