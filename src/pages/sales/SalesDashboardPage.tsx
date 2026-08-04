@@ -39,11 +39,21 @@ const STATE_NAMES: Record<string, string> = {
   'WA': 'Washington',
 }
 
+function truncateCourseLabel(label: string, maxLength = 26) {
+  if (!label) return ''
+  return label.length > maxLength ? `${label.slice(0, maxLength - 3)}...` : label
+}
+
 // Custom tooltip for Revenue by State chart
 interface StateTooltipProps {
   active?: boolean
   payload?: Array<{ value: number; payload: { state: string; revenue: number } }>
   label?: string
+}
+
+interface CourseTooltipProps {
+  active?: boolean
+  payload?: Array<{ value: number; payload: { course: string; revenue: number } }>
 }
 
 function CustomStateTooltip({ active, payload }: StateTooltipProps) {
@@ -57,6 +67,25 @@ function CustomStateTooltip({ active, payload }: StateTooltipProps) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
       <p className="font-semibold text-slate-900">{fullName} ({data.state})</p>
+      <p className="text-sm text-slate-600">Revenue: {formatCurrency(data.revenue)}</p>
+    </div>
+  )
+}
+
+function CustomCourseTooltip({ active, payload }: CourseTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null
+
+  const data = payload[0]?.payload
+  if (!data) return null
+
+  return (
+    <div className="max-w-[28rem] rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+      <p
+        className="overflow-hidden break-words font-semibold leading-snug text-slate-900 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+        title={data.course}
+      >
+        {data.course}
+      </p>
       <p className="text-sm text-slate-600">Revenue: {formatCurrency(data.revenue)}</p>
     </div>
   )
@@ -187,13 +216,20 @@ export function SalesDashboardPage() {
             <CardTitle>Revenue by Course (Top 10)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-[26rem]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.revenueByCourse} layout="vertical" margin={{ left: 12, right: 8 }}>
+                <BarChart data={data.revenueByCourse} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 20 }} barCategoryGap="18%">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
-                  <YAxis dataKey="course" type="category" width={170} />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
+                  <YAxis
+                    dataKey="course"
+                    type="category"
+                    width={230}
+                    interval={0}
+                    tickMargin={10}
+                    tickFormatter={(value) => truncateCourseLabel(String(value || ''))}
+                  />
+                  <Tooltip content={<CustomCourseTooltip />} />
                   <Bar dataKey="revenue" fill="#0f766e" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
