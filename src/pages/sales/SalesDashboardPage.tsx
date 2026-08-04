@@ -22,8 +22,6 @@ import { getSalesDashboard } from '@/lib/api'
 import type { SalesDashboardResponse } from '@/lib/api'
 import { formatCurrency } from './shared'
 
-const PIE_COLORS = ['#1d4ed8', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b']
-
 // State code to full name mapping
 const STATE_NAMES: Record<string, string> = {
   'NC': 'North Carolina',
