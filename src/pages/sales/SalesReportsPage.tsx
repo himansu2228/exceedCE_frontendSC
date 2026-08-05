@@ -58,6 +58,20 @@ const REPORT_PRESETS = [
   },
 ]
 
+function resolveDisplaySource(row: SalesReportRow): string {
+  const feedback = (row.feedback || '').trim()
+  const feedbackOther = (row.feedbackOther || '').trim()
+
+  if (feedback.toLowerCase() === 'other') {
+    if (feedbackOther) return feedbackOther
+  } else if (feedback) {
+    return feedback
+  }
+
+  const source = (row.source || '').trim()
+  return source || 'N/A'
+}
+
 export function SalesReportsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -280,7 +294,7 @@ export function SalesReportsPage() {
                       <TableCell>{row.company || 'N/A'}</TableCell>
                       <TableCell className="max-w-[280px] truncate">{row.course}</TableCell>
                       <TableCell>{formatCurrency(row.amount)}</TableCell>
-                      <TableCell>{row.source || 'N/A'}</TableCell>
+                      <TableCell>{resolveDisplaySource(row)}</TableCell>
                       <TableCell>{row.coupon || 'N/A'}</TableCell>
                       <TableCell>{row.datePurchased || '-'}</TableCell>
                       <TableCell>{row.dateRegistered || '-'}</TableCell>

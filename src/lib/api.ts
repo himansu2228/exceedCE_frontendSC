@@ -1028,6 +1028,8 @@ export interface SalesReportRow {
   taxAmount: number
   discountAmount: number
   email: string
+  feedback?: string | null
+  feedbackOther?: string | null
 }
 
 export interface SalesSyncRun {
