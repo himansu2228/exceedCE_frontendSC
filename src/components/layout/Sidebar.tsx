@@ -50,22 +50,35 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
-const superAdminSalesItems = [
-  { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
-  { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
-  { path: '/sales/customers', icon: Users2, label: 'Customers' },
-  { path: '/sales/products', icon: Boxes, label: 'Products / Courses' },
-  { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
-  { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
-  { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
-  { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
-  { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
-  { path: '/sales/sync-logs', icon: ListChecks, label: 'Sync Logs' },
-  { path: '/sales/failed-syncs', icon: ShieldAlert, label: 'Failed Syncs' },
-  { path: '/sales/cba', icon: Zap, label: 'CBA' },
-  { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
-  { path: '/sales/settings', icon: Settings, label: 'Sales Settings' },
-]
+const getSuperAdminSalesItems = () => {
+  const items = [
+    { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
+    { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
+    { path: '/sales/customers', icon: Users2, label: 'Customers' },
+    { path: '/sales/products', icon: Boxes, label: 'Products / Courses' },
+    { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
+    { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
+    { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
+    { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
+    { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
+  ]
+
+  // Only show Sync Logs and Failed Syncs in development
+  if (import.meta.env.DEV) {
+    items.push(
+      { path: '/sales/sync-logs', icon: ListChecks, label: 'Sync Logs' },
+      { path: '/sales/failed-syncs', icon: ShieldAlert, label: 'Failed Syncs' }
+    )
+  }
+
+  items.push(
+    { path: '/sales/cba', icon: Zap, label: 'CBA' },
+    { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
+    { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
+  )
+
+  return items
+}
 
 interface SidebarProps {
   mobileOpen: boolean
@@ -109,7 +122,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const maskedPipelineLabel = getHiddenPipelineTabLabel(activeStateCode)
 
   const tenantNavItems = useMemo(() => {
-    if (isSuperAdmin) return superAdminSalesItems
+    if (isSuperAdmin) return getSuperAdminSalesItems()
     return navItems.map((item) => {
       if (item.path !== '/pipeline') return item
       return {
