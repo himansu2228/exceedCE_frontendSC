@@ -24,6 +24,7 @@ import { formatDate } from '@/lib/utils'
 import { getCompletedEntries, getSCCourses, type CompletedEntry, type Course } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getActiveState, getTenantAccessProfile, normalizeStateCode } from '@/lib/auth'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
 
@@ -66,8 +67,7 @@ export function CompletedPage() {
   const [totalPages, setTotalPages] = useState(1)
 
   const [courseFilter, setCourseFilter] = useState('all')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [searchTerm, setSearchTerm] = useState('')
 
   const fetchCourseList = async () => {
@@ -91,8 +91,8 @@ export function CompletedPage() {
     try {
       const response = await getCompletedEntries({
         courseId: courseFilter === 'all' ? undefined : Number(courseFilter),
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
         search: searchTerm.trim() || undefined,
         resolveProfession: true,
         page: targetPage,
@@ -169,8 +169,7 @@ export function CompletedPage() {
 
   const handleResetFilters = async () => {
     setCourseFilter('all')
-    setFromDate('')
-    setToDate('')
+    setDateRange({ fromDate: '', toDate: '' })
     setSearchTerm('')
     setPage(1)
 
@@ -320,18 +319,12 @@ export function CompletedPage() {
                 </SelectContent>
               </Select>
 
-              <Input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-40"
-              />
-
-              <Input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-40"
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                showLabels={false}
+                selectClassName="w-[160px]"
+                inputClassName="w-[136px]"
               />
 
               <Button size="sm" onClick={handleApplyFilters}>

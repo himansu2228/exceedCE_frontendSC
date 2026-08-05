@@ -7,6 +7,7 @@ import { StatusBadge, formatCurrency } from './shared'
 import { getSalesOrders } from '@/lib/api'
 import type { SalesOrder } from '@/lib/api'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 export function SalesOrdersPage() {
   const [rows, setRows] = useState<SalesOrder[]>([])
@@ -18,8 +19,7 @@ export function SalesOrdersPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
 
   const load = async (targetPage = page, targetPerPage = perPage) => {
     try {
@@ -30,8 +30,8 @@ export function SalesOrdersPage() {
         perPage: targetPerPage,
         search: search || undefined,
         status,
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
       })
       setRows(result.items)
       setPage(result.page)
@@ -63,9 +63,15 @@ export function SalesOrdersPage() {
         <CardContent className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
           <Input placeholder="Search customer/course" value={search} onChange={(e) => setSearch(e.target.value)} />
           <Input placeholder="Status (e.g. COMPLETED)" value={status === 'all' ? '' : status} onChange={(e) => setStatus(e.target.value || 'all')} />
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          <Button className="lg:col-span-2" onClick={() => void load(1, perPage)}>Apply</Button>
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            showLabels={false}
+            className="md:col-span-2 lg:col-span-3"
+            selectClassName="w-[160px]"
+            inputClassName="w-[132px]"
+          />
+          <Button className="lg:col-span-1" onClick={() => void load(1, perPage)}>Apply</Button>
         </CardContent>
       </Card>
 

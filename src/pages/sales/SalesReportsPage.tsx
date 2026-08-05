@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getSalesReports, getSalesReportExportUrl } from '@/lib/api'
+import { getSalesReports } from '@/lib/api'
 import type { SalesReportRow } from '@/lib/api'
 import {
   Table,
@@ -22,9 +22,21 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCurrency } from './shared'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+
+interface ReportPreset {
+  id: string
+  label: string
+  filters: {
+    state?: string
+    source?: string
+    course?: string
+  }
+  description?: string
+}
 
 // Predefined report presets for common use cases
-const REPORT_PRESETS = [
+const REPORT_PRESETS: ReportPreset[] = [
   { id: 'all', label: 'All Reports', filters: {} },
   { 
     id: 'nc', 
@@ -82,8 +94,7 @@ export function SalesReportsPage() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [preset, setPreset] = useState('all')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [course, setCourse] = useState('')
   const [customer, setCustomer] = useState('')
   const [state, setState] = useState('')
@@ -94,8 +105,7 @@ export function SalesReportsPage() {
     if (!selectedPreset) return
 
     // Reset all filters first
-    setFromDate('')
-    setToDate('')
+    setDateRange({ fromDate: '', toDate: '' })
     setCourse('')
     setCustomer('')
     setState('')
@@ -122,8 +132,8 @@ export function SalesReportsPage() {
       const response = await getSalesReports({
         page: targetPage,
         perPage: targetPerPage,
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
         course: course || undefined,
         customer: customer || undefined,
         state: state || undefined,
@@ -150,8 +160,8 @@ export function SalesReportsPage() {
     try {
       const params = new URLSearchParams()
       params.set('format', 'xlsx')
-      if (fromDate) params.set('fromDate', fromDate)
-      if (toDate) params.set('toDate', toDate)
+      if (dateRange.fromDate) params.set('fromDate', dateRange.fromDate)
+      if (dateRange.toDate) params.set('toDate', dateRange.toDate)
       if (state) params.set('state', state)
       if (source) params.set('source', source)
       if (course) params.set('course', course)
@@ -241,8 +251,12 @@ export function SalesReportsPage() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            className="md:col-span-3 lg:col-span-4"
+            showLabels={false}
+          />
           <Input placeholder="Course" value={course} onChange={(e) => setCourse(e.target.value)} />
           <Input placeholder="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} />
           <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} />
