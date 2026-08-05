@@ -411,14 +411,21 @@ export async function getTenantCourses(): Promise<Course[]> {
   return fetchApi<Course[]>('/courses/sc')
 }
 
-export async function getTenantCoursesWithSignal(signal?: AbortSignal, stateCode?: string): Promise<Course[]> {
+export async function getTenantCoursesWithSignal(
+  signal?: AbortSignal,
+  stateCode?: string,
+  timeoutMs?: number
+): Promise<Course[]> {
   const params = new URLSearchParams()
   const scopedState = (stateCode || getTenantAccessProfile().stateCode || '').trim()
   if (scopedState) {
     params.set('state', scopedState)
   }
   const query = params.toString()
-  return fetchApi<Course[]>(`/courses/sc${query ? `?${query}` : ''}`, { signal })
+  return fetchApi<Course[]>(`/courses/sc${query ? `?${query}` : ''}`, {
+    signal,
+    timeoutMs,
+  })
 }
 
 export async function getSCCoursesPaginated(options?: {
@@ -717,9 +724,13 @@ export async function getRosterVerificationStatus(): Promise<RosterVerificationS
   return fetchApi<RosterVerificationStatus>('/roster-pipeline/verification-status')
 }
 
-export async function getRosterPipelineSchedulerStatus(signal?: AbortSignal): Promise<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }> {
+export async function getRosterPipelineSchedulerStatus(
+  signal?: AbortSignal,
+  timeoutMs?: number
+): Promise<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }> {
   return fetchApi<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }>('/roster-pipeline/scheduler', {
     signal,
+    timeoutMs,
   })
 }
 
@@ -727,6 +738,7 @@ export async function getRosterPipelineHistory(options?: {
   page?: number
   perPage?: number
   signal?: AbortSignal
+  timeoutMs?: number
 }): Promise<{ items: unknown[]; total: number; page: number; perPage: number; totalPages: number }> {
   const params = new URLSearchParams()
   if (options?.page) params.set('page', String(options.page))
@@ -741,6 +753,7 @@ export async function getRosterPipelineHistory(options?: {
     totalPages?: number
   }>(`/roster-pipeline/history${query ? `?${query}` : ''}`, {
     signal: options?.signal,
+    timeoutMs: options?.timeoutMs,
   })
 
   const items = Array.isArray(payload.items) ? payload.items : []

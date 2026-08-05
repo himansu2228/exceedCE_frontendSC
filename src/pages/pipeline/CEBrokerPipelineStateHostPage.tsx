@@ -1,16 +1,7 @@
-import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { toPipelineStateCode, type PipelineStateCode } from '@/lib/ceBrokerPipeline'
-
-const moduleLoaders: Record<PipelineStateCode, () => Promise<{ default: ComponentType }>> = {
-  SC: () => import('./modules/CEBrokerPipelineSC'),
-  HI: () => import('./modules/CEBrokerPipelineHI'),
-  NC: () => import('./modules/CEBrokerPipelineNC'),
-  NV: () => import('./modules/CEBrokerPipelineNV'),
-  MI: () => import('./modules/CEBrokerPipelineMI'),
-  MO: () => import('./modules/CEBrokerPipelineMO'),
-}
+import { CEBrokerPipelinePage } from '@/pages/CEBrokerPipelinePage'
 
 export function CEBrokerPipelineStateHostPage() {
   const [activeStateCode, setActiveStateCode] = useState<PipelineStateCode>(() => {
@@ -43,20 +34,5 @@ export function CEBrokerPipelineStateHostPage() {
     }
   }, [])
 
-  const ActivePipelineModule = useMemo(() => {
-    return lazy(moduleLoaders[activeStateCode])
-  }, [activeStateCode])
-
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-2 text-muted-foreground">Loading pipeline module...</span>
-        </div>
-      }
-    >
-      <ActivePipelineModule key={activeStateCode} />
-    </Suspense>
-  )
+  return <CEBrokerPipelinePage forcedStateCode={activeStateCode} />
 }

@@ -135,106 +135,199 @@ interface CEBrokerPipelinePageProps {
   forcedStateCode?: 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO'
 }
 
+interface FlowStepTemplate {
+  name: string
+  description: string
+  icon: React.ComponentType<{ className?: string }>
+  tracksCount?: boolean
+  tracksProgress?: boolean
+}
+
+interface ArchitectureNode {
+  id: string
+  label: string
+  subtitle: string
+  colorClass: string
+  icon?: React.ComponentType<{ className?: string }>
+  token?: string
+}
+
 interface StateFlowConfig {
   stateCode: 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO'
   stateName: string
-  rosterStepDescriptions: [string, string, string, string, string, string]
+  flowDescription: string
+  phaseOneTitle: string
+  phaseTwoTitle: string
+  phaseConnectorLabel: string
+  architectureDescription: string
   lookupPortalLabel: string
   lookupPortalUrl: string
-  architectureLookupLabel: string
+  xmlSteps: FlowStepTemplate[]
+  rosterSteps: FlowStepTemplate[]
+  architectureNodes: ArchitectureNode[]
+}
+
+const DEFAULT_XML_STEPS: FlowStepTemplate[] = [
+  {
+    name: 'Fetch Courses',
+    description: 'Pull courses from ExceedCE API',
+    icon: Database,
+    tracksCount: true,
+  },
+  {
+    name: 'Filter State',
+    description: 'Filter active state mapped courses',
+    icon: Filter,
+    tracksCount: true,
+  },
+  {
+    name: 'Get Completions',
+    description: 'Fetch completed students per course',
+    icon: Users,
+    tracksCount: true,
+    tracksProgress: true,
+  },
+  {
+    name: 'Resolve Attendees',
+    description: 'Match licenses and validate data',
+    icon: FileCheck,
+    tracksCount: true,
+  },
+]
+
+function createArchitectureNodes(stateCode: string, lookupLabel: string): ArchitectureNode[] {
+  return [
+    {
+      id: 'exceedce',
+      label: 'ExceedCE',
+      subtitle: 'Data Source',
+      colorClass: 'bg-blue-500',
+      token: 'ECE',
+    },
+    {
+      id: 'xml',
+      label: 'XML Pipeline',
+      subtitle: 'Processing',
+      colorClass: 'bg-indigo-500',
+      icon: Database,
+    },
+    {
+      id: 'lookup',
+      label: lookupLabel,
+      subtitle: 'Profession Lookup',
+      colorClass: 'bg-orange-500',
+      icon: Globe,
+    },
+    {
+      id: 'browser',
+      label: 'Puppeteer',
+      subtitle: 'Browser Bot',
+      colorClass: 'bg-purple-500',
+      icon: Monitor,
+    },
+    {
+      id: 'cebroker',
+      label: 'CE Broker',
+      subtitle: `${stateCode} Roster Posted`,
+      colorClass: 'bg-green-500',
+      token: 'CEB',
+    },
+  ]
+}
+
+function createStateFlowConfig(
+  stateCode: 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO',
+  stateName: string,
+  lookupPortalUrl: string,
+  rosterCreationDescription: string
+): StateFlowConfig {
+  const lookupPortalLabel = 'License Lookup Portal'
+  const architectureLookupLabel = 'License Lookup'
+
+  return {
+    stateCode,
+    stateName,
+    flowDescription: `Full workflow: ExceedCE Data → XML Processing → ${stateCode} Roster Posting → CE Broker`,
+    phaseOneTitle: 'Data Processing (XML Pipeline)',
+    phaseTwoTitle: `${stateCode} Roster Posting (Browser Automation)`,
+    phaseConnectorLabel: `${stateCode} Browser Automation`,
+    architectureDescription: `Complete ${stateCode} active-state data flow from ExceedCE to CE Broker`,
+    lookupPortalLabel,
+    lookupPortalUrl,
+    xmlSteps: DEFAULT_XML_STEPS,
+    rosterSteps: [
+      {
+        name: 'Check VPN',
+        description: 'Verify lookup portal access',
+        icon: Shield,
+      },
+      {
+        name: 'Lookup Profession',
+        description: 'Resolve profession from lookup portal',
+        icon: Globe,
+      },
+      {
+        name: 'Login CE Broker',
+        description: 'Authenticate to CE Broker portal',
+        icon: LogIn,
+      },
+      {
+        name: 'Create Roster',
+        description: rosterCreationDescription,
+        icon: FileEdit,
+      },
+      {
+        name: 'Post Roster',
+        description: 'Submit to CE Broker',
+        icon: Send,
+      },
+      {
+        name: 'Complete',
+        description: 'Pipeline finished',
+        icon: CheckCircle2,
+      },
+    ],
+    architectureNodes: createArchitectureNodes(stateCode, architectureLookupLabel),
+  }
 }
 
 const STATE_FLOW_CONFIG: Record<'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO', StateFlowConfig> = {
-  SC: {
-    stateCode: 'SC',
-    stateName: 'South Carolina',
-    rosterStepDescriptions: [
-      'Verify lookup portal access',
-      'Resolve profession from lookup portal',
-      'Authenticate to CE Broker',
-      'Fill roster form',
-      'Submit to CE Broker',
-      'Pipeline finished',
-    ],
-    lookupPortalLabel: 'License Lookup Portal',
-    lookupPortalUrl: 'https://verify.llronline.com/LicLookup/Rec/Rec.aspx?div=19',
-    architectureLookupLabel: 'License Lookup',
-  },
-  HI: {
-    stateCode: 'HI',
-    stateName: 'Hawaii',
-    rosterStepDescriptions: [
-      'Verify lookup portal access',
-      'Resolve profession from lookup portal',
-      'Authenticate to CE Broker',
-      'Prepare HI roster payload',
-      'Submit to CE Broker',
-      'Pipeline finished',
-    ],
-    lookupPortalLabel: 'License Lookup Portal',
-    lookupPortalUrl: 'https://cca.hawaii.gov/pvl/boards/real-estate/',
-    architectureLookupLabel: 'License Lookup',
-  },
-  NC: {
-    stateCode: 'NC',
-    stateName: 'North Carolina',
-    rosterStepDescriptions: [
-      'Verify lookup portal access',
-      'Resolve profession from lookup portal',
-      'Authenticate to CE Broker',
-      'Prepare NC roster payload',
-      'Submit to CE Broker',
-      'Pipeline finished',
-    ],
-    lookupPortalLabel: 'License Lookup Portal',
-    lookupPortalUrl: 'https://license.ncrec.gov/ncrec/oecgi3.exe/O4W_LIC_SEARCH_NEW',
-    architectureLookupLabel: 'License Lookup',
-  },
-  NV: {
-    stateCode: 'NV',
-    stateName: 'Nevada',
-    rosterStepDescriptions: [
-      'Verify lookup portal access',
-      'Resolve profession from lookup portal',
-      'Authenticate to CE Broker',
-      'Prepare NV roster payload',
-      'Submit to CE Broker',
-      'Pipeline finished',
-    ],
-    lookupPortalLabel: 'License Lookup Portal',
-    lookupPortalUrl: 'https://red.nv.gov/Content/Compliance/Online_Orders/Verification/',
-    architectureLookupLabel: 'License Lookup',
-  },
-  MI: {
-    stateCode: 'MI',
-    stateName: 'Michigan',
-    rosterStepDescriptions: [
-      'Verify lookup portal access',
-      'Resolve profession from lookup portal',
-      'Authenticate to CE Broker',
-      'Prepare MI roster payload',
-      'Submit to CE Broker',
-      'Pipeline finished',
-    ],
-    lookupPortalLabel: 'License Lookup Portal',
-    lookupPortalUrl: 'https://www.michigan.gov/lara',
-    architectureLookupLabel: 'License Lookup',
-  },
-  MO: {
-    stateCode: 'MO',
-    stateName: 'Missouri',
-    rosterStepDescriptions: [
-      'Verify lookup portal access',
-      'Resolve profession from lookup portal',
-      'Authenticate to CE Broker',
-      'Prepare MO roster payload',
-      'Submit to CE Broker',
-      'Pipeline finished',
-    ],
-    lookupPortalLabel: 'License Lookup Portal',
-    lookupPortalUrl: 'https://pr.mo.gov/realestate.asp',
-    architectureLookupLabel: 'License Lookup',
-  },
+  SC: createStateFlowConfig(
+    'SC',
+    'South Carolina',
+    'https://verify.llronline.com/LicLookup/Rec/Rec.aspx?div=19',
+    'Fill roster form'
+  ),
+  HI: createStateFlowConfig(
+    'HI',
+    'Hawaii',
+    'https://cca.hawaii.gov/pvl/boards/real-estate/',
+    'Prepare HI roster payload'
+  ),
+  NC: createStateFlowConfig(
+    'NC',
+    'North Carolina',
+    'https://license.ncrec.gov/ncrec/oecgi3.exe/O4W_LIC_SEARCH_NEW',
+    'Prepare NC roster payload'
+  ),
+  NV: createStateFlowConfig(
+    'NV',
+    'Nevada',
+    'https://red.nv.gov/Content/Compliance/Online_Orders/Verification/',
+    'Prepare NV roster payload'
+  ),
+  MI: createStateFlowConfig(
+    'MI',
+    'Michigan',
+    'https://www.michigan.gov/lara',
+    'Prepare MI roster payload'
+  ),
+  MO: createStateFlowConfig(
+    'MO',
+    'Missouri',
+    'https://pr.mo.gov/realestate.asp',
+    'Prepare MO roster payload'
+  ),
 }
 
 function getFlowConfigForState(stateCode: string): StateFlowConfig {
@@ -244,6 +337,17 @@ function getFlowConfigForState(stateCode: string): StateFlowConfig {
   if (stateCode === 'MI') return STATE_FLOW_CONFIG.MI
   if (stateCode === 'MO') return STATE_FLOW_CONFIG.MO
   return STATE_FLOW_CONFIG.SC
+}
+
+function isTransientBackendError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return (
+    message.includes('api timeout') ||
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('load failed')
+  )
 }
 
 function mapRosterEntryToFeed(entry: {
@@ -319,95 +423,30 @@ function mapRosterEntryToFeed(entry: {
 // ============== Initial Pipeline Steps ==============
 
 // Combined pipeline steps: XML Pipeline → Roster Posting
-const getInitialSteps = (flowConfig: StateFlowConfig): PipelineStep[] => [
-  // Phase 1: XML Pipeline (Data Preparation)
-  {
-    id: 1,
-    name: 'Fetch Courses',
-    description: 'Pull courses from ExceedCE API',
-    icon: Database,
-    status: 'pending',
-    count: 0,
-    phase: 'xml',
-  },
-  {
-    id: 2,
-    name: 'Filter State',
-    description: 'Filter active state mapped courses',
-    icon: Filter,
-    status: 'pending',
-    count: 0,
-    phase: 'xml',
-  },
-  {
-    id: 3,
-    name: 'Get Completions',
-    description: 'Fetch completed students per course',
-    icon: Users,
-    status: 'pending',
-    count: 0,
-    progress: 0,
-    phase: 'xml',
-  },
-  {
-    id: 4,
-    name: 'Resolve Attendees',
-    description: 'Match licenses and validate data',
-    icon: FileCheck,
-    status: 'pending',
-    count: 0,
-    phase: 'xml',
-  },
-  // Phase 2: Roster Posting (Browser Automation)
-  {
-    id: 5,
-    name: 'Check VPN',
-    description: flowConfig.rosterStepDescriptions[0],
-    icon: Shield,
-    status: 'pending',
-    phase: 'roster',
-  },
-  {
-    id: 6,
-    name: 'Lookup Profession',
-    description: flowConfig.rosterStepDescriptions[1],
-    icon: Globe,
-    status: 'pending',
-    phase: 'roster',
-  },
-  {
-    id: 7,
-    name: 'Login CE Broker',
-    description: 'Authenticate to portal',
-    icon: LogIn,
-    status: 'pending',
-    phase: 'roster',
-  },
-  {
-    id: 8,
-    name: 'Create Roster',
-    description: flowConfig.rosterStepDescriptions[3],
-    icon: FileEdit,
-    status: 'pending',
-    phase: 'roster',
-  },
-  {
-    id: 9,
-    name: 'Post Roster',
-    description: flowConfig.rosterStepDescriptions[4],
-    icon: Send,
-    status: 'pending',
-    phase: 'roster',
-  },
-  {
-    id: 10,
-    name: 'Complete',
-    description: flowConfig.rosterStepDescriptions[5],
-    icon: CheckCircle2,
-    status: 'pending',
-    phase: 'roster',
-  },
-]
+const getInitialSteps = (flowConfig: StateFlowConfig): PipelineStep[] => {
+  const xmlSteps = flowConfig.xmlSteps.map((step, index) => ({
+    id: index + 1,
+    name: step.name,
+    description: step.description,
+    icon: step.icon,
+    status: 'pending' as const,
+    count: step.tracksCount ? 0 : undefined,
+    progress: step.tracksProgress ? 0 : undefined,
+    phase: 'xml' as const,
+  }))
+
+  const rosterOffset = xmlSteps.length
+  const rosterSteps = flowConfig.rosterSteps.map((step, index) => ({
+    id: rosterOffset + index + 1,
+    name: step.name,
+    description: step.description,
+    icon: step.icon,
+    status: 'pending' as const,
+    phase: 'roster' as const,
+  }))
+
+  return [...xmlSteps, ...rosterSteps]
+}
 
 // ============== Main Component ==============
 
@@ -420,6 +459,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   })
   const flowConfig = getFlowConfigForState(activeStateCode)
   const maskedPipelineLabel = getHiddenPipelineTabLabel(activeStateCode)
+  const rosterSseOffset = flowConfig.xmlSteps.length
+  const PAGE_REQUEST_TIMEOUT_MS = 12000
 
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false)
@@ -546,12 +587,16 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         page: historyPage,
         perPage: historyPerPage,
         signal: controller.signal,
+        timeoutMs: PAGE_REQUEST_TIMEOUT_MS,
       })
       setHistory(Array.isArray(payload.items) ? (payload.items as HistoryEntry[]) : [])
       setHistoryTotal(Number(payload.total) || 0)
       setHistoryTotalPages(Number(payload.totalPages) || 1)
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
+        return
+      }
+      if (isTransientBackendError(err)) {
         return
       }
       console.error('Failed to load history:', err)
@@ -571,7 +616,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
 
         for (let attempt = 0; attempt < 2; attempt += 1) {
           try {
-            const courses = await getTenantCoursesWithSignal(undefined, activeStateCode)
+            const courses = await getTenantCoursesWithSignal(undefined, activeStateCode, PAGE_REQUEST_TIMEOUT_MS)
             if (!cancelled) {
               setStateCourses(courses)
             }
@@ -592,7 +637,9 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         if (cancelled) {
           return
         }
-        console.error('Failed to load tenant courses:', error)
+        if (!isTransientBackendError(error)) {
+          console.error('Failed to load tenant courses:', error)
+        }
         setStateCourses([])
       } finally {
         if (!cancelled) {
@@ -607,29 +654,43 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     }
   }, [activeStateCode])
 
-  // Load scheduler status and history
+  // Load scheduler status only when scheduler tab is opened
   useEffect(() => {
-    const loadData = async () => {
+    if (activeTab !== 'scheduler') {
+      return
+    }
+
+    const loadScheduler = async () => {
+      if (schedulerAbortRef.current) {
+        schedulerAbortRef.current.abort()
+      }
+      const controller = new AbortController()
+      schedulerAbortRef.current = controller
+
       try {
-        if (schedulerAbortRef.current) {
-          schedulerAbortRef.current.abort()
-        }
-        const controller = new AbortController()
-        schedulerAbortRef.current = controller
-
-        // Load scheduler status
-        setSchedulerStatus(await getRosterPipelineSchedulerStatus(controller.signal))
-
-        await loadHistory()
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
+        setSchedulerStatus(await getRosterPipelineSchedulerStatus(controller.signal, PAGE_REQUEST_TIMEOUT_MS))
+      } catch (schedulerError) {
+        if (schedulerError instanceof DOMException && schedulerError.name === 'AbortError') {
           return
         }
-        console.error('Failed to load data:', err)
+        if (isTransientBackendError(schedulerError)) {
+          return
+        }
+        console.error('Failed to load scheduler status:', schedulerError)
       }
     }
-    loadData()
-  }, [loadHistory, activeStateCode])
+
+    loadScheduler()
+  }, [activeTab, activeStateCode])
+
+  // Load history only when history tab is opened
+  useEffect(() => {
+    if (activeTab !== 'history') {
+      return
+    }
+
+    loadHistory()
+  }, [activeTab, loadHistory, activeStateCode])
 
   // ============== Pipeline Step Management ==============
 
@@ -764,7 +825,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         switch (data.type) {
           case 'step-change':
             // Map roster step IDs (1-8) to unified step IDs (5-10)
-            const unifiedStepId = data.stepId + 4 // Offset by XML steps
+            const unifiedStepId = data.stepId + rosterSseOffset
             setPipelineSteps(prev => 
               prev.map(step => {
                 if (step.id < unifiedStepId && step.phase === 'roster' && step.status !== 'completed') {
@@ -851,7 +912,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       es.close()
       rosterEventSourceRef.current = null
     }
-  }, [])
+  }, [rosterSseOffset])
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -1257,7 +1318,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             <CardHeader>
               <CardTitle>Complete Pipeline Flow</CardTitle>
               <CardDescription>
-                Full workflow: ExceedCE Data → XML Processing → Roster Posting → CE Broker
+                {flowConfig.flowDescription}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1267,7 +1328,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   <Badge variant={currentPhase === 'xml' ? 'default' : 'outline'} className="text-xs">
                     Phase 1
                   </Badge>
-                  <span className="font-semibold text-sm">Data Processing (XML Pipeline)</span>
+                  <span className="font-semibold text-sm">{flowConfig.phaseOneTitle}</span>
                 </div>
                 <div className="flex items-center justify-between overflow-x-auto pb-4 px-2">
                   {xmlSteps.map((step, index) => (
@@ -1346,7 +1407,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   ${currentPhase === 'roster' ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-slate-50'}
                 `}>
                   <ArrowRight className={`h-6 w-6 rotate-90 ${currentPhase === 'roster' ? 'text-blue-500' : 'text-slate-400'}`} />
-                  <span className="text-xs text-muted-foreground mt-1">Browser Automation</span>
+                  <span className="text-xs text-muted-foreground mt-1">{flowConfig.phaseConnectorLabel}</span>
                 </div>
               </div>
 
@@ -1356,7 +1417,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   <Badge variant={currentPhase === 'roster' ? 'default' : 'outline'} className="text-xs">
                     Phase 2
                   </Badge>
-                  <span className="font-semibold text-sm">Roster Posting (Browser Automation)</span>
+                  <span className="font-semibold text-sm">{flowConfig.phaseTwoTitle}</span>
                 </div>
                 <div className="flex items-center justify-between overflow-x-auto pb-4 px-2">
                   {rosterSteps.map((step, index) => (
@@ -1525,63 +1586,34 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             <CardHeader>
               <CardTitle>System Architecture</CardTitle>
               <CardDescription>
-                Complete active-state data flow from ExceedCE to CE Broker
+                {flowConfig.architectureDescription}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-center gap-3 py-8 overflow-x-auto">
-                {/* ExceedCE */}
-                <div className="flex flex-col items-center min-w-[80px]">
-                  <div className="h-14 w-14 rounded-xl bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
-                    ECE
-                  </div>
-                  <p className="mt-2 font-semibold text-xs">ExceedCE</p>
-                  <p className="text-xs text-muted-foreground">Data Source</p>
-                </div>
+                {flowConfig.architectureNodes.map((node, index) => {
+                  const NodeIcon = node.icon
 
-                <ArrowRight className="h-5 w-5 text-slate-400 shrink-0" />
+                  return (
+                    <div key={node.id} className="flex items-center gap-3">
+                      <div className="flex flex-col items-center min-w-[80px]">
+                        <div className={`h-14 w-14 rounded-xl ${node.colorClass} flex items-center justify-center text-white`}>
+                          {NodeIcon ? (
+                            <NodeIcon className="h-7 w-7" />
+                          ) : (
+                            <span className="font-bold text-sm">{node.token || 'N/A'}</span>
+                          )}
+                        </div>
+                        <p className="mt-2 font-semibold text-xs">{node.label}</p>
+                        <p className="text-xs text-muted-foreground">{node.subtitle}</p>
+                      </div>
 
-                {/* XML Pipeline */}
-                <div className="flex flex-col items-center min-w-[80px]">
-                  <div className="h-14 w-14 rounded-xl bg-indigo-500 flex items-center justify-center text-white">
-                    <Database className="h-7 w-7" />
-                  </div>
-                  <p className="mt-2 font-semibold text-xs">XML Pipeline</p>
-                  <p className="text-xs text-muted-foreground">Processing</p>
-                </div>
-
-                <ArrowRight className="h-5 w-5 text-slate-400 shrink-0" />
-
-                {/* State Lookup */}
-                <div className="flex flex-col items-center min-w-[80px]">
-                  <div className="h-14 w-14 rounded-xl bg-orange-500 flex items-center justify-center text-white">
-                    <Globe className="h-7 w-7" />
-                  </div>
-                  <p className="mt-2 font-semibold text-xs">{flowConfig.architectureLookupLabel}</p>
-                  <p className="text-xs text-muted-foreground">Profession Lookup</p>
-                </div>
-
-                <ArrowRight className="h-5 w-5 text-slate-400 shrink-0" />
-
-                {/* Browser */}
-                <div className="flex flex-col items-center min-w-[80px]">
-                  <div className="h-14 w-14 rounded-xl bg-purple-500 flex items-center justify-center text-white">
-                    <Monitor className="h-7 w-7" />
-                  </div>
-                  <p className="mt-2 font-semibold text-xs">Puppeteer</p>
-                  <p className="text-xs text-muted-foreground">Browser Bot</p>
-                </div>
-
-                <ArrowRight className="h-5 w-5 text-slate-400 shrink-0" />
-
-                {/* CE Broker */}
-                <div className="flex flex-col items-center min-w-[80px]">
-                  <div className="h-14 w-14 rounded-xl bg-green-500 flex items-center justify-center text-white font-bold text-sm">
-                    CEB
-                  </div>
-                  <p className="mt-2 font-semibold text-xs">CE Broker</p>
-                  <p className="text-xs text-muted-foreground">Roster Posted</p>
-                </div>
+                      {index < flowConfig.architectureNodes.length - 1 && (
+                        <ArrowRight className="h-5 w-5 text-slate-400 shrink-0" />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
