@@ -24,7 +24,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -34,6 +34,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getTenantAccessProfile, signOut, setActiveState, normalizeStateCode } from '@/lib/auth'
+import { apiUrl } from '@/lib/api'
+import { getHiddenPipelineTabLabel } from '@/lib/ceBrokerPipeline'
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -68,14 +70,50 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [activeStateCode, setActiveStateCode] = useState(() => normalizeStateCode(getTenantAccessProfile().stateCode || 'SC'))
   const location = useLocation()
   const navigate = useNavigate()
   const tenant = getTenantAccessProfile()
   const isSuperAdmin = tenant.isSuperAdmin
 
-  const tenantNavItems = isSuperAdmin
-    ? superAdminSalesItems
-    : navItems
+  useEffect(() => {
+    const syncActiveState = () => {
+      const currentTenant = getTenantAccessProfile()
+      const normalized = normalizeStateCode(currentTenant.stateCode || 'SC')
+      setActiveStateCode((previous) => (previous === normalized ? previous : normalized))
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'exceedce-active-state') {
+        syncActiveState()
+      }
+    }
+
+    const onActiveStateChanged = () => {
+      syncActiveState()
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+    }
+  }, [])
+
+  const maskedPipelineLabel = getHiddenPipelineTabLabel(activeStateCode)
+
+  const tenantNavItems = useMemo(() => {
+    if (isSuperAdmin) return superAdminSalesItems
+    return navItems.map((item) => {
+      if (item.path !== '/pipeline') return item
+      return {
+        ...item,
+        label: maskedPipelineLabel,
+      }
+    })
+  }, [isSuperAdmin, maskedPipelineLabel])
 
   const handleLogout = () => {
     signOut()
@@ -108,10 +146,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <div className="px-1 pb-2">
             <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-400">Active State</p>
             <Select
-              value={tenant.stateCode}
+              value={activeStateCode}
               onValueChange={(code) => {
+                // Stop any active pipeline run in the previous state scope before switching.
+                fetch(apiUrl('/api/pipeline/stop'), { method: 'POST' }).catch(() => {})
+                fetch(apiUrl('/api/roster-pipeline/stop'), { method: 'POST' }).catch(() => {})
                 setActiveState(code)
-                window.location.reload()
+                setActiveStateCode(normalizeStateCode(code))
               }}
             >
               <SelectTrigger className="h-8 w-full border-white/15 bg-white/10 text-xs text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
@@ -183,7 +224,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
         {!collapsed && (
           <div className="text-xs text-slate-400">
-            <p>{tenant.isSuperAdmin ? 'Global Control Tower' : `${tenant.stateName} Pipeline`}</p>
+            <p>{tenant.isSuperAdmin ? 'Global Control Tower' : `${maskedPipelineLabel} Workspace`}</p>
             <p className="mt-1">v1.0.0</p>
           </div>
         )}

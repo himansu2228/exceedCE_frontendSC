@@ -44,6 +44,7 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
   SC: 'South Carolina',
   HI: 'Hawaii',
   NC: 'North Carolina',
+  NV: 'Nevada',
   MI: 'Michigan',
   MO: 'Missouri',
 }
@@ -87,6 +88,7 @@ export function normalizeStateCode(state: string | undefined | null): string {
   if (raw === 'SOUTH CAROLINA' || raw.includes('SOUTH CAROLINA')) return 'SC'
   if (raw === 'HAWAII' || raw.includes('HAWAII')) return 'HI'
   if (raw === 'NORTH CAROLINA' || raw.includes('NORTH CAROLINA')) return 'NC'
+  if (raw === 'NEVADA' || raw.includes('NEVADA')) return 'NV'
   if (raw === 'MICHIGAN' || raw.includes('MICHIGAN')) return 'MI'
   if (raw === 'MISSOURI' || raw.includes('MISSOURI')) return 'MO'
   return raw

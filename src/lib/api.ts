@@ -284,6 +284,15 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
   }
 
   const controller = new AbortController()
+  const externalSignal = options?.signal
+  const onExternalAbort = () => controller.abort()
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort()
+    } else {
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+    }
+  }
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? DEFAULT_API_TIMEOUT_MS))
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
@@ -308,6 +317,9 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
       throw error
     } finally {
       window.clearTimeout(timeoutId)
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', onExternalAbort)
+      }
     }
 
     if (!response.ok) {
@@ -397,6 +409,16 @@ export async function getSCCourses(): Promise<Course[]> {
 
 export async function getTenantCourses(): Promise<Course[]> {
   return fetchApi<Course[]>('/courses/sc')
+}
+
+export async function getTenantCoursesWithSignal(signal?: AbortSignal, stateCode?: string): Promise<Course[]> {
+  const params = new URLSearchParams()
+  const scopedState = (stateCode || getTenantAccessProfile().stateCode || '').trim()
+  if (scopedState) {
+    params.set('state', scopedState)
+  }
+  const query = params.toString()
+  return fetchApi<Course[]>(`/courses/sc${query ? `?${query}` : ''}`, { signal })
 }
 
 export async function getSCCoursesPaginated(options?: {
@@ -693,6 +715,43 @@ export async function postSelectedRosterEntries(payload: {
 
 export async function getRosterVerificationStatus(): Promise<RosterVerificationStatus> {
   return fetchApi<RosterVerificationStatus>('/roster-pipeline/verification-status')
+}
+
+export async function getRosterPipelineSchedulerStatus(signal?: AbortSignal): Promise<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }> {
+  return fetchApi<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }>('/roster-pipeline/scheduler', {
+    signal,
+  })
+}
+
+export async function getRosterPipelineHistory(options?: {
+  page?: number
+  perPage?: number
+  signal?: AbortSignal
+}): Promise<{ items: unknown[]; total: number; page: number; perPage: number; totalPages: number }> {
+  const params = new URLSearchParams()
+  if (options?.page) params.set('page', String(options.page))
+  if (options?.perPage) params.set('perPage', String(options.perPage))
+  const query = params.toString()
+
+  const payload = await fetchApi<{
+    items?: unknown[]
+    total?: number
+    page?: number
+    perPage?: number
+    totalPages?: number
+  }>(`/roster-pipeline/history${query ? `?${query}` : ''}`, {
+    signal: options?.signal,
+  })
+
+  const items = Array.isArray(payload.items) ? payload.items : []
+
+  return {
+    items,
+    total: Number(payload.total) || items.length,
+    page: Number(payload.page) || options?.page || 1,
+    perPage: Number(payload.perPage) || options?.perPage || 10,
+    totalPages: Number(payload.totalPages) || 1,
+  }
 }
 
 export async function resolveRosterVerification(): Promise<{ success: boolean; verification: RosterVerificationStatus }> {
