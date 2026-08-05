@@ -28,7 +28,7 @@ interface ReportPreset {
   id: string
   label: string
   filters: {
-    state?: string
+    state?: string | string[]
     source?: string
     course?: string
   }
@@ -45,16 +45,19 @@ const REPORT_PRESETS: ReportPreset[] = [
     description: 'North Carolina market sales'
   },
   { 
-    id: 'crcbr', 
-    label: 'CRCBR Sales Report (Hawaii)', 
-    filters: { state: 'HI', source: 'CRCBR' },
-    description: 'CRCBR partner Hawaii CE courses'
+  id: 'crcbr',
+  label: 'CRCBR Sales Report',
+  filters: {
+    state: ['NC', 'SC'],
+    source: 'CRCBR'
+  },
+  description: 'CRCBR partner'
   },
   { 
     id: 'cba', 
     label: 'CBA Sales Report', 
     filters: { source: 'CBA' },
-    description: 'Community Business Association enrollments'
+    description: 'Commercial Brokers Association partner'
   },
   { 
     id: 'partner-direct', 
@@ -113,7 +116,11 @@ export function SalesReportsPage() {
 
     // Apply preset filters
     if (selectedPreset.filters.state) {
-      setState(selectedPreset.filters.state)
+      setState(
+        Array.isArray(selectedPreset.filters.state)
+          ? selectedPreset.filters.state.join(', ')
+          : selectedPreset.filters.state
+      )
     }
     if (selectedPreset.filters.source) {
       setSource(selectedPreset.filters.source)
