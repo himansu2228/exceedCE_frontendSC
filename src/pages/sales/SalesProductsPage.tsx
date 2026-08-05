@@ -21,15 +21,30 @@ export function SalesProductsPage() {
 
       <Card>
         <CardHeader><CardTitle>Course Performance</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent>
           {rows.length === 0 ? <p className="text-sm text-muted-foreground">No course sales available</p> : null}
-          {rows.map((row) => (
-            <div key={row.course} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded-lg border p-3">
-              <span className="truncate text-sm">{row.course}</span>
-              <span className="text-xs text-muted-foreground">Qty: {row.quantity}</span>
-              <strong>{formatCurrency(row.revenue)}</strong>
+          {rows.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Course</th>
+                    <th className="px-4 py-3 text-center font-medium">Quantity</th>
+                    <th className="px-4 py-3 text-right font-medium">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.course} className="border-t">
+                      <td className="px-4 py-3">{row.course}</td>
+                      <td className="px-4 py-3 text-center text-muted-foreground">{row.quantity}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          ) : null}
         </CardContent>
       </Card>
     </div>
