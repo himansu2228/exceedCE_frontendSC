@@ -224,40 +224,6 @@ export function SalesDashboardPage() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <a href="/sales/reports" className="group rounded-lg border border-slate-200 bg-white p-4 hover:shadow-md hover:border-slate-300 transition-all">
-          <div className="mb-2 flex h-8 w-8 items-center justify-center rounded bg-blue-100 text-blue-600 group-hover:bg-blue-200">
-            <span className="text-sm font-semibold">NC</span>
-          </div>
-          <p className="text-sm font-semibold text-slate-900">NC Report</p>
-          <p className="mt-1 text-xs text-slate-600">North Carolina sales</p>
-        </a>
-
-        <a href="/sales/reports" className="group rounded-lg border border-slate-200 bg-white p-4 hover:shadow-md hover:border-slate-300 transition-all">
-          <div className="mb-2 flex h-8 w-8 items-center justify-center rounded bg-purple-100 text-purple-600 group-hover:bg-purple-200">
-            <span className="text-sm font-semibold">HI</span>
-          </div>
-          <p className="text-sm font-semibold text-slate-900">CRCBR Report</p>
-          <p className="mt-1 text-xs text-slate-600">Hawaii partner sales</p>
-        </a>
-
-        <a href="/sales/analytics" className="group rounded-lg border border-slate-200 bg-white p-4 hover:shadow-md hover:border-slate-300 transition-all">
-          <div className="mb-2 flex h-8 w-8 items-center justify-center rounded bg-green-100 text-green-600 group-hover:bg-green-200">
-            <span className="text-xs font-bold">📊</span>
-          </div>
-          <p className="text-sm font-semibold text-slate-900">Analytics</p>
-          <p className="mt-1 text-xs text-slate-600">Revenue trends</p>
-        </a>
-
-        <a href="/sales/sync-logs" className="group rounded-lg border border-slate-200 bg-white p-4 hover:shadow-md hover:border-slate-300 transition-all">
-          <div className="mb-2 flex h-8 w-8 items-center justify-center rounded bg-amber-100 text-amber-600 group-hover:bg-amber-200">
-            <span className="text-xs font-bold">⚙️</span>
-          </div>
-          <p className="text-sm font-semibold text-slate-900">Sync Status</p>
-          <p className="mt-1 text-xs text-slate-600">Data sync logs</p>
-        </a>
-      </div>
-
       <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100/50 p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
