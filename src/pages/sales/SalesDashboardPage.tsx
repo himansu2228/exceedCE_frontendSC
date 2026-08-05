@@ -304,30 +304,32 @@ export function SalesDashboardPage() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
               <div className="relative h-72 rounded-xl border border-slate-100 bg-slate-50/60 p-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={orderStatusData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={72}
-                      outerRadius={102}
-                      paddingAngle={3}
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                    >
-                      {orderStatusData.map((status) => (
-                        <Cell key={status.name} fill={status.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomOrderStatusTooltip total={totalOrderStatuses} />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
                   <div className="rounded-full border border-slate-200 bg-white px-5 py-3 text-center shadow-sm">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Total Orders</p>
                     <p className="text-2xl font-semibold text-slate-900">{totalOrderStatuses.toLocaleString()}</p>
                   </div>
+                </div>
+                <div className="relative z-10 h-full w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={orderStatusData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={72}
+                        outerRadius={102}
+                        paddingAngle={3}
+                        stroke="#ffffff"
+                        strokeWidth={2}
+                      >
+                        {orderStatusData.map((status) => (
+                          <Cell key={status.name} fill={status.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomOrderStatusTooltip total={totalOrderStatuses} />} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
 
