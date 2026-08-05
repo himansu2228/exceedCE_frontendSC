@@ -22,6 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Zap,
+  Target,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -60,6 +62,8 @@ const superAdminSalesItems = [
   { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
   { path: '/sales/sync-logs', icon: ListChecks, label: 'Sync Logs' },
   { path: '/sales/failed-syncs', icon: ShieldAlert, label: 'Failed Syncs' },
+  { path: '/sales/cba', icon: Zap, label: 'CBA' },
+  { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
   { path: '/sales/settings', icon: Settings, label: 'Sales Settings' },
 ]
 
