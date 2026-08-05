@@ -220,50 +220,41 @@ export function SalesReportsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Quick Presets</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex-1">
-              <Select value={preset} onValueChange={applyPreset}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a report preset" />
-                </SelectTrigger>
-                <SelectContent>
-                  {REPORT_PRESETS.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <CardContent className="space-y-2 pt-4">
+          <div className="flex flex-col gap-2">
+            <div className="grid gap-0 sm:grid-cols-1 lg:grid-cols-5 items-end">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Preset</label>
+                <Select value={preset} onValueChange={applyPreset}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select preset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_PRESETS.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                className="lg:col-span-2"
+                showLabels={false}
+              />
+              <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} className="h-8 text-xs" />
+              <Button className="h-8 text-xs" onClick={() => void load(1, perPage)}>
+                Apply
+              </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Presets apply common filters to quickly load partner/state-specific reports
-            </p>
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <Input placeholder="Course" value={course} onChange={(e) => setCourse(e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="Source" value={source} onChange={(e) => setSource(e.target.value)} className="h-8 text-xs" />
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-          <DateRangeFilter
-            value={dateRange}
-            onChange={setDateRange}
-            className="md:col-span-3 lg:col-span-4"
-            showLabels={false}
-          />
-          <Input placeholder="Course" value={course} onChange={(e) => setCourse(e.target.value)} />
-          <Input placeholder="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} />
-          <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} />
-          <Input placeholder="Source" value={source} onChange={(e) => setSource(e.target.value)} />
-          <Button className="md:col-span-3 lg:col-span-2" onClick={() => void load(1, perPage)}>
-            Apply Filters
-          </Button>
         </CardContent>
       </Card>
 

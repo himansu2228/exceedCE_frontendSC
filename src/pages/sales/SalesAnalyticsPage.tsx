@@ -64,8 +64,7 @@ export function SalesAnalyticsPage() {
             value={dateRange}
             onChange={setDateRange}
             showLabels={false}
-            selectClassName="w-[170px]"
-            inputClassName="w-[145px]"
+           
           />
           <Button onClick={() => void load()}>
             <RefreshCw className="mr-2 h-4 w-4" />

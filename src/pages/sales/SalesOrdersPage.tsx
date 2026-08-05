@@ -68,8 +68,6 @@ export function SalesOrdersPage() {
             onChange={setDateRange}
             showLabels={false}
             className="md:col-span-2 lg:col-span-3"
-            selectClassName="w-[160px]"
-            inputClassName="w-[132px]"
           />
           <Button className="lg:col-span-1" onClick={() => void load(1, perPage)}>Apply</Button>
         </CardContent>
