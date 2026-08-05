@@ -1582,7 +1582,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
           )}
 
           {/* Architecture Diagram */}
-          <Card>
+         {/* <Card>
             <CardHeader>
               <CardTitle>System Architecture</CardTitle>
               <CardDescription>
@@ -1616,7 +1616,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 })}
               </div>
             </CardContent>
-          </Card>
+          </Card>  */}
         </TabsContent>
 
         {/* ============== Roster Post Tab ============== */}
