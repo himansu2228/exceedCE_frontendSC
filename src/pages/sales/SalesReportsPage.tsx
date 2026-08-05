@@ -4,6 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PaginationControls } from '@/components/ui/pagination-controls'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { getSalesReports, getSalesReportExportUrl } from '@/lib/api'
 import type { SalesReportRow } from '@/lib/api'
 import {
@@ -16,6 +23,41 @@ import {
 } from '@/components/ui/table'
 import { formatCurrency } from './shared'
 
+// Predefined report presets for common use cases
+const REPORT_PRESETS = [
+  { id: 'all', label: 'All Reports', filters: {} },
+  { 
+    id: 'nc', 
+    label: 'NC Sales Report', 
+    filters: { state: 'NC' },
+    description: 'North Carolina market sales'
+  },
+  { 
+    id: 'crcbr', 
+    label: 'CRCBR Sales Report (Hawaii)', 
+    filters: { state: 'HI', source: 'CRCBR' },
+    description: 'CRCBR partner Hawaii CE courses'
+  },
+  { 
+    id: 'cba', 
+    label: 'CBA Sales Report', 
+    filters: { source: 'CBA' },
+    description: 'Community Business Association enrollments'
+  },
+  { 
+    id: 'partner-direct', 
+    label: 'Direct Sales Channel', 
+    filters: { source: 'Direct' },
+    description: 'Direct enrollment sales'
+  },
+  { 
+    id: 'partner-referral', 
+    label: 'Referral Channel', 
+    filters: { source: 'Referral' },
+    description: 'Referred customer sales'
+  },
+]
+
 export function SalesReportsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,12 +67,39 @@ export function SalesReportsPage() {
   const [perPage, setPerPage] = useState(50)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  const [preset, setPreset] = useState('all')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [course, setCourse] = useState('')
   const [customer, setCustomer] = useState('')
   const [state, setState] = useState('')
   const [source, setSource] = useState('')
+
+  const applyPreset = (presetId: string) => {
+    const selectedPreset = REPORT_PRESETS.find((p) => p.id === presetId)
+    if (!selectedPreset) return
+
+    // Reset all filters first
+    setFromDate('')
+    setToDate('')
+    setCourse('')
+    setCustomer('')
+    setState('')
+    setSource('')
+
+    // Apply preset filters
+    if (selectedPreset.filters.state) {
+      setState(selectedPreset.filters.state)
+    }
+    if (selectedPreset.filters.source) {
+      setSource(selectedPreset.filters.source)
+    }
+    if (selectedPreset.filters.course) {
+      setCourse(selectedPreset.filters.course)
+    }
+
+    setPreset(presetId)
+  }
 
   const load = async (targetPage = page, targetPerPage = perPage) => {
     try {
@@ -63,6 +132,45 @@ export function SalesReportsPage() {
     void load(1, perPage)
   }, [])
 
+  const handleExportCSV = async () => {
+    try {
+      const params = new URLSearchParams()
+      params.set('format', 'xlsx')
+      if (fromDate) params.set('fromDate', fromDate)
+      if (toDate) params.set('toDate', toDate)
+      if (state) params.set('state', state)
+      if (source) params.set('source', source)
+      if (course) params.set('course', course)
+      if (customer) params.set('customer', customer)
+      
+      const token = localStorage.getItem('exceedce-auth-token') || ''
+      const response = await fetch(`/api/sales/reports?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Export failed: ${response.statusText}`)
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'sales-report.xlsx'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Export failed:', err)
+      alert(`Failed to export: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -80,25 +188,39 @@ export function SalesReportsPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          <a
-            href={getSalesReportExportUrl({
-              fromDate: fromDate || undefined,
-              toDate: toDate || undefined,
-              course: course || undefined,
-              customer: customer || undefined,
-              state: state || undefined,
-              source: source || undefined,
-            })}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Button>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-          </a>
+          <Button onClick={handleExportCSV}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Presets</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <Select value={preset} onValueChange={applyPreset}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a report preset" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REPORT_PRESETS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Presets apply common filters to quickly load partner/state-specific reports
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

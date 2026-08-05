@@ -1066,6 +1066,34 @@ export interface SalesMappingRow {
   databaseColumn: string
 }
 
+export interface CustomerCohortAnalysis {
+  new: {
+    customerCount: number
+    totalOrders: number
+    revenue: number
+    avgCustomerValue: number
+    percentOfRevenue: number
+  }
+  returning: {
+    customerCount: number
+    totalOrders: number
+    revenue: number
+    avgCustomerValue: number
+    percentOfRevenue: number
+  }
+}
+
+export interface SalesAttributionBySource {
+  sources: Array<{
+    source: string
+    customerCount: number
+    orderCount: number
+    revenue: number
+    percentOfRevenue: number
+  }>
+  totalRevenue: number
+}
+
 export async function getSalesDashboard(): Promise<SalesDashboardResponse> {
   return fetchApi<SalesDashboardResponse>('/sales/dashboard')
 }
@@ -1079,6 +1107,28 @@ export async function getSalesAnalytics(filters?: {
   if (filters?.toDate) params.set('toDate', filters.toDate)
   const query = params.toString()
   return fetchApi<SalesDashboardResponse>(`/sales/analytics${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesCustomerCohort(filters?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<CustomerCohortAnalysis> {
+  const params = new URLSearchParams()
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  const query = params.toString()
+  return fetchApi<CustomerCohortAnalysis>(`/sales/cohort${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesAttributionBySource(filters?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<SalesAttributionBySource> {
+  const params = new URLSearchParams()
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  const query = params.toString()
+  return fetchApi<SalesAttributionBySource>(`/sales/attribution${query ? `?${query}` : ''}`)
 }
 
 export async function getSalesOrders(filters?: {
@@ -1169,7 +1219,14 @@ export function getSalesReportExportUrl(filters?: {
   if (filters?.course) params.set('course', filters.course)
   if (filters?.customer) params.set('customer', filters.customer)
   if (filters?.orderStatus && filters.orderStatus !== 'all') params.set('orderStatus', filters.orderStatus)
-  return apiUrl(`/api/sales/reports?${params.toString()}`)
+  
+  // Add auth token for direct link access
+  const token = getAccessToken()
+  if (token) {
+    params.set('authToken', token)
+  }
+  
+  return `${API_ORIGIN}/api/sales/reports?${params.toString()}`
 }
 
 export async function runSalesSync(payload?: {
