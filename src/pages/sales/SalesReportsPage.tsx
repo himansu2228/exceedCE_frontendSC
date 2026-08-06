@@ -166,7 +166,7 @@ export function SalesReportsPage() {
   const handleExportCSV = async () => {
     try {
       const params = new URLSearchParams()
-      params.set('format', 'xlsx')
+      params.set('format', 'csv')
       if (dateRange.fromDate) params.set('fromDate', dateRange.fromDate)
       if (dateRange.toDate) params.set('toDate', dateRange.toDate)
       if (state) params.set('state', state)
@@ -190,8 +190,17 @@ export function SalesReportsPage() {
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
+      const contentDisposition = response.headers.get('content-disposition') || ''
+      const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i)
+      const serverFilename = filenameMatch?.[1]?.trim()
+      const decodedFilename = serverFilename ? decodeURIComponent(serverFilename.replace(/^"|"$/g, '')) : null
+      const contentType = (response.headers.get('content-type') || '').toLowerCase()
+      const fallbackFilename = contentType.includes('spreadsheetml')
+        ? 'sales-report.xlsx'
+        : 'sales-report.csv'
+
       link.href = url
-      link.download = 'sales-report.xlsx'
+      link.download = decodedFilename || fallbackFilename
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
