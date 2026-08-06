@@ -323,8 +323,6 @@ export function CompletedPage() {
                 value={dateRange}
                 onChange={setDateRange}
                 showLabels={false}
-                selectClassName="w-[160px]"
-                inputClassName="w-[136px]"
               />
 
               <Button size="sm" onClick={handleApplyFilters}>
