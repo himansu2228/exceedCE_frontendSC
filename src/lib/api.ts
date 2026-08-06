@@ -9,9 +9,9 @@ const requestedApiOrigin = (
 )
 
 const isLocalhostOrigin = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(requestedApiOrigin)
-const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
-  ? DEFAULT_PROD_API_ORIGIN
-  : requestedApiOrigin
+const isKnownFrontendOrigin = /^(https?:\/\/)?(?:www\.)?(?:exceedce|scexceedceautomate)\.cognitiev\.com(?::\d+)?\/?$/i.test(requestedApiOrigin)
+const shouldForceProdApiOrigin = !import.meta.env.DEV && (isLocalhostOrigin || isKnownFrontendOrigin)
+const rawApiOrigin = shouldForceProdApiOrigin ? DEFAULT_PROD_API_ORIGIN : requestedApiOrigin
 
 const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
 const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
@@ -1217,7 +1217,7 @@ export function getSalesReportExportUrl(filters?: {
   course?: string
   customer?: string
   orderStatus?: string
-  format?: 'csv'
+  format?: 'csv' | 'xlsx'
 }): string {
   const params = new URLSearchParams()
   params.set('format', filters?.format || 'csv')

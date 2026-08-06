@@ -17,9 +17,9 @@ function getApiBase(): string {
   )
 
   const isLocalhostOrigin = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(requestedApiOrigin)
-  const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
-    ? DEFAULT_PROD_API_ORIGIN
-    : requestedApiOrigin
+  const isKnownFrontendOrigin = /^(https?:\/\/)?(?:www\.)?(?:exceedce|scexceedceautomate)\.cognitiev\.com(?::\d+)?\/?$/i.test(requestedApiOrigin)
+  const shouldForceProdApiOrigin = !import.meta.env.DEV && (isLocalhostOrigin || isKnownFrontendOrigin)
+  const rawApiOrigin = shouldForceProdApiOrigin ? DEFAULT_PROD_API_ORIGIN : requestedApiOrigin
 
   const apiOrigin = rawApiOrigin.replace(/\/+$/, '')
   return apiOrigin ? `${apiOrigin}/api` : '/api'
