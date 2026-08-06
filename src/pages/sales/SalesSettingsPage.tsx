@@ -51,7 +51,6 @@ export function SalesSettingsPage() {
             onChange={setDateRange}
             showLabels={false}
             className="md:col-span-2"
-            selectClassName="w-[170px]"
           />
           <Button disabled={running} onClick={() => void runSync()}>{running ? 'Syncing...' : 'Start Sync'}</Button>
           {message ? <p className="md:col-span-3 text-sm">{message}</p> : null}
