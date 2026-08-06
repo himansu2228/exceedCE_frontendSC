@@ -20,6 +20,7 @@ import {
 import { RefreshCw, AlertTriangle, IndianRupee, ShoppingCart, Activity, Percent } from 'lucide-react'
 import { getSalesDashboard, getSalesCustomerCohort, getSalesAttributionBySource } from '@/lib/api'
 import type { SalesDashboardResponse, CustomerCohortAnalysis, SalesAttributionBySource } from '@/lib/api'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import { formatCurrency } from './shared'
 
 // State code to full name mapping
@@ -40,6 +41,17 @@ const STATE_NAMES: Record<string, string> = {
 function truncateCourseLabel(label: string, maxLength = 26) {
   if (!label) return ''
   return label.length > maxLength ? `${label.slice(0, maxLength - 3)}...` : label
+}
+
+function formatHeaderDate(isoDate: string): string {
+  if (!isoDate) return ''
+  const date = new Date(isoDate)
+  if (Number.isNaN(date.getTime())) return isoDate
+  return date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 // Custom tooltip for Revenue by State chart
@@ -122,20 +134,37 @@ function CustomOrderStatusTooltip({ active, payload, total }: OrderStatusTooltip
 }
 
 export function SalesDashboardPage() {
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [data, setData] = useState<SalesDashboardResponse | null>(null)
   const [cohortData, setCohortData] = useState<CustomerCohortAnalysis | null>(null)
   const [attributionData, setAttributionData] = useState<SalesAttributionBySource | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const selectedRangeLabel = useMemo(() => {
+    if (!dateRange.fromDate && !dateRange.toDate) return ''
+    const from = dateRange.fromDate ? formatHeaderDate(dateRange.fromDate) : '...'
+    const to = dateRange.toDate ? formatHeaderDate(dateRange.toDate) : '...'
+    return `Showing data for ${from} - ${to}`
+  }, [dateRange.fromDate, dateRange.toDate])
+
   const load = async () => {
     try {
       setLoading(true)
       setError(null)
       const [dashboardResponse, cohortResponse, attributionResponse] = await Promise.all([
-        getSalesDashboard(),
-        getSalesCustomerCohort(),
-        getSalesAttributionBySource(),
+        getSalesDashboard({
+          fromDate: dateRange.fromDate || undefined,
+          toDate: dateRange.toDate || undefined,
+        }),
+        getSalesCustomerCohort({
+          fromDate: dateRange.fromDate || undefined,
+          toDate: dateRange.toDate || undefined,
+        }),
+        getSalesAttributionBySource({
+          fromDate: dateRange.fromDate || undefined,
+          toDate: dateRange.toDate || undefined,
+        }),
       ])
       setData(dashboardResponse)
       setCohortData(cohortResponse)
@@ -216,12 +245,22 @@ export function SalesDashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Sales Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Live KPIs and revenue performance</p>
+          <p className="text-sm text-muted-foreground">Live KPIs and revenue performance with date filtering</p>
+          {selectedRangeLabel ? (
+            <p className="mt-1 text-xs font-medium text-blue-700">{selectedRangeLabel}</p>
+          ) : null}
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load()}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-end gap-2">
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            showLabels={false}
+          />
+          <Button onClick={() => void load()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Apply
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100/50 p-6 shadow-sm">

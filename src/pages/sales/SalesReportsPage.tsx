@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getSalesReports } from '@/lib/api'
+import { getSalesReportExportUrl, getSalesReports } from '@/lib/api'
 import type { SalesReportRow } from '@/lib/api'
 import {
   Table,
@@ -165,36 +165,38 @@ export function SalesReportsPage() {
 
   const handleExportCSV = async () => {
     try {
-      const params = new URLSearchParams()
-      params.set('format', 'csv')
-      if (dateRange.fromDate) params.set('fromDate', dateRange.fromDate)
-      if (dateRange.toDate) params.set('toDate', dateRange.toDate)
-      if (state) params.set('state', state)
-      if (source) params.set('source', source)
-      if (course) params.set('course', course)
-      if (customer) params.set('customer', customer)
-      
-      const token = localStorage.getItem('exceedce-auth-token') || ''
-      const response = await fetch(`/api/sales/reports?${params.toString()}`, {
+      const exportUrl = getSalesReportExportUrl({
+        format: 'csv',
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
+        state: state || undefined,
+        source: source || undefined,
+        course: course || undefined,
+        customer: customer || undefined,
+      })
+
+      const response = await fetch(exportUrl, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include',
       })
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `Export failed: ${response.statusText}`)
       }
+
+      const contentType = (response.headers.get('content-type') || '').toLowerCase()
+      if (contentType.includes('text/html')) {
+        throw new Error('Export endpoint returned HTML instead of CSV. Please retry and contact support if this continues.')
+      }
       
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const contentDisposition = response.headers.get('content-disposition') || ''
-      const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i)
+      const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
       const serverFilename = filenameMatch?.[1]?.trim()
       const decodedFilename = serverFilename ? decodeURIComponent(serverFilename.replace(/^"|"$/g, '')) : null
-      const contentType = (response.headers.get('content-type') || '').toLowerCase()
       const fallbackFilename = contentType.includes('spreadsheetml')
         ? 'sales-report.xlsx'
         : 'sales-report.csv'

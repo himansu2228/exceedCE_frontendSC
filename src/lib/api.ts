@@ -1096,8 +1096,15 @@ export interface SalesAttributionBySource {
   totalRevenue: number
 }
 
-export async function getSalesDashboard(): Promise<SalesDashboardResponse> {
-  return fetchApi<SalesDashboardResponse>('/sales/dashboard')
+export async function getSalesDashboard(filters?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<SalesDashboardResponse> {
+  const params = new URLSearchParams()
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  const query = params.toString()
+  return fetchApi<SalesDashboardResponse>(`/sales/dashboard${query ? `?${query}` : ''}`)
 }
 
 export async function getSalesAnalytics(filters?: {
