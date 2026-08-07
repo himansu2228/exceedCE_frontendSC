@@ -17,7 +17,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { RefreshCw, AlertTriangle, IndianRupee, ShoppingCart, Activity, Percent } from 'lucide-react'
+import { RefreshCw, AlertTriangle, DollarSign, ShoppingCart, Activity, Percent } from 'lucide-react'
 import { getSalesDashboard } from '@/lib/api'
 import type { SalesDashboardResponse } from '@/lib/api'
 import { formatCurrency } from './shared'
@@ -217,7 +217,7 @@ export function SalesDashboardPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric title="Total Sales" value={formatCurrency(kpi.totalSales)} icon={IndianRupee} />
+        <Metric title="Total Sales" value={formatCurrency(kpi.totalSales)} icon={DollarSign} />
         <Metric title="Orders" value={kpi.orders.toLocaleString()} icon={ShoppingCart} />
         <Metric title="Avg Order Value" value={formatCurrency(kpi.averageOrderValue)} icon={Activity} />
         <Metric title="Sales Growth" value={`${kpi.salesGrowthPercent.toFixed(2)}%`} icon={Percent} />
