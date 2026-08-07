@@ -9,9 +9,9 @@ const requestedApiOrigin = (
 )
 
 const isLocalhostOrigin = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(requestedApiOrigin)
-const rawApiOrigin = !import.meta.env.DEV && isLocalhostOrigin
-  ? DEFAULT_PROD_API_ORIGIN
-  : requestedApiOrigin
+const isKnownFrontendOrigin = /^(https?:\/\/)?(?:www\.)?(?:exceedce|scexceedceautomate)\.cognitiev\.com(?::\d+)?\/?$/i.test(requestedApiOrigin)
+const shouldForceProdApiOrigin = !import.meta.env.DEV && (isLocalhostOrigin || isKnownFrontendOrigin)
+const rawApiOrigin = shouldForceProdApiOrigin ? DEFAULT_PROD_API_ORIGIN : requestedApiOrigin
 
 const API_ORIGIN = rawApiOrigin.replace(/\/+$/, '')
 const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
@@ -284,6 +284,15 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
   }
 
   const controller = new AbortController()
+  const externalSignal = options?.signal
+  const onExternalAbort = () => controller.abort()
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort()
+    } else {
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+    }
+  }
   const timeoutMs = Math.max(1000, Number(options?.timeoutMs ?? DEFAULT_API_TIMEOUT_MS))
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
@@ -308,6 +317,9 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
       throw error
     } finally {
       window.clearTimeout(timeoutId)
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', onExternalAbort)
+      }
     }
 
     if (!response.ok) {
@@ -397,6 +409,23 @@ export async function getSCCourses(): Promise<Course[]> {
 
 export async function getTenantCourses(): Promise<Course[]> {
   return fetchApi<Course[]>('/courses/sc')
+}
+
+export async function getTenantCoursesWithSignal(
+  signal?: AbortSignal,
+  stateCode?: string,
+  timeoutMs?: number
+): Promise<Course[]> {
+  const params = new URLSearchParams()
+  const scopedState = (stateCode || getTenantAccessProfile().stateCode || '').trim()
+  if (scopedState) {
+    params.set('state', scopedState)
+  }
+  const query = params.toString()
+  return fetchApi<Course[]>(`/courses/sc${query ? `?${query}` : ''}`, {
+    signal,
+    timeoutMs,
+  })
 }
 
 export async function getSCCoursesPaginated(options?: {
@@ -695,6 +724,49 @@ export async function getRosterVerificationStatus(): Promise<RosterVerificationS
   return fetchApi<RosterVerificationStatus>('/roster-pipeline/verification-status')
 }
 
+export async function getRosterPipelineSchedulerStatus(
+  signal?: AbortSignal,
+  timeoutMs?: number
+): Promise<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }> {
+  return fetchApi<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }>('/roster-pipeline/scheduler', {
+    signal,
+    timeoutMs,
+  })
+}
+
+export async function getRosterPipelineHistory(options?: {
+  page?: number
+  perPage?: number
+  signal?: AbortSignal
+  timeoutMs?: number
+}): Promise<{ items: unknown[]; total: number; page: number; perPage: number; totalPages: number }> {
+  const params = new URLSearchParams()
+  if (options?.page) params.set('page', String(options.page))
+  if (options?.perPage) params.set('perPage', String(options.perPage))
+  const query = params.toString()
+
+  const payload = await fetchApi<{
+    items?: unknown[]
+    total?: number
+    page?: number
+    perPage?: number
+    totalPages?: number
+  }>(`/roster-pipeline/history${query ? `?${query}` : ''}`, {
+    signal: options?.signal,
+    timeoutMs: options?.timeoutMs,
+  })
+
+  const items = Array.isArray(payload.items) ? payload.items : []
+
+  return {
+    items,
+    total: Number(payload.total) || items.length,
+    page: Number(payload.page) || options?.page || 1,
+    perPage: Number(payload.perPage) || options?.perPage || 10,
+    totalPages: Number(payload.totalPages) || 1,
+  }
+}
+
 export async function resolveRosterVerification(): Promise<{ success: boolean; verification: RosterVerificationStatus }> {
   return fetchApi<{ success: boolean; verification: RosterVerificationStatus }>('/roster-pipeline/verification/resolve', {
     method: 'POST',
@@ -956,6 +1028,8 @@ export interface SalesReportRow {
   taxAmount: number
   discountAmount: number
   email: string
+  feedback?: string | null
+  feedbackOther?: string | null
 }
 
 export interface SalesSyncRun {
@@ -994,8 +1068,43 @@ export interface SalesMappingRow {
   databaseColumn: string
 }
 
-export async function getSalesDashboard(): Promise<SalesDashboardResponse> {
-  return fetchApi<SalesDashboardResponse>('/sales/dashboard')
+export interface CustomerCohortAnalysis {
+  new: {
+    customerCount: number
+    totalOrders: number
+    revenue: number
+    avgCustomerValue: number
+    percentOfRevenue: number
+  }
+  returning: {
+    customerCount: number
+    totalOrders: number
+    revenue: number
+    avgCustomerValue: number
+    percentOfRevenue: number
+  }
+}
+
+export interface SalesAttributionBySource {
+  sources: Array<{
+    source: string
+    customerCount: number
+    orderCount: number
+    revenue: number
+    percentOfRevenue: number
+  }>
+  totalRevenue: number
+}
+
+export async function getSalesDashboard(filters?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<SalesDashboardResponse> {
+  const params = new URLSearchParams()
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  const query = params.toString()
+  return fetchApi<SalesDashboardResponse>(`/sales/dashboard${query ? `?${query}` : ''}`)
 }
 
 export async function getSalesAnalytics(filters?: {
@@ -1007,6 +1116,28 @@ export async function getSalesAnalytics(filters?: {
   if (filters?.toDate) params.set('toDate', filters.toDate)
   const query = params.toString()
   return fetchApi<SalesDashboardResponse>(`/sales/analytics${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesCustomerCohort(filters?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<CustomerCohortAnalysis> {
+  const params = new URLSearchParams()
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  const query = params.toString()
+  return fetchApi<CustomerCohortAnalysis>(`/sales/cohort${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesAttributionBySource(filters?: {
+  fromDate?: string
+  toDate?: string
+}): Promise<SalesAttributionBySource> {
+  const params = new URLSearchParams()
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
+  const query = params.toString()
+  return fetchApi<SalesAttributionBySource>(`/sales/attribution${query ? `?${query}` : ''}`)
 }
 
 export async function getSalesOrders(filters?: {
@@ -1086,7 +1217,7 @@ export function getSalesReportExportUrl(filters?: {
   course?: string
   customer?: string
   orderStatus?: string
-  format?: 'csv'
+  format?: 'csv' | 'xlsx'
 }): string {
   const params = new URLSearchParams()
   params.set('format', filters?.format || 'csv')
@@ -1097,7 +1228,14 @@ export function getSalesReportExportUrl(filters?: {
   if (filters?.course) params.set('course', filters.course)
   if (filters?.customer) params.set('customer', filters.customer)
   if (filters?.orderStatus && filters.orderStatus !== 'all') params.set('orderStatus', filters.orderStatus)
-  return apiUrl(`/api/sales/reports?${params.toString()}`)
+  
+  // Add auth token for direct link access
+  const token = getAccessToken()
+  if (token) {
+    params.set('authToken', token)
+  }
+  
+  return `${API_ORIGIN}/api/sales/reports?${params.toString()}`
 }
 
 export async function runSalesSync(payload?: {

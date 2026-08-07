@@ -22,9 +22,11 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Zap,
+  Target,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -34,6 +36,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getTenantAccessProfile, signOut, setActiveState, normalizeStateCode } from '@/lib/auth'
+import { apiUrl } from '@/lib/api'
+import { getHiddenPipelineTabLabel } from '@/lib/ceBrokerPipeline'
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -46,20 +50,35 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
-const superAdminSalesItems = [
-  { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
-  { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
-  { path: '/sales/customers', icon: Users2, label: 'Customers' },
-  { path: '/sales/products', icon: Boxes, label: 'Products / Courses' },
-  { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
-  { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
-  { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
-  { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
-  { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
-  { path: '/sales/sync-logs', icon: ListChecks, label: 'Sync Logs' },
-  { path: '/sales/failed-syncs', icon: ShieldAlert, label: 'Failed Syncs' },
-  { path: '/sales/settings', icon: Settings, label: 'Sales Settings' },
-]
+const getSuperAdminSalesItems = () => {
+  const items = [
+    { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
+    { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
+    { path: '/sales/customers', icon: Users2, label: 'Customers' },
+    { path: '/sales/products', icon: Boxes, label: 'Products / Courses' },
+    { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
+    { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
+    { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
+    { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
+    { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
+  ]
+
+  // Only show Sync Logs and Failed Syncs in development
+  if (import.meta.env.DEV) {
+    items.push(
+      { path: '/sales/sync-logs', icon: ListChecks, label: 'Sync Logs' },
+      { path: '/sales/failed-syncs', icon: ShieldAlert, label: 'Failed Syncs' }
+    )
+  }
+
+  items.push(
+    { path: '/sales/cba', icon: Zap, label: 'CBA' },
+    { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
+    { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
+  )
+
+  return items
+}
 
 interface SidebarProps {
   mobileOpen: boolean
@@ -68,14 +87,50 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [activeStateCode, setActiveStateCode] = useState(() => normalizeStateCode(getTenantAccessProfile().stateCode || 'SC'))
   const location = useLocation()
   const navigate = useNavigate()
   const tenant = getTenantAccessProfile()
   const isSuperAdmin = tenant.isSuperAdmin
 
-  const tenantNavItems = isSuperAdmin
-    ? superAdminSalesItems
-    : navItems
+  useEffect(() => {
+    const syncActiveState = () => {
+      const currentTenant = getTenantAccessProfile()
+      const normalized = normalizeStateCode(currentTenant.stateCode || 'SC')
+      setActiveStateCode((previous) => (previous === normalized ? previous : normalized))
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'exceedce-active-state') {
+        syncActiveState()
+      }
+    }
+
+    const onActiveStateChanged = () => {
+      syncActiveState()
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+    }
+  }, [])
+
+  const maskedPipelineLabel = getHiddenPipelineTabLabel(activeStateCode)
+
+  const tenantNavItems = useMemo(() => {
+    if (isSuperAdmin) return getSuperAdminSalesItems()
+    return navItems.map((item) => {
+      if (item.path !== '/pipeline') return item
+      return {
+        ...item,
+        label: maskedPipelineLabel,
+      }
+    })
+  }, [isSuperAdmin, maskedPipelineLabel])
 
   const handleLogout = () => {
     signOut()
@@ -108,10 +163,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <div className="px-1 pb-2">
             <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-400">Active State</p>
             <Select
-              value={tenant.stateCode}
+              value={activeStateCode}
               onValueChange={(code) => {
+                // Stop any active pipeline run in the previous state scope before switching.
+                fetch(apiUrl('/api/pipeline/stop'), { method: 'POST' }).catch(() => {})
+                fetch(apiUrl('/api/roster-pipeline/stop'), { method: 'POST' }).catch(() => {})
                 setActiveState(code)
-                window.location.reload()
+                setActiveStateCode(normalizeStateCode(code))
               }}
             >
               <SelectTrigger className="h-8 w-full border-white/15 bg-white/10 text-xs text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
@@ -183,7 +241,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
         {!collapsed && (
           <div className="text-xs text-slate-400">
-            <p>{tenant.isSuperAdmin ? 'Global Control Tower' : `${tenant.stateName} Pipeline`}</p>
+            <p>{tenant.isSuperAdmin ? 'Global Control Tower' : `${maskedPipelineLabel} Workspace`}</p>
             <p className="mt-1">v1.0.0</p>
           </div>
         )}

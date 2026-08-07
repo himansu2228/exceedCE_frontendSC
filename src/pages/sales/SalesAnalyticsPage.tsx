@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { ChartColumnBig, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import {
   CartesianGrid,
   Legend,
@@ -21,8 +21,7 @@ import type { SalesDashboardResponse } from '@/lib/api'
 import { formatCurrency } from './shared'
 
 export function SalesAnalyticsPage() {
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<SalesDashboardResponse | null>(null)
@@ -32,8 +31,8 @@ export function SalesAnalyticsPage() {
       setLoading(true)
       setError(null)
       const response = await getSalesAnalytics({
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
       })
       setData(response)
     } catch (err) {
@@ -61,14 +60,12 @@ export function SalesAnalyticsPage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <p className="mb-1 text-xs text-muted-foreground">From</p>
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[150px]" />
-          </div>
-          <div>
-            <p className="mb-1 text-xs text-muted-foreground">To</p>
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[150px]" />
-          </div>
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            showLabels={false}
+           
+          />
           <Button onClick={() => void load()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Apply

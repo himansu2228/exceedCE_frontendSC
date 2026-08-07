@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { runSalesSync, getSalesMapping } from '@/lib/api'
 import type { SalesMappingRow } from '@/lib/api'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 export function SalesSettingsPage() {
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [running, setRunning] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [mapping, setMapping] = useState<SalesMappingRow[]>([])
@@ -17,8 +16,8 @@ export function SalesSettingsPage() {
       setRunning(true)
       setMessage(null)
       const result = await runSalesSync({
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
       })
       setMessage(`Run #${result.runId}: ${result.status} | Processed ${result.processedOrders}/${result.totalOrders} | Failed ${result.failedOrders}`)
     } catch (err) {
@@ -47,8 +46,12 @@ export function SalesSettingsPage() {
       <Card>
         <CardHeader><CardTitle>Run Sync</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            showLabels={false}
+            className="md:col-span-2"
+          />
           <Button disabled={running} onClick={() => void runSync()}>{running ? 'Syncing...' : 'Start Sync'}</Button>
           {message ? <p className="md:col-span-3 text-sm">{message}</p> : null}
         </CardContent>

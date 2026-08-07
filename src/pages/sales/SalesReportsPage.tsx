@@ -4,7 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { getSalesReports, getSalesReportExportUrl } from '@/lib/api'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { getSalesReportExportUrl, getSalesReports } from '@/lib/api'
 import type { SalesReportRow } from '@/lib/api'
 import {
   Table,
@@ -15,6 +22,70 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCurrency } from './shared'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+
+interface ReportPreset {
+  id: string
+  label: string
+  filters: {
+    state?: string | string[]
+    source?: string
+    course?: string
+  }
+  description?: string
+}
+
+// Predefined report presets for common use cases
+const REPORT_PRESETS: ReportPreset[] = [
+  { id: 'all', label: 'All Reports', filters: {} },
+  { 
+    id: 'nc', 
+    label: 'NC Sales Report', 
+    filters: { state: 'NC' },
+    description: 'North Carolina market sales'
+  },
+  { 
+  id: 'crcbr',
+  label: 'CRCBR Sales Report',
+  filters: {
+    state: ['NC', 'SC'],
+    source: 'CRCBR'
+  },
+  description: 'CRCBR partner'
+  },
+  { 
+    id: 'cba', 
+    label: 'CBA Sales Report', 
+    filters: { source: 'CBA' },
+    description: 'Commercial Brokers Association partner'
+  },
+  { 
+    id: 'partner-direct', 
+    label: 'Direct Sales Channel', 
+    filters: { source: 'Direct' },
+    description: 'Direct enrollment sales'
+  },
+  { 
+    id: 'partner-referral', 
+    label: 'Referral Channel', 
+    filters: { source: 'Referral' },
+    description: 'Referred customer sales'
+  },
+]
+
+function resolveDisplaySource(row: SalesReportRow): string {
+  const feedback = (row.feedback || '').trim()
+  const feedbackOther = (row.feedbackOther || '').trim()
+
+  if (feedback.toLowerCase() === 'other') {
+    if (feedbackOther) return feedbackOther
+  } else if (feedback) {
+    return feedback
+  }
+
+  const source = (row.source || '').trim()
+  return source || 'N/A'
+}
 
 export function SalesReportsPage() {
   const [loading, setLoading] = useState(true)
@@ -25,12 +96,41 @@ export function SalesReportsPage() {
   const [perPage, setPerPage] = useState(50)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [preset, setPreset] = useState('all')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [course, setCourse] = useState('')
   const [customer, setCustomer] = useState('')
   const [state, setState] = useState('')
   const [source, setSource] = useState('')
+
+  const applyPreset = (presetId: string) => {
+    const selectedPreset = REPORT_PRESETS.find((p) => p.id === presetId)
+    if (!selectedPreset) return
+
+    // Reset all filters first
+    setDateRange({ fromDate: '', toDate: '' })
+    setCourse('')
+    setCustomer('')
+    setState('')
+    setSource('')
+
+    // Apply preset filters
+    if (selectedPreset.filters.state) {
+      setState(
+        Array.isArray(selectedPreset.filters.state)
+          ? selectedPreset.filters.state.join(', ')
+          : selectedPreset.filters.state
+      )
+    }
+    if (selectedPreset.filters.source) {
+      setSource(selectedPreset.filters.source)
+    }
+    if (selectedPreset.filters.course) {
+      setCourse(selectedPreset.filters.course)
+    }
+
+    setPreset(presetId)
+  }
 
   const load = async (targetPage = page, targetPerPage = perPage) => {
     try {
@@ -39,8 +139,8 @@ export function SalesReportsPage() {
       const response = await getSalesReports({
         page: targetPage,
         perPage: targetPerPage,
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
         course: course || undefined,
         customer: customer || undefined,
         state: state || undefined,
@@ -63,6 +163,56 @@ export function SalesReportsPage() {
     void load(1, perPage)
   }, [])
 
+  const handleExportCSV = async () => {
+    try {
+      const exportUrl = getSalesReportExportUrl({
+        format: 'csv',
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
+        state: state || undefined,
+        source: source || undefined,
+        course: course || undefined,
+        customer: customer || undefined,
+      })
+
+      const response = await fetch(exportUrl, {
+        method: 'GET',
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Export failed: ${response.statusText}`)
+      }
+
+      const contentType = (response.headers.get('content-type') || '').toLowerCase()
+      if (contentType.includes('text/html')) {
+        throw new Error('Export endpoint returned HTML instead of CSV. Please retry and contact support if this continues.')
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const contentDisposition = response.headers.get('content-disposition') || ''
+      const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
+      const serverFilename = filenameMatch?.[1]?.trim()
+      const decodedFilename = serverFilename ? decodeURIComponent(serverFilename.replace(/^"|"$/g, '')) : null
+      const fallbackFilename = contentType.includes('spreadsheetml')
+        ? 'sales-report.xlsx'
+        : 'sales-report.csv'
+
+      link.href = url
+      link.download = decodedFilename || fallbackFilename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Export failed:', err)
+      alert(`Failed to export: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -80,40 +230,49 @@ export function SalesReportsPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          <a
-            href={getSalesReportExportUrl({
-              fromDate: fromDate || undefined,
-              toDate: toDate || undefined,
-              course: course || undefined,
-              customer: customer || undefined,
-              state: state || undefined,
-              source: source || undefined,
-            })}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Button>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-          </a>
+          <Button onClick={handleExportCSV}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          <Input placeholder="Course" value={course} onChange={(e) => setCourse(e.target.value)} />
-          <Input placeholder="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} />
-          <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} />
-          <Input placeholder="Source" value={source} onChange={(e) => setSource(e.target.value)} />
-          <Button className="md:col-span-3 lg:col-span-2" onClick={() => void load(1, perPage)}>
-            Apply Filters
-          </Button>
+        <CardContent className="space-y-2 pt-4">
+          <div className="flex flex-col gap-2">
+            <div className="grid gap-0 sm:grid-cols-1 lg:grid-cols-5 items-end">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Preset</label>
+                <Select value={preset} onValueChange={applyPreset}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select preset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_PRESETS.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                className="lg:col-span-2"
+                showLabels={false}
+              />
+              <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} className="h-8 text-xs" />
+              <Button className="h-8 text-xs" onClick={() => void load(1, perPage)}>
+                Apply
+              </Button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <Input placeholder="Course" value={course} onChange={(e) => setCourse(e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="Source" value={source} onChange={(e) => setSource(e.target.value)} className="h-8 text-xs" />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -158,7 +317,7 @@ export function SalesReportsPage() {
                       <TableCell>{row.company || 'N/A'}</TableCell>
                       <TableCell className="max-w-[280px] truncate">{row.course}</TableCell>
                       <TableCell>{formatCurrency(row.amount)}</TableCell>
-                      <TableCell>{row.source || 'N/A'}</TableCell>
+                      <TableCell>{resolveDisplaySource(row)}</TableCell>
                       <TableCell>{row.coupon || 'N/A'}</TableCell>
                       <TableCell>{row.datePurchased || '-'}</TableCell>
                       <TableCell>{row.dateRegistered || '-'}</TableCell>

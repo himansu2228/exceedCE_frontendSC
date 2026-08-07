@@ -22,6 +22,8 @@ import {
   SalesAnalyticsPage,
   SalesSyncLogsPage,
   SalesFailedSyncsPage,
+  SalesCBAPage,
+  SalesCRCBRPage,
   SalesSettingsPage,
 } from "@/pages"
 import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
@@ -124,6 +126,8 @@ function App() {
               <Route path="sales/analytics" element={<SalesAnalyticsPage />} />
               <Route path="sales/sync-logs" element={<SalesSyncLogsPage />} />
               <Route path="sales/failed-syncs" element={<SalesFailedSyncsPage />} />
+              <Route path="sales/cba" element={<SalesCBAPage />} />
+              <Route path="sales/crcbr" element={<SalesCRCBRPage />} />
               <Route path="sales/settings" element={<SalesSettingsPage />} />
             </Route>
 

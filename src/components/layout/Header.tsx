@@ -1,8 +1,10 @@
 import { Menu, RefreshCw, User, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { NotificationsDropdown } from './NotificationsDropdown'
-import { getCurrentAuthUser, getTenantAccessProfile } from '@/lib/auth'
+import { getCurrentAuthUser, getTenantAccessProfile, normalizeStateCode } from '@/lib/auth'
+import { getHiddenPipelineTabLabel } from '@/lib/ceBrokerPipeline'
 
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
@@ -36,10 +38,44 @@ interface HeaderProps {
 
 export function Header({ onRefresh, isLoading, onMenuClick, mobileMenuOpen }: HeaderProps) {
   const location = useLocation()
+  const [activeStateCode, setActiveStateCode] = useState(() => normalizeStateCode(getTenantAccessProfile().stateCode || 'SC'))
   const authUser = getCurrentAuthUser()
   const tenant = getTenantAccessProfile()
-  const title = pageTitles[location.pathname] || (tenant.isSuperAdmin ? 'Sales' : 'Dashboard')
+
+  useEffect(() => {
+    const syncActiveState = () => {
+      const normalized = normalizeStateCode(getTenantAccessProfile().stateCode || 'SC')
+      setActiveStateCode((previous) => (previous === normalized ? previous : normalized))
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'exceedce-active-state') {
+        syncActiveState()
+      }
+    }
+
+    const onActiveStateChanged = () => {
+      syncActiveState()
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+    }
+  }, [])
+
+  const title = location.pathname === '/pipeline'
+    ? getHiddenPipelineTabLabel(activeStateCode)
+    : (pageTitles[location.pathname] || (tenant.isSuperAdmin ? 'Sales' : 'Dashboard'))
   const roleLabel = tenant.isSuperAdmin ? 'Super Admin' : `${tenant.stateName} Admin`
+  const subtitle = location.pathname === '/pipeline'
+    ? 'ExceedCE Protected Pipeline Console'
+    : (tenant.isSuperAdmin
+      ? 'ExceedCE Global Business Command Center'
+      : `ExceedCE ${tenant.stateName} Operations Console`)
 
   return (
     <header className="brand-header relative flex h-16 items-center justify-between px-4 sm:px-6">
@@ -58,9 +94,7 @@ export function Header({ onRefresh, isLoading, onMenuClick, mobileMenuOpen }: He
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold text-foreground sm:text-xl">{title}</h1>
           <p className="hidden text-sm text-muted-foreground sm:block">
-            {tenant.isSuperAdmin
-              ? 'ExceedCE Global Business Command Center'
-              : `ExceedCE ${tenant.stateName} Operations Console`}
+            {subtitle}
           </p>
         </div>
       </div>
