@@ -197,9 +197,13 @@ export function SalesReportsPage() {
       const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
       const serverFilename = filenameMatch?.[1]?.trim()
       const decodedFilename = serverFilename ? decodeURIComponent(serverFilename.replace(/^"|"$/g, '')) : null
-      const fallbackFilename = contentType.includes('spreadsheetml')
-        ? 'sales-report.xlsx'
-        : 'sales-report.csv'
+      const now = new Date()
+      const mm = String(now.getMonth() + 1).padStart(2, '0')
+      const dd = String(now.getDate()).padStart(2, '0')
+      const yyyy = now.getFullYear()
+      const timeStr = `${now.getHours()}${now.getMinutes()}`
+      const ext = contentType.includes('spreadsheetml') ? 'xlsx' : 'csv'
+      const fallbackFilename = `salesReport - ${mm}${dd}${yyyy} - ${timeStr}.${ext}`
 
       link.href = url
       link.download = decodedFilename || fallbackFilename
