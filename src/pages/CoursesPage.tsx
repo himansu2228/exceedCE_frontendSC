@@ -39,11 +39,11 @@ import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getTenantAccessProfile } from '@/lib/auth'
 
 export function CoursesPage() {
-  const tenant = getTenantAccessProfile()
+  const [tenant, setTenant] = useState(() => getTenantAccessProfile())
   const [courses, setCourses] = useState<Course[]>([])
   const [totalCourses, setTotalCourses] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(100)
+  const [perPage, setPerPage] = useState(20)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -74,10 +74,31 @@ export function CoursesPage() {
       setLoading(false)
     }
   }
+    useEffect(() => {
+    const syncActiveState = () => {
+      setTenant(getTenantAccessProfile())
+    }
 
-  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'exceedce-active-state') {
+        syncActiveState()
+      }
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('exceedce:active-state-changed', syncActiveState as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('exceedce:active-state-changed', syncActiveState as EventListener)
+    }
+  }, [])
+
+
+    useEffect(() => {
     void fetchCourses()
-  }, [page, perPage, searchTerm])
+  }, [page, perPage, searchTerm, tenant.stateCode])
+
 
   // Fetch completions when a course is selected
   const fetchCourseCompletions = async (courseId: number, targetPage: number, targetPerPage: number) => {

@@ -37,6 +37,7 @@ import { formatDateTime, getStatusColor } from '@/lib/utils'
 import { getCompletedEntries, getSubmissionsPaginated, resolveLicenseProfession, relookupAllProfessions } from '@/lib/api'
 import type { CompletedEntry, SubmissionEntry } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
+import { getTenantAccessProfile } from '@/lib/auth'
 
 // Map profession names to CE Broker codes
 const PROFESSION_TO_CODE: Record<string, string> = {
@@ -87,6 +88,7 @@ const statusIcons: Record<string, React.ReactNode> = {
 }
 
 export function SubmissionsPage() {
+  const [tenant, setTenant] = useState(() => getTenantAccessProfile())
   const [submissions, setSubmissions] = useState<SubmissionEntry[]>([])
   const [completedEntries, setCompletedEntries] = useState<CompletedEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,6 +105,26 @@ export function SubmissionsPage() {
   const [perPage, setPerPage] = useState(100)
   const [totalSubmissions, setTotalSubmissions] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+    useEffect(() => {
+    const syncActiveState = () => {
+      setTenant(getTenantAccessProfile())
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'exceedce-active-state') {
+        syncActiveState()
+      }
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('exceedce:active-state-changed', syncActiveState as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('exceedce:active-state-changed', syncActiveState as EventListener)
+    }
+  }, [])
+
 
   const enrichFromCompletedEntries = async () => {
     try {
@@ -289,12 +311,12 @@ export function SubmissionsPage() {
   useEffect(() => {
     void fetchSubmissionsPage(true)
   }, [])
-
-  useEffect(() => {
+    useEffect(() => {
     if (!loading) {
       void fetchSubmissionsPage(false)
     }
-  }, [page, perPage, searchTerm, statusFilter])
+  }, [page, perPage, searchTerm, statusFilter, tenant.stateCode])
+
 
   // Export submissions to CSV
   const handleExport = () => {

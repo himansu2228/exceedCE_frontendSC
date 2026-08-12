@@ -39,7 +39,6 @@ import {
 } from '@/lib/api'
 import type { DashboardStats, RecentActivity, SubmissionTrend, CourseBreakdown, PipelineStatus } from '@/lib/api'
 import { getTenantAccessProfile } from '@/lib/auth'
-
 // Helper to format relative time
 function formatRelativeTime(isoString: string): string {
   const date = new Date(isoString)
@@ -48,7 +47,6 @@ function formatRelativeTime(isoString: string): string {
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
-  
   if (diffMins < 1) return 'Just now'
   if (diffMins < 60) return `${diffMins} min ago`
   if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
@@ -56,7 +54,8 @@ function formatRelativeTime(isoString: string): string {
 }
 
 export function DashboardPage() {
-  const tenant = getTenantAccessProfile()
+  const [tenant, setTenant] = useState(() => getTenantAccessProfile())
+
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [submissionTrend, setSubmissionTrend] = useState<SubmissionTrend[]>([])
@@ -66,6 +65,26 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Fetch all dashboard data
+    useEffect(() => {
+    const syncActiveState = () => {
+      setTenant(getTenantAccessProfile())
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'exceedce-active-state') {
+        syncActiveState()
+      }
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('exceedce:active-state-changed', syncActiveState as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('exceedce:active-state-changed', syncActiveState as EventListener)
+    }
+  }, [])
+
   useEffect(() => {
     async function fetchDashboardData() {
       try {
@@ -97,7 +116,8 @@ export function DashboardPage() {
     // Refresh data every 30 seconds
     const interval = setInterval(fetchDashboardData, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [tenant.stateCode])
+
 
   if (loading) {
     return (

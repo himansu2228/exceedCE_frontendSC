@@ -62,7 +62,7 @@ export function CompletedPage() {
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(100)
+  const [perPage, setPerPage] = useState(20)
   const [totalEntries, setTotalEntries] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
@@ -148,9 +148,11 @@ export function CompletedPage() {
   useEffect(() => {
     async function initialize() {
       try {
-        setPage(1)
-        await fetchCourseList()
-        await fetchCompletedEntries(1, perPage, activeStateCode, true)
+          await Promise.all([
+          fetchCourseList(),
+          fetchCompletedEntries(1, perPage, activeStateCode, true)
+        ])
+        
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to initialize completed page')
         setLoading(false)
