@@ -43,7 +43,7 @@ export function LoginPage() {
       <div className="premium-float-delayed pointer-events-none absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-amber-300/30 blur-3xl" />
       <div className="premium-float-slow pointer-events-none absolute left-1/2 top-20 h-64 w-64 -translate-x-1/2 rounded-full bg-sky-200/25 blur-3xl" />
 
-      <Card className="premium-enter relative mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden border border-zinc-200/70 bg-white/78 shadow-[0_42px_130px_-35px_rgba(15,23,42,0.55)] backdrop-blur-xl sm:min-h-[calc(100vh-3rem)] md:grid md:grid-cols-[1.1fr_0.9fr]">
+      <Card className="premium-enter relative mx-auto flex flex-col min-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden border border-zinc-200/70 bg-white/78 shadow-[0_42px_130px_-35px_rgba(15,23,42,0.55)] backdrop-blur-xl sm:min-h-[calc(100vh-3rem)] md:grid md:grid-cols-[1.1fr_0.9fr]">
         <div className="premium-sheen pointer-events-none absolute inset-0" />
 
         <section className="relative flex flex-col justify-center border-b border-zinc-200/70 bg-[radial-gradient(circle_at_15%_20%,rgba(59,130,246,0.22),transparent_45%),linear-gradient(160deg,rgba(30,64,175,0.06),rgba(245,158,11,0.08))] p-6 sm:p-8 md:border-b-0 md:border-r md:p-10">
