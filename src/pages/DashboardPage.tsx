@@ -191,6 +191,15 @@ export function DashboardPage() {
     { name: 'Skipped', value: stats.skipped_submissions, color: '#f59e0b' },
     { name: 'Duplicate', value: stats.duplicate_submissions, color: '#f97316' },
   ].filter(item => item.value > 0)
+  
+
+    // Build student retention distribution
+  const retentionData = [
+    { name: 'Repeat Students', value: stats?.repeat_students || 0, color: '#3b82f6' },
+    { name: 'One-Time Students', value: stats?.one_time_students || 0, color: '#94a3b8' },
+  ]
+  const hasRetentionData = retentionData.some(item => item.value > 0)
+
 
   const summaryTiles = [
     {
@@ -389,6 +398,44 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+              {/* Student Retention Metric */}
+        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur-[6px]">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Student Retention & Repeat Rates
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] min-h-[300px] min-w-0 flex items-center justify-center">
+              {hasRetentionData ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
+                  <PieChart>
+                    <Pie
+                      data={retentionData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                    >
+                      {retentionData.map((entry, index) => (
+                        <Cell key={`retention-cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-muted-foreground">No student retention data yet</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
 
       {/* Course Breakdown & Recent Activity */}
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
