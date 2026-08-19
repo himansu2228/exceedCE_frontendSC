@@ -168,7 +168,10 @@ export interface DashboardStats {
   skipped_submissions: number
   dry_run_submissions: number
   duplicate_submissions: number
+  repeat_students?: number
+  one_time_students?: number
 }
+
 
 export interface PipelineConfig {
   mode: 'test' | 'live'
