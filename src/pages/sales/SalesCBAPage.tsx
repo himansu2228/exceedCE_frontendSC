@@ -21,12 +21,13 @@ import {
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { Search, RefreshCw, Zap } from 'lucide-react'
 
+import { getCbaTabularUsers } from '@/lib/api'
+
 const CBA_SHEET_CSV_URL =
   'https://docs.google.com/spreadsheets/d/1Ybwii_XozjqthwI77fmalbWbmOWBcAXrXAsAFLd8UfA/gviz/tq?tqx=out:csv&sheet=Live_List'
 
 interface CbaRow {
   addedToCba: string
-  dateAddedToGroup: string
   id: string
   firstName: string
   lastName: string
@@ -40,7 +41,7 @@ interface CbaRow {
   addedLlProUpdate: string
 }
 
-type SortKey = 'dateAddedToGroup' | 'id' | 'firstName' | 'completion' | 'lastLogin'
+type SortKey = 'id' | 'firstName' | 'completion' | 'lastLogin'
 type SortDirection = 'asc' | 'desc'
 
 function parseCsvLine(line: string): string[] {
@@ -94,11 +95,7 @@ function parseCompletionValue(value: string): { done: number; total: number } {
   }
 }
 
-function parseDateToEpoch(dateString: string): number {
-  if (!dateString) return 0
-  const parsed = Date.parse(dateString)
-  return Number.isFinite(parsed) ? parsed : 0
-}
+
 
 function parseLastLoginAgeDays(value: string): number {
   const input = value.trim().toLowerCase()
@@ -127,7 +124,6 @@ function mapSheetRows(rows: string[][]): CbaRow[] {
 
   const indexes = {
     addedToCba: findIndex('Added to CBA'),
-    dateAddedToGroup: findIndex('Date Added to Group'),
     id: findIndex('ID'),
     firstName: findIndex('First Name'),
     lastName: findIndex('Last Name'),
@@ -145,7 +141,6 @@ function mapSheetRows(rows: string[][]): CbaRow[] {
     .slice(1)
     .map((row) => ({
       addedToCba: row[indexes.addedToCba] || '',
-      dateAddedToGroup: row[indexes.dateAddedToGroup] || '',
       id: row[indexes.id] || '',
       firstName: row[indexes.firstName] || '',
       lastName: row[indexes.lastName] || '',
@@ -176,13 +171,24 @@ export function SalesCBAPage() {
   const [showOnlyActive, setShowOnlyActive] = useState(false)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(50)
-  const [sortBy, setSortBy] = useState<SortKey>('dateAddedToGroup')
+  const [sortBy, setSortBy] = useState<SortKey>('id')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
   const loadRows = async () => {
     try {
       setLoading(true)
       setError(null)
+      try {
+        const { items } = await getCbaTabularUsers()
+        if (items && items.length > 0) {
+          setAllRows(items)
+          setPage(1)
+          return
+        }
+      } catch (apiErr) {
+        console.warn('CBA API fetch unavailable, using sheet fallback:', apiErr)
+      }
+
       const response = await fetch(CBA_SHEET_CSV_URL, { cache: 'no-store' })
       if (!response.ok) {
         throw new Error(`Failed to load sheet (${response.status})`)
@@ -238,10 +244,7 @@ export function SalesCBAPage() {
       let aValue = 0
       let bValue = 0
 
-      if (sortBy === 'dateAddedToGroup') {
-        aValue = parseDateToEpoch(a.dateAddedToGroup)
-        bValue = parseDateToEpoch(b.dateAddedToGroup)
-      } else if (sortBy === 'id') {
+      if (sortBy === 'id') {
         aValue = Number(a.id) || 0
         bValue = Number(b.id) || 0
       } else if (sortBy === 'completion') {
@@ -324,7 +327,6 @@ export function SalesCBAPage() {
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="dateAddedToGroup">Date Added to Group</SelectItem>
               <SelectItem value="id">ID</SelectItem>
               <SelectItem value="firstName">First Name</SelectItem>
               <SelectItem value="completion">Completion</SelectItem>
@@ -367,7 +369,6 @@ export function SalesCBAPage() {
                 <TableRow>
                   <TableHead className="sticky left-0 z-20 bg-card">ID</TableHead>
                   <TableHead>Added to CBA</TableHead>
-                  <TableHead>Date Added to Group</TableHead>
                   <TableHead>First Name</TableHead>
                   <TableHead>Last Name</TableHead>
                   <TableHead>Email</TableHead>
@@ -383,7 +384,7 @@ export function SalesCBAPage() {
               <TableBody>
                 {!loading && pagedRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground">
                       No CBA entries found.
                     </TableCell>
                   </TableRow>
@@ -393,7 +394,6 @@ export function SalesCBAPage() {
                   <TableRow key={`${row.id}-${row.email}-${idx}`}>
                     <TableCell className="sticky left-0 bg-card font-medium">{row.id || '-'}</TableCell>
                     <TableCell>{row.addedToCba || '-'}</TableCell>
-                    <TableCell>{row.dateAddedToGroup || '-'}</TableCell>
                     <TableCell>{row.firstName || '-'}</TableCell>
                     <TableCell>{row.lastName || '-'}</TableCell>
                     <TableCell>{row.email || '-'}</TableCell>
