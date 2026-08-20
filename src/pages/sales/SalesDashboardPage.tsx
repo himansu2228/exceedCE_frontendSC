@@ -43,6 +43,23 @@ function truncateCourseLabel(label: string, maxLength = 26) {
   return label.length > maxLength ? `${label.slice(0, maxLength - 3)}...` : label
 }
 
+function truncateSourceLabel(label: string, maxLength = 24) {
+  if (!label) return ''
+  return label.length > maxLength ? `${label.slice(0, maxLength - 3)}...` : label
+}
+
+function formatCompactCurrency(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    notation: 'compact',
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 1,
+  }).format(value)
+}
+
+const SOURCE_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#d97706', '#059669', '#0891b2', '#4f46e5', '#be123c']
+const METRIC_ACCENTS = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#16a34a']
+
 function formatHeaderDate(isoDate: string): string {
   if (!isoDate) return ''
   const date = new Date(isoDate)
@@ -239,70 +256,83 @@ export function SalesDashboardPage() {
     },
   ]
   const totalOrderStatuses = orderStatusData.reduce((sum, item) => sum + item.value, 0)
+  const attributionSources = attributionData?.sources ?? []
+  const attributionChartData = attributionSources.slice(0, 12).map((source, idx) => ({
+    ...source,
+    color: SOURCE_COLORS[idx % SOURCE_COLORS.length],
+  }))
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Sales Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Live KPIs and revenue performance with date filtering</p>
+    <div className="space-y-6 pb-8 animate-fadeIn">
+      <div className="overflow-hidden rounded-2xl border border-white/70 bg-white/85 p-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.7)] backdrop-blur">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+          <p className="text-xs font-semibold uppercase text-blue-700">Executive Sales Command</p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">Sales Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Live KPIs, attribution quality, cohorts, and revenue movement in one control view.</p>
           {selectedRangeLabel ? (
             <p className="mt-1 text-xs font-medium text-blue-700">{selectedRangeLabel}</p>
           ) : null}
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <DateRangeFilter
-            value={dateRange}
-            onChange={setDateRange}
-            showLabels={false}
-          />
-          <Button onClick={() => void load()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Apply
-          </Button>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 p-2 shadow-inner">
+            <DateRangeFilter
+              value={dateRange}
+              onChange={setDateRange}
+              showLabels={false}
+            />
+            <Button onClick={() => void load()} className="shadow-sm">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Apply
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100/50 p-6 shadow-sm">
-        <div className="flex items-center justify-between">
+      <div className="overflow-hidden rounded-2xl border border-blue-200/70 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 p-6 text-white shadow-[0_30px_80px_-42px_rgba(30,64,175,0.85)]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-600">Year-to-Date Sales</p>
-            <p className="mt-1 text-3xl font-bold text-blue-900">{formatCurrency(kpi.yearlySales)}</p>
-            <p className="mt-2 text-xs text-blue-700">
+            <p className="text-sm font-medium text-blue-100">Year-to-Date Sales</p>
+            <p className="mt-2 text-4xl font-semibold tracking-tight text-white">{formatCurrency(kpi.yearlySales)}</p>
+            <p className="mt-3 text-sm text-blue-100/90">
               {kpi.orders.toLocaleString()} orders • {formatCurrency(kpi.averageOrderValue)} average value
             </p>
           </div>
-          <div className="text-right">
-            <div className="rounded-lg bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-medium text-slate-600">Monthly Avg</p>
-              <p className="text-lg font-semibold text-slate-900">
+          <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[24rem]">
+            <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+              <p className="text-xs font-medium uppercase text-blue-100/80">Monthly Avg</p>
+              <p className="mt-1 text-xl font-semibold text-white">
                 {formatCurrency(kpi.yearlySales / 12)}
               </p>
+            </div>
+            <div className="rounded-xl border border-amber-200/30 bg-amber-300/10 px-4 py-3 backdrop-blur">
+              <p className="text-xs font-medium uppercase text-amber-100/90">Growth</p>
+              <p className="mt-1 text-xl font-semibold text-white">{kpi.salesGrowthPercent.toFixed(2)}%</p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric title="Total Sales" value={formatCurrency(kpi.totalSales)} icon={DollarSign} />
-        <Metric title="Orders" value={kpi.orders.toLocaleString()} icon={ShoppingCart} />
-        <Metric title="Avg Order Value" value={formatCurrency(kpi.averageOrderValue)} icon={Activity} />
-        <Metric title="Sales Growth" value={`${kpi.salesGrowthPercent.toFixed(2)}%`} icon={Percent} />
-        <Metric title="Today" value={formatCurrency(kpi.todaySales)} />
-        <Metric title="Weekly" value={formatCurrency(kpi.weeklySales)} />
-        <Metric title="Monthly" value={formatCurrency(kpi.monthlySales)} />
+        <Metric title="Total Sales" value={formatCurrency(kpi.totalSales)} icon={DollarSign} accent={METRIC_ACCENTS[0]} />
+        <Metric title="Orders" value={kpi.orders.toLocaleString()} icon={ShoppingCart} accent={METRIC_ACCENTS[1]} />
+        <Metric title="Avg Order Value" value={formatCurrency(kpi.averageOrderValue)} icon={Activity} accent={METRIC_ACCENTS[2]} />
+        <Metric title="Sales Growth" value={`${kpi.salesGrowthPercent.toFixed(2)}%`} icon={Percent} accent={METRIC_ACCENTS[3]} />
+        <Metric title="Today" value={formatCurrency(kpi.todaySales)} accent={METRIC_ACCENTS[4]} />
+        <Metric title="Weekly" value={formatCurrency(kpi.weeklySales)} accent={METRIC_ACCENTS[5]} />
+        <Metric title="Monthly" value={formatCurrency(kpi.monthlySales)} accent={METRIC_ACCENTS[6]} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Revenue Trend</CardTitle>
+            <p className="text-sm text-muted-foreground">Monthly revenue movement across the selected period.</p>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-80 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/80 to-white p-3">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data.revenueByMonth}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
@@ -313,15 +343,16 @@ export function SalesDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Revenue by State</CardTitle>
+            <p className="text-sm text-muted-foreground">Top state contribution by collected revenue.</p>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-80 rounded-xl border border-cyan-100 bg-gradient-to-br from-cyan-50/70 to-white p-3">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stateChart}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cffafe" />
                   <XAxis dataKey="state" />
                   <YAxis />
                   <Tooltip content={<CustomStateTooltip />} />
@@ -334,15 +365,16 @@ export function SalesDashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Revenue by Course (Top 10)</CardTitle>
+            <p className="text-sm text-muted-foreground">Highest-grossing products and courses.</p>
           </CardHeader>
           <CardContent>
-            <div className="h-[26rem]">
+            <div className="h-[26rem] rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50/70 to-white p-3">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.revenueByCourse} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 20 }} barCategoryGap="18%">
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ccfbf1" />
                   <XAxis type="number" />
                   <YAxis
                     dataKey="course"
@@ -360,7 +392,7 @@ export function SalesDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Order Status Mix</CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -369,7 +401,7 @@ export function SalesDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-              <div className="relative h-72 rounded-xl border border-slate-100 bg-slate-50/60 p-2">
+              <div className="relative h-72 rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white p-2">
                 <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
                   <div className="rounded-full border border-slate-200 bg-white px-5 py-3 text-center shadow-sm">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Total Orders</p>
@@ -406,7 +438,7 @@ export function SalesDashboardPage() {
                   return (
                     <div
                       key={status.name}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                      className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -433,7 +465,7 @@ export function SalesDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden lg:col-span-2">
           <CardHeader>
             <CardTitle>Customer Cohorts</CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -441,8 +473,8 @@ export function SalesDashboardPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-              <div className="relative h-72 rounded-xl border border-slate-100 bg-slate-50/60 p-2">
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="relative h-72 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-2">
                 <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
                   <div className="rounded-full border border-slate-200 bg-white px-5 py-3 text-center shadow-sm">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Total Customers</p>
@@ -502,16 +534,16 @@ export function SalesDashboardPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:self-center">
                 {cohortData && [
                   { name: 'New Customers', ...cohortData.new, color: '#3b82f6' },
                   { name: 'Returning Customers', ...cohortData.returning, color: '#8b5cf6' },
                 ].map((cohort) => (
                   <div
                     key={cohort.name}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                    className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex h-full flex-col justify-between gap-4">
                       <div className="flex-1">
                         <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cohort.color }} />
@@ -521,14 +553,23 @@ export function SalesDashboardPage() {
                           {cohort.customerCount} customers • {cohort.totalOrders} orders
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {formatCurrency(cohort.revenue)}
-                        </p>
-                        <p className="text-xs text-slate-600">{cohort.percentOfRevenue.toFixed(1)}% of revenue</p>
-                        <p className="mt-1 text-xs font-medium text-slate-700">
-                          Avg: {formatCurrency(cohort.avgCustomerValue)}
-                        </p>
+                      <div className="grid gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-3">
+                        <div>
+                          <p className="text-[11px] font-medium uppercase text-slate-500">Revenue</p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {formatCurrency(cohort.revenue)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-medium uppercase text-slate-500">Share</p>
+                          <p className="text-sm font-semibold text-slate-900">{cohort.percentOfRevenue.toFixed(1)}%</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-medium uppercase text-slate-500">Avg Value</p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {formatCurrency(cohort.avgCustomerValue)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -542,28 +583,41 @@ export function SalesDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden lg:col-span-2">
           <CardHeader>
-            <CardTitle>Sales Attribution by Source</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Revenue breakdown by marketing channel or sales source
-            </p>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Sales Attribution by Source</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Revenue breakdown by marketing channel or sales source.
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                <span className="font-semibold text-slate-900">{attributionSources.length}</span> sources tracked
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {attributionData && attributionData.sources.length > 0 ? (
+            {attributionSources.length > 0 ? (
               <div className="space-y-4">
-                <div className="h-80">
+                <div className="h-[30rem] rounded-xl border border-blue-100 bg-gradient-to-br from-slate-50 via-blue-50/60 to-white p-3" aria-label="Revenue by sales source chart">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={attributionData.sources.map((s, idx) => ({
-                        name: s.source,
-                        revenue: s.revenue,
-                        color: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'][idx % 6],
-                      }))}
+                      data={attributionChartData}
+                      layout="vertical"
+                      margin={{ top: 8, right: 24, bottom: 8, left: 24 }}
+                      barCategoryGap="20%"
                     >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                      <YAxis />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#dbeafe" />
+                      <XAxis type="number" tickFormatter={(value) => formatCompactCurrency(Number(value || 0))} />
+                      <YAxis
+                        dataKey="source"
+                        type="category"
+                        width={190}
+                        interval={0}
+                        tickMargin={10}
+                        tickFormatter={(value) => truncateSourceLabel(String(value || ''))}
+                      />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: '#ffffff',
@@ -572,33 +626,27 @@ export function SalesDashboardPage() {
                           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
                         }}
                         formatter={(value: number) => formatCurrency(value)}
+                        labelFormatter={(label) => String(label)}
                       />
-                      <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                        {attributionData.sources.map((_, idx) => (
-                          <Cell
-                            key={`cell-${idx}`}
-                            fill={['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'][
-                              idx % 6
-                            ]}
-                          />
+                      <Bar dataKey="revenue" radius={[0, 6, 6, 0]}>
+                        {attributionChartData.map((source) => (
+                          <Cell key={source.source} fill={source.color} />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {attributionData.sources.map((source, idx) => (
-                    <div key={source.source} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {attributionSources.map((source, idx) => (
+                    <div key={source.source} className="rounded-lg border border-slate-200 bg-white/90 px-3 py-2 shadow-sm">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-2 break-words text-sm font-semibold leading-snug text-slate-900">
                             <span
-                              className="h-2.5 w-2.5 rounded"
+                              className="h-2.5 w-2.5 shrink-0 rounded"
                               style={{
-                                backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'][
-                                  idx % 6
-                                ],
+                                backgroundColor: SOURCE_COLORS[idx % SOURCE_COLORS.length],
                               }}
                             />
                             {source.source}
@@ -607,7 +655,7 @@ export function SalesDashboardPage() {
                             {source.customerCount} customers • {source.orderCount} orders
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="shrink-0 text-right">
                           <p className="text-sm font-semibold text-slate-900">
                             {formatCurrency(source.revenue)}
                           </p>
@@ -619,8 +667,8 @@ export function SalesDashboardPage() {
                 </div>
 
                 <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-800">
-                  Top attribution channel: <strong>{attributionData.sources[0]?.source}</strong> with{' '}
-                  {formatCurrency(attributionData.sources[0]?.revenue || 0)} ({attributionData.sources[0]?.percentOfRevenue.toFixed(1)}% of total)
+                  Top attribution channel: <strong>{attributionSources[0]?.source}</strong> with{' '}
+                  {formatCurrency(attributionSources[0]?.revenue || 0)} ({attributionSources[0]?.percentOfRevenue.toFixed(1)}% of total)
                 </div>
               </div>
             ) : (
@@ -639,21 +687,28 @@ function Metric({
   title,
   value,
   icon: Icon,
+  accent = '#2563eb',
 }: {
   title: string
   value: string
   icon?: ComponentType<{ className?: string }>
+  accent?: string
 }) {
   return (
-    <Card>
+    <Card className="group overflow-hidden">
+      <div className="h-1" style={{ backgroundColor: accent }} />
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <CardTitle className="flex items-center justify-between text-xs uppercase text-muted-foreground">
           <span>{title}</span>
-          {Icon ? <Icon className="h-4 w-4" /> : null}
+          {Icon ? (
+            <span className="rounded-lg p-2 text-white shadow-sm transition-transform group-hover:scale-105" style={{ backgroundColor: accent }}>
+              <Icon className="h-4 w-4" />
+            </span>
+          ) : null}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-semibold">{value}</p>
+        <p className="text-2xl font-semibold text-slate-950">{value}</p>
       </CardContent>
     </Card>
   )
