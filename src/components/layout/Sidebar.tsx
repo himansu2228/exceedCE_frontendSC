@@ -24,6 +24,7 @@ import {
   LogOut,
   Zap,
   Target,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -150,10 +151,18 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       <div className="relative flex h-16 items-center justify-center border-b border-white/10 px-4">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/60 to-transparent" />
         <div className="pointer-events-none absolute -top-10 left-1/2 h-24 w-40 -translate-x-1/2 rounded-full bg-blue-500/30 blur-2xl" />
+        <button
+          type="button"
+          onClick={onMobileClose}
+          aria-label="Close sidebar"
+          className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-slate-200 shadow-sm backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/80 sm:right-3 sm:top-3 sm:h-9 sm:w-9 lg:hidden"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
         <img
           src={collapsed ? '/exceedce.com-favicon.ico' : 'https://exceedce-v4.s3.amazonaws.com/public/exceedcelogo-92e2adb1fbbffd331d17d2f64ebd4410.png'}
           alt="ExceedCE logo"
-          className={cn('relative h-10 w-auto object-contain', collapsed && 'h-8 w-8')}
+          className={cn('relative h-10 max-w-[calc(100%-3rem)] w-auto object-contain', collapsed && 'h-8 w-8')}
         />
       </div>
 

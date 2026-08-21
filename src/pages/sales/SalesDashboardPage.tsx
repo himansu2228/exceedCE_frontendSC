@@ -242,21 +242,22 @@ export function SalesDashboardPage() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-foreground">Sales Dashboard</h1>
           <p className="text-sm text-muted-foreground">Live KPIs and revenue performance with date filtering</p>
           {selectedRangeLabel ? (
-            <p className="mt-1 text-xs font-medium text-blue-700">{selectedRangeLabel}</p>
+            <p className="mt-1 break-words text-xs font-medium text-blue-700">{selectedRangeLabel}</p>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
           <DateRangeFilter
             value={dateRange}
             onChange={setDateRange}
             showLabels={false}
+            className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[300px]"
           />
-          <Button onClick={() => void load()}>
+          <Button className="w-full sm:w-auto" onClick={() => void load()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Apply
           </Button>
@@ -264,15 +265,15 @@ export function SalesDashboardPage() {
       </div>
 
       <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100/50 p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="text-sm font-medium text-blue-600">Year-to-Date Sales</p>
-            <p className="mt-1 text-3xl font-bold text-blue-900">{formatCurrency(kpi.yearlySales)}</p>
-            <p className="mt-2 text-xs text-blue-700">
+            <p className="mt-1 break-words text-3xl font-bold text-blue-900">{formatCurrency(kpi.yearlySales)}</p>
+            <p className="mt-2 break-words text-xs text-blue-700">
               {kpi.orders.toLocaleString()} orders • {formatCurrency(kpi.averageOrderValue)} average value
             </p>
           </div>
-          <div className="text-right">
+          <div className="self-start text-left sm:self-auto sm:text-right">
             <div className="rounded-lg bg-white px-4 py-3 shadow-sm">
               <p className="text-xs font-medium text-slate-600">Monthly Avg</p>
               <p className="text-lg font-semibold text-slate-900">
@@ -294,12 +295,12 @@ export function SalesDashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Revenue Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-64 sm:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data.revenueByMonth}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -313,12 +314,12 @@ export function SalesDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Revenue by State</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-64 sm:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stateChart}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -334,23 +335,23 @@ export function SalesDashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Revenue by Course (Top 10)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[26rem]">
+            <div className="h-[22rem] sm:h-[26rem]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.revenueByCourse} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 20 }} barCategoryGap="18%">
+                <BarChart data={data.revenueByCourse} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 4 }} barCategoryGap="18%">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
                   <YAxis
                     dataKey="course"
                     type="category"
-                    width={230}
+                    width={108}
                     interval={0}
                     tickMargin={10}
-                    tickFormatter={(value) => truncateCourseLabel(String(value || ''))}
+                    tickFormatter={(value) => truncateCourseLabel(String(value || ''), 14)}
                   />
                   <Tooltip content={<CustomCourseTooltip />} />
                   <Bar dataKey="revenue" fill="#0f766e" radius={[0, 6, 6, 0]} />
