@@ -1348,7 +1348,7 @@ export function mapUserApiRecordToCbaRow(record: Record<string, any>): CbaUserRo
   }
 }
 
-const CBA_PAGE_SIZE = 100
+const CBA_PAGE_SIZE = 500
 
 export async function getCbaTabularUsers(params?: {
   searchPortalIds?: Array<number | string>
