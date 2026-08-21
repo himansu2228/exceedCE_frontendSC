@@ -469,6 +469,7 @@ export async function getCompletedEntries(filters?: {
   toDate?: string
   search?: string
   resolveProfession?: boolean
+  allStates?: boolean
   page?: number
   perPage?: number
   refresh?: boolean
@@ -486,7 +487,7 @@ export async function getCompletedEntries(filters?: {
   if (filters?.refresh) params.set('refresh', 'true')
   // Put the active state in the URL so the browser caches each state separately and a
   // state switch never reuses another state's cached response.
-  params.set('state', getTenantAccessProfile().stateCode)
+  params.set('state', filters?.allStates ? 'ALL' : getTenantAccessProfile().stateCode)
 
   const query = params.toString()
   return fetchApi<CompletedEntriesResponse>(`/completions${query ? `?${query}` : ''}`, {
@@ -1376,33 +1377,11 @@ export async function getCbaTabularUsers(params?: {
     return qp
   }
 
-  const token = getAccessToken()
-  const headers: Record<string, string> = {
-    Accept: 'application/json, text/plain, */*',
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-
   const fetchPage = async (pageNumber: number): Promise<{
     records: Record<string, any>[]
     total: number
   }> => {
     const qp = buildQueryParams(pageNumber)
-
-    // Try direct exceedce.com first
-    try {
-      const res = await fetch(`https://exceedce.com/api/users/tabularlist?${qp.toString()}`, { headers })
-      if (res.ok) {
-        const data = await res.json()
-        const records = data.records || data.items || data.users || []
-        const total = Number(data.recordsTotal ?? data.recordsFiltered ?? data.total ?? records.length)
-        return { records, total }
-      }
-    } catch (_err) {
-      // Fall through to backend proxy
-    }
-
-    // Fallback: backend proxy
     const response = await fetchApi<{
       records?: Record<string, any>[]
       items?: Record<string, any>[]
@@ -1413,7 +1392,7 @@ export async function getCbaTabularUsers(params?: {
     }>(`/sales/cba-users?${qp.toString()}`)
 
     const records = response.records || response.items || response.users || []
-    const total = Number(response.recordsTotal ?? response.recordsFiltered ?? response.total ?? records.length)
+    const total = Number(response.recordsFiltered ?? response.total ?? response.recordsTotal ?? records.length)
     return { records, total }
   }
 

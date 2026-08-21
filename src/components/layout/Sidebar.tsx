@@ -24,6 +24,7 @@ import {
   LogOut,
   Zap,
   Target,
+  BadgeCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -73,6 +74,7 @@ const getSuperAdminSalesItems = () => {
 
   items.push(
     { path: '/sales/cba', icon: Zap, label: 'CBA' },
+    { path: '/sales/cba-completion', icon: BadgeCheck, label: 'CBA Completion' },
     { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
     { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
   )
