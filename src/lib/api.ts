@@ -469,6 +469,7 @@ export async function getCompletedEntries(filters?: {
   toDate?: string
   search?: string
   resolveProfession?: boolean
+  allStates?: boolean
   page?: number
   perPage?: number
   refresh?: boolean
@@ -486,7 +487,7 @@ export async function getCompletedEntries(filters?: {
   if (filters?.refresh) params.set('refresh', 'true')
   // Put the active state in the URL so the browser caches each state separately and a
   // state switch never reuses another state's cached response.
-  params.set('state', getTenantAccessProfile().stateCode)
+  params.set('state', filters?.allStates ? 'ALL' : getTenantAccessProfile().stateCode)
 
   const query = params.toString()
   return fetchApi<CompletedEntriesResponse>(`/completions${query ? `?${query}` : ''}`, {
@@ -1291,3 +1292,133 @@ export async function getSalesMapping(): Promise<SalesMappingRow[]> {
   const result = await fetchApi<{ items: SalesMappingRow[] }>('/sales/mapping')
   return result.items
 }
+
+export interface CbaUserRow {
+  addedToCba: string
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  completion: string
+  lastLogin: string
+  removedFromCba: string
+  emailUpdate: string
+  lockAcct: string
+  missingCourses: string
+  addedLlProUpdate: string
+}
+
+export function mapUserApiRecordToCbaRow(record: Record<string, any>): CbaUserRow {
+  const firstName = String(record.firstName ?? record.first_name ?? record.first_Name ?? '').trim()
+  const lastName = String(record.lastName ?? record.last_name ?? record.last_Name ?? '').trim()
+  const email = String(record.email ?? record.email_address ?? '').trim()
+  const id = String(record.id ?? record.user_id ?? record.ID ?? '').trim()
+
+  const rawDate =
+    record.addedToCba ??
+    record.added_to_cba ??
+    record.dateAddedToGroup ??
+    record.date_added_to_group ??
+    record.created_at ??
+    record.registered_on ??
+    ''
+  const formattedAddedDate = rawDate ? String(rawDate).split('T')[0] : ''
+
+  let completion = String(record.completion ?? '').trim()
+  if (!completion && record.completed_courses !== undefined && record.total_courses !== undefined) {
+    completion = `${record.completed_courses}/${record.total_courses}`
+  }
+
+  const lastLogin = String(record.lastLogin ?? record.last_login ?? record.last_login_at ?? '').trim()
+
+  return {
+    id,
+    addedToCba: formattedAddedDate,
+    firstName,
+    lastName,
+    email,
+    completion,
+    lastLogin,
+    // Preserved untouched for senior review / future backend mapping alignment
+    removedFromCba: String(record.removedFromCba ?? record.removed_from_cba ?? '').trim(),
+    emailUpdate: String(record.emailUpdate ?? record.email_update ?? '').trim(),
+    lockAcct: String(record.lockAcct ?? record.lock_acct ?? '').trim(),
+    missingCourses: String(record.missingCourses ?? record.missing_courses ?? '').trim(),
+    addedLlProUpdate: String(record.addedLlProUpdate ?? record.added_ll_pro_update ?? '').trim(),
+  }
+}
+
+const CBA_PAGE_SIZE = 500
+
+export async function getCbaTabularUsers(params?: {
+  searchPortalIds?: Array<number | string>
+  orderBy?: { colName: string; direction: string }
+  searchParam?: Record<string, any>
+}): Promise<{ items: CbaUserRow[]; total: number }> {
+  const portalIds = params?.searchPortalIds ?? [5]
+
+  const defaultSearchParam = {
+    courseCategoryIds: [],
+    courseName: '',
+    userCategoryIds: [],
+  }
+
+  const orderBy = params?.orderBy ?? { colName: 'created_at', direction: 'desc' }
+
+  const buildQueryParams = (pageNumber: number): URLSearchParams => {
+    const qp = new URLSearchParams()
+    qp.set('page_size', String(CBA_PAGE_SIZE))
+    qp.set('page_number', String(pageNumber))
+    qp.set('order_by', JSON.stringify(orderBy))
+    qp.set('search_param', JSON.stringify(params?.searchParam ?? defaultSearchParam))
+    for (const portalId of portalIds) {
+      qp.append('searchPortalIds[]', String(portalId))
+    }
+    return qp
+  }
+
+  const fetchPage = async (pageNumber: number): Promise<{
+    records: Record<string, any>[]
+    total: number
+  }> => {
+    const qp = buildQueryParams(pageNumber)
+    const response = await fetchApi<{
+      records?: Record<string, any>[]
+      items?: Record<string, any>[]
+      users?: Record<string, any>[]
+      recordsTotal?: number
+      recordsFiltered?: number
+      total?: number
+    }>(`/sales/cba-users?${qp.toString()}`)
+
+    const records = response.records || response.items || response.users || []
+    const total = Number(response.recordsFiltered ?? response.total ?? response.recordsTotal ?? records.length)
+    return { records, total }
+  }
+
+  // Fetch page 1 first to learn the total count
+  const firstPage = await fetchPage(1)
+  const grandTotal = firstPage.total
+  const totalPages = grandTotal > 0 && CBA_PAGE_SIZE > 0
+    ? Math.ceil(grandTotal / CBA_PAGE_SIZE)
+    : 1
+
+  let allRecords = [...firstPage.records]
+
+  // Fetch remaining pages concurrently
+  if (totalPages > 1) {
+    const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 2)
+    const pageResults = await Promise.all(
+      remaining.map((page) => fetchPage(page).catch(() => ({ records: [], total: 0 })))
+    )
+    for (const result of pageResults) {
+      allRecords = allRecords.concat(result.records)
+    }
+  }
+
+  return {
+    items: allRecords.map(mapUserApiRecordToCbaRow),
+    total: grandTotal,
+  }
+}
+

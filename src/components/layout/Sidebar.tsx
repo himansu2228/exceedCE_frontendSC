@@ -7,6 +7,8 @@ import {
   Workflow,
   ClipboardList,
   BarChart3,
+  BadgeCheck,
+  X,
   ShoppingCart,
   Users2,
   Boxes,
@@ -24,7 +26,6 @@ import {
   LogOut,
   Zap,
   Target,
-  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -74,6 +75,7 @@ const getSuperAdminSalesItems = () => {
 
   items.push(
     { path: '/sales/cba', icon: Zap, label: 'CBA' },
+    { path: '/sales/cba-completion', icon: BadgeCheck, label: 'CBA Completion' },
     { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
     { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
   )
