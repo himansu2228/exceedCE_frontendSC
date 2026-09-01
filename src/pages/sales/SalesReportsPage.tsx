@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Download, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -97,7 +97,7 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
   const [rows, setRows] = useState<SalesReportRow[]>([])
   const [grandTotal, setGrandTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(50)
+  const [perPage, setPerPage] = useState(100)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [preset, setPreset] = useState(initialPreset)
@@ -140,9 +140,10 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
     }
 
     setPreset(presetId)
+    setPage(1)
   }
 
-  const load = async (targetPage = page, targetPerPage = perPage) => {
+  const load = useCallback(async (targetPage: number, targetPerPage: number) => {
     try {
       setLoading(true)
       setError(null)
@@ -167,11 +168,22 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
     } finally {
       setLoading(false)
     }
-  }
+  }, [dateRange, course, customer, state, source])
 
   useEffect(() => {
-    void load(1, perPage)
-  }, [])
+    const timeoutId = window.setTimeout(() => void load(1, perPage), 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [load, perPage])
+
+  const handleDateRangeChange = (nextDateRange: DateRangeValue) => {
+    setDateRange(nextDateRange)
+    setPage(1)
+  }
+
+  const handleFilterChange = (setter: (value: string) => void, value: string) => {
+    setter(value)
+    setPage(1)
+  }
 
   const handleExportCSV = async () => {
     try {
@@ -240,7 +252,7 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void load()}>
+          <Button variant="outline" onClick={() => void load(page, perPage)}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
@@ -254,7 +266,7 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
       <Card>
         <CardContent className="space-y-2 pt-4">
           <div className="flex flex-col gap-2">
-            <div className="grid gap-0 sm:grid-cols-1 lg:grid-cols-5 items-end">
+            <div className="grid gap-2 sm:grid-cols-1 lg:grid-cols-4 items-end">
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Preset</label>
                 <Select value={preset} onValueChange={applyPreset}>
@@ -272,19 +284,16 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
               </div>
               <DateRangeFilter
                 value={dateRange}
-                onChange={setDateRange}
+                onChange={handleDateRangeChange}
                 className="lg:col-span-2"
                 showLabels={false}
               />
-              <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} className="h-8 text-xs" />
-              <Button className="h-8 text-xs" onClick={() => void load(1, perPage)}>
-                Apply
-              </Button>
+              <Input placeholder="State" value={state} onChange={(e) => handleFilterChange(setState, e.target.value)} className="h-8 text-xs" />
             </div>
             <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              <Input placeholder="Course" value={course} onChange={(e) => setCourse(e.target.value)} className="h-8 text-xs" />
-              <Input placeholder="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-8 text-xs" />
-              <Input placeholder="Source" value={source} onChange={(e) => setSource(e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="Course" value={course} onChange={(e) => handleFilterChange(setCourse, e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="Customer" value={customer} onChange={(e) => handleFilterChange(setCustomer, e.target.value)} className="h-8 text-xs" />
+              <Input placeholder="Source" value={source} onChange={(e) => handleFilterChange(setSource, e.target.value)} className="h-8 text-xs" />
             </div>
           </div>
         </CardContent>
@@ -356,7 +365,7 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
             onPageChange={(targetPage) => void load(targetPage, perPage)}
             onPageSizeChange={(size) => {
               setPerPage(size)
-              void load(1, size)
+              setPage(1)
             }}
           />
         </CardContent>

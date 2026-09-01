@@ -61,13 +61,13 @@ type NavItem =
 const getSuperAdminSalesItems = (): NavItem[] => {
   const items: NavItem[] = [
     { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
+    { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
     { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/sales/customers', icon: Users2, label: 'Customers' },
     { path: '/sales/products', icon: Boxes, label: 'Products / Courses' },
     { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
     { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
     { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
-    { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
   ]
 
   // Only show Sync Logs and Failed Syncs in development

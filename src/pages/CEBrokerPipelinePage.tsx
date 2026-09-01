@@ -504,7 +504,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // History
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [historyPage, setHistoryPage] = useState(1)
-  const [historyPerPage, setHistoryPerPage] = useState(10)
+  const [historyPerPage, setHistoryPerPage] = useState(100)
   const [historyTotal, setHistoryTotal] = useState(0)
   const [historyTotalPages, setHistoryTotalPages] = useState(1)
   

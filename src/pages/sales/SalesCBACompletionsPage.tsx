@@ -54,7 +54,7 @@ export function SalesCBACompletionsPage() {
   const [sortBy, setSortBy] = useState<SortKey>('date')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(50)
+  const [perPage, setPerPage] = useState(100)
 
   const loadRows = async (refresh = false) => {
     setLoading(true)

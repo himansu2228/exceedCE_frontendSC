@@ -170,7 +170,7 @@ export function SalesCBAPage() {
   const [search, setSearch] = useState('')
   const [showOnlyActive, setShowOnlyActive] = useState(false)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(50)
+  const [perPage, setPerPage] = useState(100)
   const [sortBy, setSortBy] = useState<SortKey>('id')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 

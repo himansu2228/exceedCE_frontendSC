@@ -43,7 +43,7 @@ export function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [totalCourses, setTotalCourses] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(100)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

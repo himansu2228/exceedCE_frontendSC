@@ -9,7 +9,7 @@ export function SalesFailedSyncsPage() {
   const [rows, setRows] = useState<SalesSyncFailure[]>([])
   const [onlyOpen, setOnlyOpen] = useState(true)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(100)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 

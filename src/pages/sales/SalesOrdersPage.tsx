@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { StatusBadge, formatCurrency } from './shared'
 import { getSalesOrders } from '@/lib/api'
@@ -14,7 +13,7 @@ export function SalesOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(100)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
@@ -46,8 +45,9 @@ export function SalesOrdersPage() {
   }
 
   useEffect(() => {
-    void load(1, perPage)
-  }, [])
+    const timeoutId = window.setTimeout(() => void load(1, perPage), 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [search, status, dateRange, perPage])
 
   return (
     <div className="space-y-4">
@@ -60,7 +60,7 @@ export function SalesOrdersPage() {
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <CardContent className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
           <Input placeholder="Search customer/course" value={search} onChange={(e) => setSearch(e.target.value)} />
           <Input placeholder="Status (e.g. COMPLETED)" value={status === 'all' ? '' : status} onChange={(e) => setStatus(e.target.value || 'all')} />
           <DateRangeFilter
@@ -69,7 +69,6 @@ export function SalesOrdersPage() {
             showLabels={false}
             className="md:col-span-2 lg:col-span-3"
           />
-          <Button className="lg:col-span-1" onClick={() => void load(1, perPage)}>Apply</Button>
         </CardContent>
       </Card>
 

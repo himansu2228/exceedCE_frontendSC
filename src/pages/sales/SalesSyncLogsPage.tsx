@@ -8,7 +8,7 @@ import type { SalesSyncRun } from '@/lib/api'
 export function SalesSyncLogsPage() {
   const [rows, setRows] = useState<SalesSyncRun[]>([])
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(100)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 

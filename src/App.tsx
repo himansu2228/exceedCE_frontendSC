@@ -31,7 +31,7 @@ import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib
 function HomeDashboardRoute() {
   const tenant = getTenantAccessProfile()
   if (tenant.isSuperAdmin) {
-    return <Navigate to="/sales/reports" replace />
+    return <Navigate to="/sales/dashboard" replace />
   }
 
   return <DashboardPage />
@@ -49,7 +49,7 @@ function SuperAdminOnlyRoutes() {
 function StateAdminOnlyRoutes() {
   const tenant = getTenantAccessProfile()
   if (tenant.isSuperAdmin) {
-    return <Navigate to="/sales/reports" replace />
+    return <Navigate to="/sales/dashboard" replace />
   }
 
   return <Outlet />
@@ -57,7 +57,7 @@ function StateAdminOnlyRoutes() {
 
 function RoleDefaultRedirect() {
   const tenant = getTenantAccessProfile()
-  return <Navigate to={tenant.isSuperAdmin ? "/sales/reports" : "/"} replace />
+  return <Navigate to={tenant.isSuperAdmin ? "/sales/dashboard" : "/"} replace />
 }
 
 function RequireAuth() {
