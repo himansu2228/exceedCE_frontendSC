@@ -470,6 +470,7 @@ export async function getCompletedEntries(filters?: {
   search?: string
   resolveProfession?: boolean
   allStates?: boolean
+  rawFields?: boolean
   page?: number
   perPage?: number
   refresh?: boolean
@@ -482,6 +483,7 @@ export async function getCompletedEntries(filters?: {
   if (filters?.toDate) params.set('toDate', filters.toDate)
   if (filters?.search) params.set('search', filters.search)
   if (filters?.resolveProfession) params.set('resolveProfession', String(filters.resolveProfession))
+  if (filters?.rawFields) params.set('rawFields', 'true')
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
   if (filters?.refresh) params.set('refresh', 'true')

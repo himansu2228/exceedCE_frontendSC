@@ -65,7 +65,7 @@ export function SalesCBACompletionsPage() {
     }
 
     const [completionResult, cbaResult] = await Promise.allSettled([
-      getCompletedEntries({ allStates: true, refresh, timeoutMs: 90000 }),
+      getCompletedEntries({ allStates: true, rawFields: true, refresh, timeoutMs: 90000 }),
       getCbaTabularUsers(),
     ])
 
