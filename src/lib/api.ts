@@ -1116,10 +1116,12 @@ export async function getSalesDashboard(filters?: {
 export async function getSalesAnalytics(filters?: {
   fromDate?: string
   toDate?: string
+  limit?: string | number
 }): Promise<SalesDashboardResponse> {
   const params = new URLSearchParams()
   if (filters?.fromDate) params.set('fromDate', filters.fromDate)
   if (filters?.toDate) params.set('toDate', filters.toDate)
+  if (filters?.limit) params.set('limit', String(filters.limit))
   const query = params.toString()
   return fetchApi<SalesDashboardResponse>(`/sales/analytics${query ? `?${query}` : ''}`)
 }

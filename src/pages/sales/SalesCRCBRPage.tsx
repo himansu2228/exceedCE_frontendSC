@@ -11,18 +11,41 @@ type CRCBRRow = {
 
 export function SalesCRCBRPage() {
   const [rows, setRows] = useState<CRCBRRow[]>([])
+  const [rawCourses, setRawCourses] = useState<string[]>([])
 
   useEffect(() => {
-    getSalesAnalytics()
+    getSalesAnalytics({ limit: 'all' })
       .then((res) => {
-        const mapped = (res.revenueByCourse || []).map((item) => ({
-          courseName: item.course,
-          totalSales: item.revenue,
-          totalOrders: item.quantity,
-        }))
+        const raw = (res.revenueByCourse || [])
+        setRawCourses(raw.map(r => r.course))
+
+        const mapped = raw
+          .filter((item) => {
+            const name = (item.course || '').toLowerCase()
+            
+            // Exclude courses that end with _R
+            if (name.endsWith('_r')) {
+              return false;
+            }
+
+            return (
+              name.startsWith('nc ') || 
+              name.startsWith('sc ') || 
+              name.includes('north carolina') || 
+              name.includes('south carolina')
+            )
+          })
+          .map((item) => ({
+            courseName: item.course,
+            totalSales: item.revenue * 0.2,
+            totalOrders: item.quantity,
+          }))
         setRows(mapped)
       })
-      .catch(() => setRows([]))
+      .catch(() => {
+        setRows([])
+        setRawCourses([])
+      })
   }, [])
 
   const totals = useMemo(() => {
