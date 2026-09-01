@@ -11,13 +11,11 @@ type CRCBRRow = {
 
 export function SalesCRCBRPage() {
   const [rows, setRows] = useState<CRCBRRow[]>([])
-  const [rawCourses, setRawCourses] = useState<string[]>([])
 
   useEffect(() => {
     getSalesAnalytics({ limit: 'all' })
       .then((res) => {
         const raw = (res.revenueByCourse || [])
-        setRawCourses(raw.map(r => r.course))
 
         const mapped = raw
           .filter((item) => {
@@ -44,7 +42,6 @@ export function SalesCRCBRPage() {
       })
       .catch(() => {
         setRows([])
-        setRawCourses([])
       })
   }, [])
 
