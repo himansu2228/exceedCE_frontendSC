@@ -35,6 +35,10 @@ interface ReportPreset {
   description?: string
 }
 
+interface SalesReportsPageProps {
+  initialPreset?: string
+}
+
 // Predefined report presets for common use cases
 const REPORT_PRESETS: ReportPreset[] = [
   { id: 'all', label: 'All Reports', filters: {} },
@@ -87,7 +91,7 @@ function resolveDisplaySource(row: SalesReportRow): string {
   return source || 'N/A'
 }
 
-export function SalesReportsPage() {
+export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<SalesReportRow[]>([])
@@ -96,12 +100,18 @@ export function SalesReportsPage() {
   const [perPage, setPerPage] = useState(50)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
-  const [preset, setPreset] = useState('all')
+  const [preset, setPreset] = useState(initialPreset)
   const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [course, setCourse] = useState('')
   const [customer, setCustomer] = useState('')
   const [state, setState] = useState('')
   const [source, setSource] = useState('')
+
+  useEffect(() => {
+    if (initialPreset !== 'all') {
+      applyPreset(initialPreset)
+    }
+  }, [])
 
   const applyPreset = (presetId: string) => {
     const selectedPreset = REPORT_PRESETS.find((p) => p.id === presetId)

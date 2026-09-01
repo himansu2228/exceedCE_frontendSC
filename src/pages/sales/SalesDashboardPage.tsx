@@ -4,12 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -199,7 +200,7 @@ export function SalesDashboardPage() {
 
   const stateChart = useMemo(() => {
     if (!data) return []
-    return data.revenueByState.slice(0, 8)
+    return data.revenueByState.slice(0, 10)
   }, [data])
 
   if (loading) {
@@ -325,19 +326,22 @@ export function SalesDashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle>Revenue Trend</CardTitle>
-            <p className="text-sm text-muted-foreground">Monthly revenue movement across the selected period.</p>
+            <CardTitle>Monthly Revenue vs Orders</CardTitle>
+            <p className="text-sm text-muted-foreground">Revenue and order volume across the selected period.</p>
           </CardHeader>
           <CardContent>
             <div className="h-80 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/80 to-white p-3">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.revenueByMonth}>
+                <LineChart data={data.revenueByMonth}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
                   <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
-                  <Area type="monotone" dataKey="revenue" stroke="#2563eb" fill="#93c5fd" fillOpacity={0.35} />
-                </AreaChart>
+                  <YAxis yAxisId="revenue" tickFormatter={(value) => formatCompactCurrency(Number(value || 0))} />
+                  <YAxis yAxisId="orders" orientation="right" />
+                  <Tooltip formatter={(value, name) => (name === 'Revenue' ? formatCurrency(Number(value || 0)) : Number(value || 0).toLocaleString())} />
+                  <Legend />
+                  <Line yAxisId="revenue" type="monotone" dataKey="revenue" name="Revenue" stroke="#2563eb" strokeWidth={2} dot={false} />
+                  <Line yAxisId="orders" type="monotone" dataKey="orders" name="Orders" stroke="#0f766e" strokeWidth={2} dot={false} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -345,7 +349,7 @@ export function SalesDashboardPage() {
 
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle>Revenue by State</CardTitle>
+            <CardTitle>Top Revenue States</CardTitle>
             <p className="text-sm text-muted-foreground">Top state contribution by collected revenue.</p>
           </CardHeader>
           <CardContent>

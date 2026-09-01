@@ -14,17 +14,16 @@ import {
   Receipt,
   RotateCcw,
   FileSpreadsheet,
-  ChartColumnBig,
   ListChecks,
   ShieldAlert,
   Settings,
   FileText,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
   Zap,
   Target,
-  BadgeCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -51,8 +50,16 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
-const getSuperAdminSalesItems = () => {
-  const items = [
+type NavItem =
+  | { path: string; icon: typeof LayoutDashboard; label: string }
+  | {
+      label: string
+      icon: typeof LayoutDashboard
+      children: Array<{ path: string; label: string }>
+    }
+
+const getSuperAdminSalesItems = (): NavItem[] => {
+  const items: NavItem[] = [
     { path: '/sales/dashboard', icon: BarChart3, label: 'Sales Dashboard' },
     { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/sales/customers', icon: Users2, label: 'Customers' },
@@ -61,7 +68,6 @@ const getSuperAdminSalesItems = () => {
     { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
     { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
     { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
-    { path: '/sales/analytics', icon: ChartColumnBig, label: 'Sales Analytics' },
   ]
 
   // Only show Sync Logs and Failed Syncs in development
@@ -73,8 +79,15 @@ const getSuperAdminSalesItems = () => {
   }
 
   items.push(
-    { path: '/sales/cba', icon: Zap, label: 'CBA' },
-    { path: '/sales/cba-completion', icon: BadgeCheck, label: 'CBA Completion' },
+    {
+      label: 'CBA',
+      icon: Zap,
+      children: [
+        { path: '/sales/cba', label: 'CBA Master List' },
+        { path: '/sales/cba-sales', label: 'CBA Sales' },
+        { path: '/sales/cba-completion', label: 'CBA Completion' },
+      ],
+    },
     { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
     { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
   )
@@ -89,6 +102,7 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [cbaMenuOpen, setCbaMenuOpen] = useState(false)
   const [activeStateCode, setActiveStateCode] = useState(() => normalizeStateCode(getTenantAccessProfile().stateCode || 'SC'))
   const location = useLocation()
   const navigate = useNavigate()
@@ -123,7 +137,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const maskedPipelineLabel = getHiddenPipelineTabLabel(activeStateCode)
 
-  const tenantNavItems = useMemo(() => {
+  const tenantNavItems = useMemo<NavItem[]>(() => {
     if (isSuperAdmin) return getSuperAdminSalesItems()
     return navItems.map((item) => {
       if (item.path !== '/pipeline') return item
@@ -191,6 +205,69 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           </div>
         )}
         {tenantNavItems.map((item) => {
+          if ('children' in item) {
+            const isCbaActive = item.children.some((child) => location.pathname === child.path || location.pathname.startsWith(`${child.path}/`))
+            const isExpanded = cbaMenuOpen
+
+            if (collapsed) {
+              return (
+                <NavLink
+                  key={item.label}
+                  to={item.children[0].path}
+                  onClick={onMobileClose}
+                  title={item.label}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                    isCbaActive
+                      ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white shadow-[0_14px_30px_-14px_rgba(37,99,235,0.9)] ring-1 ring-blue-400/40'
+                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  )}
+                >
+                  <item.icon className={cn('h-5 w-5 shrink-0', isCbaActive && 'text-amber-300')} />
+                </NavLink>
+              )
+            }
+
+            return (
+              <div key={item.label}>
+                <button
+                  type="button"
+                  onClick={() => setCbaMenuOpen((open) => !open)}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                    isCbaActive
+                      ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white shadow-[0_14px_30px_-14px_rgba(37,99,235,0.9)] ring-1 ring-blue-400/40'
+                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  )}
+                >
+                  <item.icon className={cn('h-5 w-5 shrink-0', isCbaActive && 'text-amber-300')} />
+                  <span>{item.label}</span>
+                  <ChevronDown className={cn('ml-auto h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
+                </button>
+                {isExpanded && (
+                  <div className="ml-5 mt-1 space-y-1 border-l border-white/15 pl-2">
+                    {item.children.map((child) => {
+                      const isActive = location.pathname === child.path || location.pathname.startsWith(`${child.path}/`)
+                      return (
+                        <NavLink
+                          key={child.path}
+                          to={child.path}
+                          onClick={onMobileClose}
+                          className={cn(
+                            'flex rounded-md px-3 py-2 text-xs font-medium transition-all duration-200',
+                            isActive ? 'bg-white/15 text-white' : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                          )}
+                        >
+                          {child.label}
+                        </NavLink>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          }
+
           const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
           return (
             <NavLink

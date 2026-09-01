@@ -23,9 +23,11 @@ const pageTitles: Record<string, string> = {
   '/sales/transactions': 'Sales Transactions',
   '/sales/refunds': 'Sales Refunds',
   '/sales/reports': 'Sales Reports',
-  '/sales/analytics': 'Sales Analytics',
   '/sales/sync-logs': 'Sales Sync Logs',
   '/sales/failed-syncs': 'Sales Failed Syncs',
+  '/sales/cba': 'CBA Master List',
+  '/sales/cba-sales': 'CBA Sales',
+  '/sales/cba-completion': 'CBA Completion',
   '/sales/settings': 'Sales Settings',
 }
 
