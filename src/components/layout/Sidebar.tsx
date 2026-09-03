@@ -84,7 +84,7 @@ const getSuperAdminSalesItems = (): NavItem[] => {
       icon: Zap,
       children: [
         { path: '/sales/cba', label: 'CBA Master List' },
-        { path: '/sales/cba-sales', label: 'CBA Sales' },
+        { path: '/sales/cba-sales', label: 'Out-of-State Sales' },
         { path: '/sales/cba-completion', label: 'CBA Completion' },
       ],
     },
