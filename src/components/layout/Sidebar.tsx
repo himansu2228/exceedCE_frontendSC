@@ -7,7 +7,6 @@ import {
   Workflow,
   ClipboardList,
   BarChart3,
-  BadgeCheck,
   X,
   ShoppingCart,
   Users2,

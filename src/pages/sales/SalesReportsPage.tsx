@@ -67,7 +67,7 @@ function isCBAOutOfStateCourse(courseName: string): boolean {
   return isCBATopic
 }
 
-export function SalesReportsPage({ initialPreset }: { initialPreset?: string }) {
+export function SalesReportsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('sales')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
