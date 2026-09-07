@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, BarChart3, RefreshCw } from 'lucide-react'
+import { AlertTriangle, BarChart3, Download, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import { getSalesAnalytics } from '@/lib/api'
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns'
+import * as XLSX from 'xlsx'
 
 type ViewMode = 'sales' | 'orders'
 
@@ -69,25 +71,33 @@ function isCBAOutOfStateCourse(courseName: string): boolean {
 
 export function SalesReportsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('sales')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<CourseRow[]>([])
   
-  // Generate the last 12 months
   const months = useMemo(() => {
     const now = new Date()
+    const selectedFrom = dateRange.fromDate ? new Date(`${dateRange.fromDate}T00:00:00`) : null
+    const selectedTo = dateRange.toDate ? new Date(`${dateRange.toDate}T00:00:00`) : null
+    const start = selectedFrom || startOfMonth(subMonths(now, 11))
+    const end = selectedTo || now
     const result: MonthData[] = []
-    for (let i = 0; i < 12; i++) {
-      const d = subMonths(now, i)
+    let month = startOfMonth(end)
+    const firstMonth = startOfMonth(start)
+    while (month >= firstMonth) {
+      const monthStart = startOfMonth(month)
+      const monthEnd = endOfMonth(month)
       result.push({
-        key: format(d, 'yyyy-MM'),
-        label: format(d, "MMM ''yy"),
-        fromDate: format(startOfMonth(d), 'yyyy-MM-dd'),
-        toDate: format(endOfMonth(d), 'yyyy-MM-dd'),
+        key: format(month, 'yyyy-MM'),
+        label: format(month, "MMM ''yy"),
+        fromDate: format(selectedFrom && selectedFrom > monthStart ? selectedFrom : monthStart, 'yyyy-MM-dd'),
+        toDate: format(selectedTo && selectedTo < monthEnd ? selectedTo : monthEnd, 'yyyy-MM-dd'),
       })
+      month = subMonths(month, 1)
     }
     return result
-  }, [])
+  }, [dateRange.fromDate, dateRange.toDate])
 
   const loadData = useCallback(async () => {
     try {
@@ -169,6 +179,41 @@ export function SalesReportsPage() {
     return { monthlyTotal, grandTotalRevenue, grandTotalQuantity }
   }, [rows, months])
 
+  const exportExcel = () => {
+    const headers = ['Course Name', ...months.map(m => m.label), 'Grand Total']
+    const dataRows = rows.map(row => [
+      row.courseName,
+      ...months.map(m => {
+        const stats = row.monthlyStats[m.key]
+        return viewMode === 'sales'
+          ? stats?.revenue || 0
+          : stats?.quantity || 0
+      }),
+      viewMode === 'sales' ? row.totalRevenue : row.totalQuantity,
+    ])
+    const totalRow = [
+      'Grand Total',
+      ...months.map(m => {
+        const stats = totals.monthlyTotal[m.key]
+        return viewMode === 'sales'
+          ? stats?.revenue || 0
+          : stats?.quantity || 0
+      }),
+      viewMode === 'sales'
+        ? totals.grandTotalRevenue
+        : totals.grandTotalQuantity,
+    ]
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows, totalRow])
+    worksheet['!cols'] = [
+      { wch: 48 },
+      ...months.map(() => ({ wch: 12 })),
+      { wch: 14 },
+    ]
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, viewMode === 'sales' ? 'Sales' : 'Orders')
+    XLSX.writeFile(workbook, `out-of-state-sales-${viewMode}.xlsx`)
+  }
+
   return (
     <div className="space-y-4 animate-fadeIn">
       <Card>
@@ -187,7 +232,8 @@ export function SalesReportsPage() {
               Month-by-month breakdown of CBA course sales outside Washington.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <DateRangeFilter value={dateRange} onChange={setDateRange} showLabels={false} />
             <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select view" />
@@ -197,6 +243,10 @@ export function SalesReportsPage() {
                 <SelectItem value="orders">View: Orders (#)</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" onClick={exportExcel} disabled={loading || rows.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Export Excel
+            </Button>
             <Button variant="outline" size="icon" onClick={() => void loadData()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
