@@ -19,12 +19,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, XCircle, Search, CalendarCheck2, Users, GraduationCap, Filter } from 'lucide-react'
+import { Loader2, XCircle, Search, CalendarCheck2, Users, GraduationCap, Download, Filter } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { getCompletedEntries, getSCCourses, type CompletedEntry, type Course } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getActiveState, getTenantAccessProfile, normalizeStateCode } from '@/lib/auth'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+import * as XLSX from 'xlsx'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
 
@@ -191,6 +192,33 @@ export function CompletedPage() {
     }
   }
 
+  const exportExcel = () => {
+    const worksheetData = entries.map((entry) => ({
+      User: entry.full_name || `${entry.first_name} ${entry.last_name}`.trim(),
+      'User ID': entry.user_id ?? '',
+      Email: entry.email || '',
+      Course: entry.course_name || '',
+      'CEB Course ID': entry.ceb_course_id || '',
+      License: entry.license_number || '',
+      Profession: entry.licensee_profession || '',
+      'Completed Date': entry.date_completed_iso || entry.date_completed || '',
+    }))
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData)
+    worksheet['!cols'] = [
+      { wch: 28 },
+      { wch: 12 },
+      { wch: 32 },
+      { wch: 44 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 18 },
+    ]
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Completed Users')
+    XLSX.writeFile(workbook, `completed-users-${activeStateCode.toLowerCase()}.xlsx`)
+  }
+
   useEffect(() => {
     if (!loading) {
       void fetchCompletedEntries(page, perPage, activeStateCode)
@@ -334,6 +362,10 @@ export function CompletedPage() {
 
               <Button size="sm" variant="outline" onClick={handleResetFilters}>
                 Reset
+              </Button>
+              <Button size="sm" variant="outline" onClick={exportExcel} disabled={entries.length === 0}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Excel
               </Button>
             </div>
           </div>
