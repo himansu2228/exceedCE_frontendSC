@@ -19,6 +19,7 @@ import {
   SalesTransactionsPage,
   SalesRefundsPage,
   SalesReportsPage,
+  SalesOutOfStatePage,
   SalesSyncLogsPage,
   SalesFailedSyncsPage,
   SalesCBAPage,
@@ -126,7 +127,7 @@ function App() {
               <Route path="sales/sync-logs" element={<SalesSyncLogsPage />} />
               <Route path="sales/failed-syncs" element={<SalesFailedSyncsPage />} />
               <Route path="sales/cba" element={<SalesCBAPage />} />
-              <Route path="sales/cba-sales" element={<SalesReportsPage />} />
+              <Route path="sales/cba-sales" element={<SalesOutOfStatePage />} />
               <Route path="sales/cba-completion" element={<SalesCBACompletionsPage />} />
               <Route path="sales/crcbr" element={<SalesCRCBRPage />} />
               <Route path="sales/settings" element={<SalesSettingsPage />} />
