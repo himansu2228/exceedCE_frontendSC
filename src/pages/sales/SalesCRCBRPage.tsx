@@ -39,15 +39,11 @@ export function SalesCRCBRPage() {
       setLoading(true)
       setError(null)
       const response = await getSalesAnalytics({ limit: 'all' })
+      const validCourses = ['north carolina', 'north carolina ce', 'south carolina', 'south carolina ce']
       const mapped = (response.revenueByCourse || [])
         .filter((item) => {
-          const courseName = (item.course || '').toLowerCase()
-          return !courseName.endsWith('_r') && (
-            courseName.startsWith('nc ') ||
-            courseName.startsWith('sc ') ||
-            courseName.includes('north carolina') ||
-            courseName.includes('south carolina')
-          )
+          const courseName = (item.course || '').toLowerCase().trim()
+          return validCourses.some(valid => courseName.includes(valid))
         })
         .map((item) => ({
           courseName: item.course,
