@@ -1426,3 +1426,65 @@ export async function getCbaTabularUsers(params?: {
   }
 }
 
+export interface PartnerConfig {
+  id: string
+  name: string
+  partnerSharePct: number
+  referralFeePct: number
+  frequency: string
+  description?: string
+}
+
+export interface PartnerReportItem {
+  orderId: number | string
+  date: string
+  customer: string
+  productName: string
+  quantity: number
+  grossSale: number
+  discounts: number
+  refunds: number
+  netSales: number
+  state: string
+  stripeFee: number
+  referralFee: number
+  partnerShare: number
+  remittanceFromStripe: number
+  source?: string
+}
+
+export interface PartnerReportResponse {
+  success: boolean
+  partner: PartnerConfig
+  period: string
+  totalOrders: number
+  summary: {
+    totalGrossSale: number
+    totalStripeFees: number
+    totalPartnerShare: number
+    totalRemittanceFromStripe: number
+  }
+  items: PartnerReportItem[]
+}
+
+export async function getPartnerVendorsList(): Promise<PartnerConfig[]> {
+  const res = await fetchApi<{ success: boolean; count: number; partners: PartnerConfig[] }>('/sales/partners')
+  return res.partners || []
+}
+
+export async function getPartnerReconciliationReportApi(params: {
+  partner: string
+  period?: 'monthly' | 'quarterly' | 'all'
+  fromDate?: string
+  toDate?: string
+}): Promise<PartnerReportResponse> {
+  const queryParams = new URLSearchParams()
+  queryParams.set('partner', params.partner)
+  if (params.period) queryParams.set('period', params.period)
+  if (params.fromDate) queryParams.set('fromDate', params.fromDate)
+  if (params.toDate) queryParams.set('toDate', params.toDate)
+
+  return fetchApi<PartnerReportResponse>(`/sales/partner-report?${queryParams.toString()}`)
+}
+
+
