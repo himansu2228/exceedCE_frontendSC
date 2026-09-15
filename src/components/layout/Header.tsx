@@ -28,6 +28,7 @@ const pageTitles: Record<string, string> = {
   '/sales/cba': 'CBA Master List',
   '/sales/cba-sales': 'CBA Sales',
   '/sales/cba-completion': 'CBA Completion',
+  '/sales/partner-reports': 'Partner Reports',
   '/sales/settings': 'Sales Settings',
 }
 

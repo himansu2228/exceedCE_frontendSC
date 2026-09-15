@@ -90,6 +90,7 @@ const getSuperAdminSalesItems = (): NavItem[] => {
       ],
     },
     { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
+    { path: '/sales/partner-reports', icon: FileSpreadsheet, label: 'Partner Reports' },
     { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
   )
 
