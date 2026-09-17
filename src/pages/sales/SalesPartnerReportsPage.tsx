@@ -49,12 +49,15 @@ export function SalesPartnerReportsPage() {
   useEffect(() => {
     async function loadPartners() {
       try {
+        setPartnersLoading(true)
         const list = await getPartnerVendorsList()
         if (list && list.length > 0) {
           setPartners(list)
         }
       } catch (err) {
         console.error('Failed to load partners from API, using default list:', err)
+      } finally {
+        setPartnersLoading(false)
       }
     }
     void loadPartners()
