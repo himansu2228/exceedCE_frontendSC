@@ -37,7 +37,7 @@ const DEFAULT_PARTNERS: PartnerConfig[] = [
 export function SalesPartnerReportsPage() {
   const [partners, setPartners] = useState<PartnerConfig[]>(DEFAULT_PARTNERS)
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('donald-croteau')
-  const [period, setPeriod] = useState<'monthly' | 'quarterly' | 'all'>('all')
+  const [period, setPeriod] = useState<'monthly' | 'quarterly' | 'ytd' | 'all'>('all')
   const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
 
   const [loading, setLoading] = useState(true)
@@ -119,15 +119,18 @@ export function SalesPartnerReportsPage() {
       item.remittanceFromStripe,
     ])
 
+    const totalRefunds = reportData.items.reduce((sum, item) => sum + Number(item.refunds || 0), 0)
+    const totalDiscounts = reportData.items.reduce((sum, item) => sum + Number(item.discounts || 0), 0)
+
     const totalRow = [
       'TOTAL',
       '',
       '',
       '',
       reportData.summary.totalGrossSale,
-      0,
-      0,
-      reportData.summary.totalGrossSale,
+      totalDiscounts,
+      totalRefunds,
+      reportData.items.reduce((sum, item) => sum + Number(item.netSales || item.grossSale || 0), 0),
       reportData.summary.totalStripeFees,
       0,
       reportData.summary.totalPartnerShare,
@@ -204,13 +207,14 @@ export function SalesPartnerReportsPage() {
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
                 Report Frequency / Period
               </label>
-              <Select value={period} onValueChange={(v) => setPeriod(v as 'monthly' | 'quarterly' | 'all')}>
+              <Select value={period} onValueChange={(v) => setPeriod(v as 'monthly' | 'quarterly' | 'ytd' | 'all')}>
                 <SelectTrigger className="h-10 text-sm font-medium">
                   <SelectValue placeholder="Select Frequency" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="monthly">Monthly Report (Last 30 Days)</SelectItem>
                   <SelectItem value="quarterly">Quarterly Report (Last 90 Days)</SelectItem>
+                  <SelectItem value="ytd">Year-to-Date (YTD)</SelectItem>
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
@@ -243,10 +247,6 @@ export function SalesPartnerReportsPage() {
                   </div>
                 </>
               )}
-              <div className="h-4 w-px bg-blue-200" />
-              <div>
-                Default Schedule: <strong>{selectedPartner.frequency}</strong>
-              </div>
             </div>
           )}
         </CardContent>
@@ -387,9 +387,9 @@ export function SalesPartnerReportsPage() {
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-slate-900">Total Summary</td>
                     <td className="px-4 py-3 text-right text-slate-900">{formatUSD(reportData.summary.totalGrossSale)}</td>
-                    <td className="px-3 py-3 text-right text-slate-500">{formatUSD(0)}</td>
-                    <td className="px-3 py-3 text-right text-slate-500">{formatUSD(0)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-700">{formatUSD(reportData.summary.totalGrossSale)}</td>
+                    <td className="px-3 py-3 text-right text-slate-500">{formatUSD(reportData.items.reduce((sum, item) => sum + Number(item.discounts || 0), 0))}</td>
+                    <td className="px-3 py-3 text-right text-slate-500">{formatUSD(reportData.items.reduce((sum, item) => sum + Number(item.refunds || 0), 0))}</td>
+                    <td className="px-4 py-3 text-right text-emerald-700">{formatUSD(reportData.items.reduce((sum, item) => sum + Number(item.netSales || item.grossSale || 0), 0))}</td>
                     <td className="px-4 py-3 text-right text-amber-700">{formatUSD(reportData.summary.totalStripeFees)}</td>
                     <td className="px-4 py-3 text-right text-blue-700">{formatUSD(reportData.summary.totalPartnerShare)}</td>
                     <td className="px-4 py-3 text-right text-blue-700 bg-blue-100/60 font-extrabold text-sm">

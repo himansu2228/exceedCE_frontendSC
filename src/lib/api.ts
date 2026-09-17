@@ -1474,7 +1474,7 @@ export async function getPartnerVendorsList(): Promise<PartnerConfig[]> {
 
 export async function getPartnerReconciliationReportApi(params: {
   partner: string
-  period?: 'monthly' | 'quarterly' | 'all'
+  period?: 'monthly' | 'quarterly' | 'ytd' | 'all'
   fromDate?: string
   toDate?: string
 }): Promise<PartnerReportResponse> {
