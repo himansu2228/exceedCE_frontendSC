@@ -1435,6 +1435,35 @@ export interface PartnerConfig {
   description?: string
 }
 
+export type ReportFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly'
+
+export interface PartnerReportSettings {
+  partnerId: string
+  frequency: ReportFrequency
+  dayOfWeek: number | null
+  dayOfMonth: number | null
+  sendTime: string
+  timezone: string
+  isEnabled: boolean
+  lastSentAt: string | null
+}
+
+export async function getPartnerReportSettingsApi(partnerId: string): Promise<PartnerReportSettings> {
+  const res = await fetchApi<{ success: boolean; settings: PartnerReportSettings }>(`/sales/partner-report-settings/${encodeURIComponent(partnerId)}`)
+  return res.settings
+}
+
+export async function updatePartnerReportSettingsApi(
+  partnerId: string,
+  settings: Partial<Omit<PartnerReportSettings, 'partnerId' | 'lastSentAt'>>
+): Promise<PartnerReportSettings> {
+  const res = await fetchApi<{ success: boolean; settings: PartnerReportSettings }>(`/sales/partner-report-settings/${encodeURIComponent(partnerId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  })
+  return res.settings
+}
+
 export interface PartnerReportItem {
   orderId: number | string
   date: string
@@ -1474,7 +1503,7 @@ export async function getPartnerVendorsList(): Promise<PartnerConfig[]> {
 
 export async function getPartnerReconciliationReportApi(params: {
   partner: string
-  period?: 'monthly' | 'quarterly' | 'ytd' | 'all'
+  period?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'ytd' | 'all'
   fromDate?: string
   toDate?: string
 }): Promise<PartnerReportResponse> {

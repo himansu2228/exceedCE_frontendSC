@@ -2,11 +2,34 @@ import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, DollarSign, Download, FileSpreadsheet, RefreshCw, Users, Wallet } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { AlertTriangle, DollarSign, Download, FileSpreadsheet, RefreshCw, Settings, Users, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
-import { getPartnerVendorsList, getPartnerReconciliationReportApi, type PartnerConfig, type PartnerReportResponse } from '@/lib/api'
+import {
+  getPartnerVendorsList,
+  getPartnerReconciliationReportApi,
+  getPartnerReportSettingsApi,
+  updatePartnerReportSettingsApi,
+  type PartnerConfig,
+  type PartnerReportResponse,
+  type PartnerReportSettings,
+  type ReportFrequency,
+} from '@/lib/api'
 import * as XLSX from 'xlsx'
+
+const WEEKDAY_OPTIONS = [
+  { value: '0', label: 'Sunday' },
+  { value: '1', label: 'Monday' },
+  { value: '2', label: 'Tuesday' },
+  { value: '3', label: 'Wednesday' },
+  { value: '4', label: 'Thursday' },
+  { value: '5', label: 'Friday' },
+  { value: '6', label: 'Saturday' },
+]
 
 function formatUSD(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -17,33 +40,95 @@ function formatUSD(value: number): string {
   }).format(value)
 }
 
+// Real vendor list supplied by client; keep in sync with backend PARTNERS_CONFIG in src/sales/service.js.
 const DEFAULT_PARTNERS: PartnerConfig[] = [
-  { id: 'donald-croteau', name: 'Donald Croteau', partnerSharePct: 40, referralFeePct: 5, frequency: 'Monthly', description: 'Instructor & Course Author Partner' },
-  { id: 'cba', name: 'Commercial Brokers Association (CBA)', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Commercial Brokers Association Washington' },
-  { id: 'crcbr', name: 'CRCBR', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'Charlotte Region Commercial Board of Realtors' },
+  { id: '123-coned', name: '123 ConEd LLC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
   { id: 'abe-lee', name: 'Abe Lee Seminars', partnerSharePct: 25, referralFeePct: 0, frequency: 'Quarterly', description: 'Hawaii Real Estate Partner' },
-  { id: 'ce-marketplace', name: 'CE Marketplace', partnerSharePct: 10, referralFeePct: 0, frequency: 'Quarterly', description: 'CE Marketplace Channel Partner' },
-  { id: 'empire-learning', name: 'Empire Learning', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Empire Learning Affiliate' },
-  { id: 'propelus', name: 'Propelus / CE Broker', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'CE Broker Platform Partner' },
-  { id: 'direct', name: 'Direct Sales Channel', partnerSharePct: 0, referralFeePct: 0, frequency: 'Monthly', description: 'Direct Website Enrollments' },
-  { id: 'referral', name: 'Referral Channel', partnerSharePct: 10, referralFeePct: 5, frequency: 'Monthly', description: 'Customer & Broker Referrals' },
-  { id: 'sior', name: 'SIOR', partnerSharePct: 15, referralFeePct: 0, frequency: 'Quarterly', description: 'Society of Industrial and Office Realtors' },
-  { id: 'lotsar', name: 'LOTSAR', partnerSharePct: 15, referralFeePct: 0, frequency: 'Quarterly', description: 'Land of the Sky Association of Realtors' },
-  { id: 'gmar', name: 'GMAR', partnerSharePct: 15, referralFeePct: 0, frequency: 'Quarterly', description: 'Greater Metropolitan Association of Realtors' },
-  { id: 'exp-commercial', name: 'eXp Commercial', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'eXp Commercial Brokerage' },
-  { id: 'general-partner', name: 'General Partner Channel', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'General Affiliate Network' }
+  { id: 'beth-baker-owens', name: 'Beth Baker Owens', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
+  { id: 'cba', name: 'Commercial Brokers Association (CBA)', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Commercial Brokers Association Washington' },
+  { id: 'cheryl-crawford', name: 'Cheryl Crawford', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
+  { id: 'crcbr', name: 'CRCBR', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'Charlotte Region Commercial Board of Realtors' },
+  { id: 'devon-higgins', name: 'Devon Higgins', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
+  { id: 'donald-croteau', name: 'Donald Croteau', partnerSharePct: 40, referralFeePct: 5, frequency: 'Monthly', description: 'Instructor & Course Author Partner' },
+  { id: 'house-of-kaos', name: 'House of Kaos LLC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
+  { id: 'joseph-fisher', name: 'Joseph Fisher', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
+  { id: 'mtritt', name: 'MTritt INC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
+  { id: 'nc-realtors', name: 'North Carolina Association of REALTORS', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'State Realtor Association Partner' },
+  { id: 'onlineed', name: 'OnlineEd', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'CE Platform Partner' },
+  { id: 'taxonics', name: 'Taxonics', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
 ]
+
 
 export function SalesPartnerReportsPage() {
   const [partners, setPartners] = useState<PartnerConfig[]>(DEFAULT_PARTNERS)
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('donald-croteau')
-  const [period, setPeriod] = useState<'monthly' | 'quarterly' | 'ytd' | 'all'>('all')
+  const [period, setPeriod] = useState<'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'ytd' | 'all'>('all')
   const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
 
   const [loading, setLoading] = useState(true)
   const [partnersLoading, setPartnersLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reportData, setReportData] = useState<PartnerReportResponse | null>(null)
+
+  // Reconciliation Report Settings dialog (per-vendor mail schedule)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsPartnerId, setSettingsPartnerId] = useState<string>('donald-croteau')
+  const [settingsForm, setSettingsForm] = useState<PartnerReportSettings | null>(null)
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+
+  const loadSettingsForPartner = useCallback(async (partnerId: string) => {
+    setSettingsLoading(true)
+    setSettingsError(null)
+    setSettingsSaved(false)
+    try {
+      const settings = await getPartnerReportSettingsApi(partnerId)
+      setSettingsForm(settings)
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : 'Failed to load reconciliation report settings')
+    } finally {
+      setSettingsLoading(false)
+    }
+  }, [])
+
+  const openSettingsDialog = useCallback(() => {
+    setSettingsPartnerId(selectedPartnerId)
+    setSettingsOpen(true)
+    void loadSettingsForPartner(selectedPartnerId)
+  }, [selectedPartnerId, loadSettingsForPartner])
+
+  const handleSettingsPartnerChange = useCallback((partnerId: string) => {
+    setSettingsPartnerId(partnerId)
+    void loadSettingsForPartner(partnerId)
+  }, [loadSettingsForPartner])
+
+  const saveSettings = useCallback(async () => {
+    if (!settingsForm) return
+    setSettingsSaving(true)
+    setSettingsError(null)
+    setSettingsSaved(false)
+    try {
+      const updated = await updatePartnerReportSettingsApi(settingsPartnerId, {
+        frequency: settingsForm.frequency,
+        dayOfWeek: settingsForm.dayOfWeek,
+        dayOfMonth: settingsForm.dayOfMonth,
+        sendTime: settingsForm.sendTime,
+        timezone: settingsForm.timezone,
+        isEnabled: settingsForm.isEnabled,
+      })
+      setSettingsForm(updated)
+      setSettingsSaved(true)
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : 'Failed to save reconciliation report settings')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }, [settingsForm, settingsPartnerId])
+
+  const isDayOfWeekFrequency = settingsForm?.frequency === 'weekly' || settingsForm?.frequency === 'biweekly'
+  const settingsPartnerName = partners.find((p) => p.id === settingsPartnerId)?.name || settingsPartnerId
 
   // Fetch partners list on mount
   useEffect(() => {
@@ -94,6 +179,7 @@ export function SalesPartnerReportsPage() {
       'Customer',
       'Course Title',
       'State',
+      'Quantity',
       'Gross Sale ($)',
       'Discounts ($)',
       'Refunds ($)',
@@ -109,6 +195,7 @@ export function SalesPartnerReportsPage() {
       item.customer,
       item.productName,
       item.state,
+      item.quantity,
       item.grossSale,
       item.discounts || 0,
       item.refunds || 0,
@@ -124,6 +211,7 @@ export function SalesPartnerReportsPage() {
 
     const totalRow = [
       'TOTAL',
+      '',
       '',
       '',
       '',
@@ -171,6 +259,10 @@ export function SalesPartnerReportsPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={openSettingsDialog}>
+            <Settings className="mr-2 h-4 w-4" />
+            Reconciliation Report Settings
+          </Button>
           <Button variant="outline" onClick={exportExcel} disabled={loading || !reportData || reportData.items.length === 0}>
             <Download className="mr-2 h-4 w-4" />
             Export Excel
@@ -207,11 +299,13 @@ export function SalesPartnerReportsPage() {
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
                 Report Frequency / Period
               </label>
-              <Select value={period} onValueChange={(v) => setPeriod(v as 'monthly' | 'quarterly' | 'ytd' | 'all')}>
+              <Select value={period} onValueChange={(v) => setPeriod(v as 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'ytd' | 'all')}>
                 <SelectTrigger className="h-10 text-sm font-medium">
                   <SelectValue placeholder="Select Frequency" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="weekly">Weekly Report (Last 7 Days)</SelectItem>
+                  <SelectItem value="biweekly">Biweekly Report (Last 14 Days)</SelectItem>
                   <SelectItem value="monthly">Monthly Report (Last 30 Days)</SelectItem>
                   <SelectItem value="quarterly">Quarterly Report (Last 90 Days)</SelectItem>
                   <SelectItem value="ytd">Year-to-Date (YTD)</SelectItem>
@@ -355,6 +449,7 @@ export function SalesPartnerReportsPage() {
                     <th className="px-4 py-3 text-left font-semibold">Customer</th>
                     <th className="px-4 py-3 text-left font-semibold max-w-[280px]">Course Title</th>
                     <th className="px-3 py-3 text-center font-semibold">State</th>
+                    <th className="px-3 py-3 text-center font-semibold">Qty</th>
                     <th className="px-4 py-3 text-right font-semibold">Gross Sale</th>
                     <th className="px-3 py-3 text-right font-semibold text-slate-500">Discounts</th>
                     <th className="px-3 py-3 text-right font-semibold text-slate-500">Refunds</th>
@@ -371,6 +466,7 @@ export function SalesPartnerReportsPage() {
                       <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{item.customer}</td>
                       <td className="px-4 py-3 text-slate-700 max-w-[280px] truncate">{item.productName}</td>
                       <td className="px-3 py-3 text-center font-medium text-slate-600">{item.state}</td>
+                      <td className="px-3 py-3 text-center font-medium text-slate-600">{item.quantity}</td>
                       <td className="px-4 py-3 text-right font-medium text-slate-900">{formatUSD(item.grossSale)}</td>
                       <td className="px-3 py-3 text-right text-slate-500">{formatUSD(item.discounts || 0)}</td>
                       <td className="px-3 py-3 text-right text-slate-500">{formatUSD(item.refunds || 0)}</td>
@@ -385,7 +481,7 @@ export function SalesPartnerReportsPage() {
                 </tbody>
                 <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200">
                   <tr>
-                    <td colSpan={4} className="px-4 py-3 text-slate-900">Total Summary</td>
+                    <td colSpan={5} className="px-4 py-3 text-slate-900">Total Summary</td>
                     <td className="px-4 py-3 text-right text-slate-900">{formatUSD(reportData.summary.totalGrossSale)}</td>
                     <td className="px-3 py-3 text-right text-slate-500">{formatUSD(reportData.items.reduce((sum, item) => sum + Number(item.discounts || 0), 0))}</td>
                     <td className="px-3 py-3 text-right text-slate-500">{formatUSD(reportData.items.reduce((sum, item) => sum + Number(item.refunds || 0), 0))}</td>
@@ -402,6 +498,186 @@ export function SalesPartnerReportsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Reconciliation Report Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reconciliation Report Settings</DialogTitle>
+            <DialogDescription>
+              Control when the mail-report is automatically sent for a vendor.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                Vendor
+              </Label>
+              <Select value={settingsPartnerId} onValueChange={handleSettingsPartnerChange}>
+                <SelectTrigger className="h-10 text-sm font-medium">
+                  <SelectValue placeholder="Select a Partner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {partners.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {settingsLoading || !settingsForm ? (
+              <div className="space-y-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                      Frequency
+                    </Label>
+                    <Select
+                      value={settingsForm.frequency}
+                      onValueChange={(value) =>
+                        setSettingsForm({
+                          ...settingsForm,
+                          frequency: value as ReportFrequency,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-10 text-sm font-medium">
+                        <SelectValue placeholder="Select Frequency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="biweekly">Biweekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="quarterly">Quarterly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {isDayOfWeekFrequency ? (
+                    <div>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                        Day of Week
+                      </Label>
+                      <Select
+                        value={String(settingsForm.dayOfWeek ?? 1)}
+                        onValueChange={(value) => setSettingsForm({ ...settingsForm, dayOfWeek: Number(value) })}
+                      >
+                        <SelectTrigger className="h-10 text-sm font-medium">
+                          <SelectValue placeholder="Select Day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WEEKDAY_OPTIONS.map((d) => (
+                            <SelectItem key={d.value} value={d.value}>
+                              {d.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                        Day of Month
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={28}
+                        value={settingsForm.dayOfMonth ?? 15}
+                        onChange={(e) =>
+                          setSettingsForm({ ...settingsForm, dayOfMonth: Number(e.target.value) })
+                        }
+                        className="h-10"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                      Send Time
+                    </Label>
+                    <Input
+                      type="time"
+                      value={settingsForm.sendTime}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, sendTime: e.target.value })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+                      Timezone
+                    </Label>
+                    <Select
+                      value={settingsForm.timezone}
+                      onValueChange={(value) => setSettingsForm({ ...settingsForm, timezone: value })}
+                    >
+                      <SelectTrigger className="h-10 text-sm font-medium">
+                        <SelectValue placeholder="Select Timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="America/New_York">Eastern (ET)</SelectItem>
+                        <SelectItem value="America/Chicago">Central (CT)</SelectItem>
+                        <SelectItem value="America/Denver">Mountain (MT)</SelectItem>
+                        <SelectItem value="America/Los_Angeles">Pacific (PT)</SelectItem>
+                        <SelectItem value="Pacific/Honolulu">Hawaii (HST)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border bg-slate-50/60 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Mail Report Enabled</p>
+                    <p className="text-xs text-muted-foreground">
+                      Turn off to stop sending scheduled mail reports for {settingsPartnerName}.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settingsForm.isEnabled}
+                    onCheckedChange={(checked) => setSettingsForm({ ...settingsForm, isEnabled: checked })}
+                  />
+                </div>
+
+                {settingsForm.lastSentAt && (
+                  <p className="text-xs text-muted-foreground">
+                    Last sent: {new Date(settingsForm.lastSentAt).toLocaleString()}
+                  </p>
+                )}
+              </>
+            )}
+
+            {settingsError && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {settingsError}
+              </div>
+            )}
+            {settingsSaved && !settingsError && (
+              <p className="text-xs font-medium text-emerald-700">Settings saved.</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingsOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={() => void saveSettings()} disabled={settingsLoading || settingsSaving || !settingsForm}>
+              {settingsSaving ? 'Saving...' : 'Save Settings'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
