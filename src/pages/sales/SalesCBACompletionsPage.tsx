@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -18,152 +17,210 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { PaginationControls } from '@/components/ui/pagination-controls'
-import { CalendarCheck2, RefreshCw, Search } from 'lucide-react'
+import { CalendarCheck2, RefreshCw } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-import { getCbaTabularUsers, getCompletedEntries, invalidateApiCache, type CbaUserRow, type CompletedEntry } from '@/lib/api'
+import { getCbaCompletionFunnel, type CbaCompletionFunnel } from '@/lib/api'
 
-type SortKey = 'date' | 'name' | 'course' | 'state'
-type SortDirection = 'asc' | 'desc'
-
-interface CbaCompletionRow extends CompletedEntry {
-  cbaUser: CbaUserRow
-}
+type FunnelStage = 'enrolled' | 'started' | 'completed'
 
 function formatDate(value: string | null): string {
   if (!value) return '-'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-  })
+  return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' })
 }
 
-function normalizeId(value: string | number | null | undefined): string {
-  return String(value ?? '').trim()
-}
+// Old table/filters UI (row-level completions matched against the CBA roster) is disabled below;
+// only the enrolled/started/completed funnel chart is shown per client request.
+// import { Input } from '@/components/ui/input'
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from '@/components/ui/select'
+// import {
+//   Table,
+//   TableBody,
+//   TableCell,
+//   TableHead,
+//   TableHeader,
+//   TableRow,
+// } from '@/components/ui/table'
+// import { PaginationControls } from '@/components/ui/pagination-controls'
+// import { Search } from 'lucide-react'
+// import {
+//   getCbaTabularUsers,
+//   getCompletedEntries,
+//   invalidateApiCache,
+//   type CbaUserRow,
+//   type CompletedEntry,
+// } from '@/lib/api'
+
+// type SortKey = 'date' | 'name' | 'course' | 'state'
+// type SortDirection = 'asc' | 'desc'
+
+// interface CbaCompletionRow extends CompletedEntry {
+//   cbaUser: CbaUserRow
+// }
+
+// function formatDate(value: string | null): string {
+//   if (!value) return '-'
+//   const parsed = new Date(value)
+//   if (Number.isNaN(parsed.getTime())) return value
+//   return parsed.toLocaleDateString('en-US', {
+//     year: 'numeric',
+//     month: 'short',
+//     day: '2-digit',
+//   })
+// }
+
+// function normalizeId(value: string | number | null | undefined): string {
+//   return String(value ?? '').trim()
+// }
 
 export function SalesCBACompletionsPage() {
-  const [rows, setRows] = useState<CbaCompletionRow[]>([])
-  const [cbaUsers, setCbaUsers] = useState<CbaUserRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState<SortKey>('date')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(100)
+  // const [rows, setRows] = useState<CbaCompletionRow[]>([])
+  // const [cbaUsers, setCbaUsers] = useState<CbaUserRow[]>([])
+  // const [loading, setLoading] = useState(true)
+  // const [error, setError] = useState<string | null>(null)
+  // const [search, setSearch] = useState('')
+  // const [sortBy, setSortBy] = useState<SortKey>('date')
+  // const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  // const [page, setPage] = useState(1)
+  // const [perPage, setPerPage] = useState(100)
 
-  const loadRows = async (refresh = false) => {
-    setLoading(true)
-    setError(null)
-    if (refresh) {
-      invalidateApiCache('/sales/cba-users')
-      invalidateApiCache('/completions')
+  const [funnel, setFunnel] = useState<CbaCompletionFunnel | null>(null)
+  const [funnelLoading, setFunnelLoading] = useState(true)
+  const [funnelError, setFunnelError] = useState<string | null>(null)
+  const [stage, setStage] = useState<FunnelStage>('enrolled')
+
+  const loadFunnel = async () => {
+    setFunnelLoading(true)
+    setFunnelError(null)
+    try {
+      const response = await getCbaCompletionFunnel()
+      setFunnel(response)
+    } catch (loadError) {
+      setFunnel(null)
+      setFunnelError(loadError instanceof Error ? loadError.message : 'Unable to load CBA funnel stats')
+    } finally {
+      setFunnelLoading(false)
     }
-
-    const [completionResult, cbaResult] = await Promise.allSettled([
-      getCompletedEntries({ allStates: true, rawFields: true, refresh, timeoutMs: 90000 }),
-      getCbaTabularUsers(),
-    ])
-
-    const completionResponse = completionResult.status === 'fulfilled' ? completionResult.value : null
-    const cbaResponse = cbaResult.status === 'fulfilled' ? cbaResult.value : null
-
-    if (!completionResponse || !cbaResponse) {
-      const messages = [
-        completionResult.status === 'rejected'
-          ? `Completions: ${completionResult.reason instanceof Error ? completionResult.reason.message : 'failed'}`
-          : '',
-        cbaResult.status === 'rejected'
-          ? `CBA users: ${cbaResult.reason instanceof Error ? cbaResult.reason.message : 'failed'}`
-          : '',
-      ].filter(Boolean)
-      setError(messages.join(' | ') || 'Failed to load CBA completions')
-    }
-
-    const nextCbaUsers = cbaResponse?.items ?? []
-    const cbaByUserId = new Map<string, CbaUserRow>()
-    for (const user of nextCbaUsers) {
-      const id = normalizeId(user.id)
-      if (id) cbaByUserId.set(id, user)
-    }
-
-    const matchedRows = (completionResponse?.entries ?? [])
-      .map((entry) => {
-        const user = cbaByUserId.get(normalizeId(entry.user_id))
-        return user ? { ...entry, cbaUser: user } : null
-      })
-      .filter((entry): entry is CbaCompletionRow => entry !== null)
-
-    setCbaUsers(nextCbaUsers)
-    setRows(matchedRows)
-    setPage(1)
-    setLoading(false)
   }
 
   useEffect(() => {
-    void loadRows()
+    void loadFunnel()
   }, [])
 
-  const filteredRows = useMemo(() => {
-    const searchText = search.trim().toLowerCase()
-    if (!searchText) return rows
+  // const loadRows = async (refresh = false) => {
+  //   setLoading(true)
+  //   setError(null)
+  //   if (refresh) {
+  //     invalidateApiCache('/sales/cba-users')
+  //     invalidateApiCache('/completions')
+  //   }
+  //
+  //   const [completionResult, cbaResult] = await Promise.allSettled([
+  //     getCompletedEntries({ allStates: true, rawFields: true, refresh, timeoutMs: 90000 }),
+  //     getCbaTabularUsers(),
+  //   ])
+  //
+  //   const completionResponse = completionResult.status === 'fulfilled' ? completionResult.value : null
+  //   const cbaResponse = cbaResult.status === 'fulfilled' ? cbaResult.value : null
+  //
+  //   if (!completionResponse || !cbaResponse) {
+  //     const messages = [
+  //       completionResult.status === 'rejected' ? 'Completions: failed to load' : '',
+  //       cbaResult.status === 'rejected' ? 'CBA users: failed to load' : '',
+  //     ].filter(Boolean)
+  //     setError(messages.join(' | ') || 'Failed to load CBA completions')
+  //   }
+  //
+  //   const nextCbaUsers = cbaResponse?.items ?? []
+  //   const cbaByUserId = new Map<string, CbaUserRow>()
+  //   for (const user of nextCbaUsers) {
+  //     const id = normalizeId(user.id)
+  //     if (id) cbaByUserId.set(id, user)
+  //   }
+  //
+  //   const matchedRows = (completionResponse?.entries ?? [])
+  //     .map((entry) => {
+  //       const user = cbaByUserId.get(normalizeId(entry.user_id))
+  //       return user ? { ...entry, cbaUser: user } : null
+  //     })
+  //     .filter((entry): entry is CbaCompletionRow => entry !== null)
+  //
+  //   setCbaUsers(nextCbaUsers)
+  //   setRows(matchedRows)
+  //   setPage(1)
+  //   setLoading(false)
+  // }
+  //
+  // useEffect(() => {
+  //   void loadRows()
+  // }, [])
+  //
+  // const filteredRows = useMemo(() => {
+  //   const searchText = search.trim().toLowerCase()
+  //   if (!searchText) return rows
+  //
+  //   return rows.filter((row) => {
+  //     const haystack = [
+  //       row.user_id,
+  //       row.full_name,
+  //       row.email,
+  //       row.course_name,
+  //       row.state,
+  //       row.license_number,
+  //       row.licensee_profession,
+  //       row.cbaUser.completion,
+  //     ]
+  //       .join(' ')
+  //       .toLowerCase()
+  //
+  //     return haystack.includes(searchText)
+  //   })
+  // }, [rows, search])
+  //
+  // const sortedRows = useMemo(() => {
+  //   const nextRows = [...filteredRows]
+  //   nextRows.sort((a, b) => {
+  //     let result = 0
+  //
+  //     if (sortBy === 'date') {
+  //       const aTs = a.date_completed_iso ? Date.parse(a.date_completed_iso) : 0
+  //       const bTs = b.date_completed_iso ? Date.parse(b.date_completed_iso) : 0
+  //       result = aTs - bTs
+  //     } else if (sortBy === 'name') {
+  //       result = a.full_name.localeCompare(b.full_name)
+  //     } else if (sortBy === 'course') {
+  //       result = a.course_name.localeCompare(b.course_name)
+  //     } else {
+  //       result = a.state.localeCompare(b.state)
+  //     }
+  //
+  //     return sortDirection === 'asc' ? result : -result
+  //   })
+  //   return nextRows
+  // }, [filteredRows, sortBy, sortDirection])
+  //
+  // const uniqueUsers = useMemo(() => new Set(rows.map((row) => normalizeId(row.user_id))).size, [rows])
+  // const totalItems = sortedRows.length
+  // const totalPages = Math.max(1, Math.ceil(totalItems / perPage))
+  // const safePage = Math.min(Math.max(1, page), totalPages)
+  // const pagedRows = useMemo(() => {
+  //   const start = (safePage - 1) * perPage
+  //   return sortedRows.slice(start, start + perPage)
+  // }, [safePage, perPage, sortedRows])
+  //
+  // useEffect(() => {
+  //   setPage(1)
+  // }, [search, sortBy, sortDirection, perPage])
 
-    return rows.filter((row) => {
-      const haystack = [
-        row.user_id,
-        row.full_name,
-        row.email,
-        row.course_name,
-        row.state,
-        row.license_number,
-        row.licensee_profession,
-        row.cbaUser.completion,
-      ]
-        .join(' ')
-        .toLowerCase()
-
-      return haystack.includes(searchText)
-    })
-  }, [rows, search])
-
-  const sortedRows = useMemo(() => {
-    const nextRows = [...filteredRows]
-    nextRows.sort((a, b) => {
-      let result = 0
-
-      if (sortBy === 'date') {
-        const aTs = a.date_completed_iso ? Date.parse(a.date_completed_iso) : 0
-        const bTs = b.date_completed_iso ? Date.parse(b.date_completed_iso) : 0
-        result = aTs - bTs
-      } else if (sortBy === 'name') {
-        result = a.full_name.localeCompare(b.full_name)
-      } else if (sortBy === 'course') {
-        result = a.course_name.localeCompare(b.course_name)
-      } else {
-        result = a.state.localeCompare(b.state)
-      }
-
-      return sortDirection === 'asc' ? result : -result
-    })
-    return nextRows
-  }, [filteredRows, sortBy, sortDirection])
-
-  const uniqueUsers = useMemo(() => new Set(rows.map((row) => normalizeId(row.user_id))).size, [rows])
-  const totalItems = sortedRows.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / perPage))
-  const safePage = Math.min(Math.max(1, page), totalPages)
-  const pagedRows = useMemo(() => {
-    const start = (safePage - 1) * perPage
-    return sortedRows.slice(start, start + perPage)
-  }, [safePage, perPage, sortedRows])
-
-  useEffect(() => {
-    setPage(1)
-  }, [search, sortBy, sortDirection, perPage])
+  const stageStudents = useMemo(() => funnel?.students?.[stage] ?? [], [funnel, stage])
 
   return (
     <div className="space-y-4">
@@ -180,15 +237,121 @@ export function SalesCBACompletionsPage() {
 
         <Button
           variant="outline"
-          onClick={() => void loadRows(true)}
-          disabled={loading}
+          onClick={() => void loadFunnel()}
+          disabled={funnelLoading}
           className="w-full sm:w-auto"
         >
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`mr-2 h-4 w-4 ${funnelLoading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>CBA Student Funnel</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Enrolled, started, and completed counts among CBA members
+          </p>
+        </CardHeader>
+        <CardContent>
+          {funnelError ? (
+            <p className="text-sm text-red-600">{funnelError}</p>
+          ) : (
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <Badge variant="outline">CBA members: {funnel?.cbaMembers ?? '-'}</Badge>
+                <Badge variant="outline">CBA courses: {funnel?.cbaCourses.length ?? '-'}</Badge>
+                {funnel?.source === 'live-no-db' ? (
+                  <Badge variant="warning">DB not configured — computing live every load</Badge>
+                ) : null}
+                {funnelLoading ? <Badge variant="warning">Loading...</Badge> : null}
+              </div>
+              <div className="h-[60vh] min-h-[420px] w-full rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { stage: 'Enrolled', students: funnel?.enrolled ?? 0 },
+                      { stage: 'Started', students: funnel?.started ?? 0 },
+                      { stage: 'Completed', students: funnel?.completed ?? 0 },
+                    ]}
+                    margin={{ top: 16, right: 24, bottom: 8, left: 8 }}
+                    barCategoryGap="30%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="stage" tick={{ fontSize: 14, fontWeight: 600 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="students" name="Students" radius={[8, 8, 0, 0]}>
+                      {[funnel?.enrolled, funnel?.started, funnel?.completed].map((_, index) => (
+                        <Cell key={index} fill={['#0891b2', '#f59e0b', '#22c55e'][index]} />
+                      ))}
+                      <LabelList dataKey="students" position="top" style={{ fontWeight: 600, fill: '#0f172a' }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {funnel?.meta?.note ? (
+                <p className="mt-2 text-xs text-muted-foreground">{funnel.meta.note}</p>
+              ) : null}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle>Student List</CardTitle>
+          <Select value={stage} onValueChange={(value) => setStage(value as FunnelStage)}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Stage" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="enrolled">Enrolled ({funnel?.enrolled ?? 0})</SelectItem>
+              <SelectItem value="started">Started ({funnel?.started ?? 0})</SelectItem>
+              <SelectItem value="completed">Completed ({funnel?.completed ?? 0})</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Badge variant="outline">{stageStudents.length} students</Badge>
+          <div className="overflow-x-auto rounded-lg border bg-card">
+            <Table className="min-w-[900px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Course(s)</TableHead>
+                  {stage === 'completed' ? <TableHead>Completed</TableHead> : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!funnelLoading && stageStudents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={stage === 'completed' ? 5 : 4} className="text-center text-sm text-muted-foreground">
+                      No students found for this stage.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+
+                {stageStudents.map((student) => (
+                  <TableRow key={student.user_id}>
+                    <TableCell className="font-medium">{student.user_id}</TableCell>
+                    <TableCell>{student.full_name || '-'}</TableCell>
+                    <TableCell>{student.email || '-'}</TableCell>
+                    <TableCell className="max-w-[320px] truncate" title={student.courses.join(', ')}>
+                      {student.courses.join(', ') || '-'}
+                    </TableCell>
+                    {stage === 'completed' ? <TableCell>{formatDate(student.date_completed)}</TableCell> : null}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Old filters + row-level completions table UI, disabled per client request (graph-only page).
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
@@ -294,6 +457,7 @@ export function SalesCBACompletionsPage() {
           />
         </CardContent>
       </Card>
+      */}
     </div>
   )
 }

@@ -1426,6 +1426,35 @@ export async function getCbaTabularUsers(params?: {
   }
 }
 
+export interface CbaFunnelStudent {
+  user_id: number
+  full_name: string
+  email: string
+  courses: string[]
+  date_completed: string | null
+}
+
+export interface CbaCompletionFunnel {
+  cbaMembers: number
+  cbaCourses: Array<{ id: number; name: string }>
+  enrolled: number
+  started: number
+  completed: number
+  students: {
+    enrolled: CbaFunnelStudent[]
+    started: CbaFunnelStudent[]
+    completed: CbaFunnelStudent[]
+  }
+  meta: { note: string }
+  syncedAt: string | null
+  stale: boolean
+  source: 'db-snapshot' | 'live-first-load' | 'live-no-db'
+}
+
+export async function getCbaCompletionFunnel(): Promise<CbaCompletionFunnel> {
+  return fetchApi<CbaCompletionFunnel>('/completions/cba-funnel')
+}
+
 export interface PartnerConfig {
   id: string
   name: string
