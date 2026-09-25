@@ -18,8 +18,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { Search, RefreshCw, Zap } from 'lucide-react'
+import {
+  BookOpen,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  FileJson,
+  Loader2,
+  Search,
+  RefreshCw,
+  Zap,
+} from 'lucide-react'
 
 import { getCbaTabularUsers, getCbaUserCompletion } from '@/lib/api'
 
@@ -39,6 +56,13 @@ interface CbaRow {
   lockAcct: string
   missingCourses: string
   addedLlProUpdate: string
+}
+
+interface CbaCompletionDetails {
+  user_id: number
+  completed: number
+  total: number
+  records: Array<Record<string, unknown>>
 }
 
 type SortKey = 'id' | 'firstName' | 'completion' | 'lastLogin'
@@ -163,6 +187,25 @@ function completionBadgeVariant(completion: string): 'success' | 'warning' | 'se
   return 'secondary'
 }
 
+function formatApiKey(key: string): string {
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function formatApiValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function getCourseProgress(record: Record<string, unknown>): number {
+  const value = Number(record.percentComplete)
+  if (!Number.isFinite(value)) return 0
+  return Math.min(100, Math.max(0, value))
+}
+
 export function SalesCBAPage() {
   const [allRows, setAllRows] = useState<CbaRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -173,6 +216,28 @@ export function SalesCBAPage() {
   const [perPage, setPerPage] = useState(100)
   const [sortBy, setSortBy] = useState<SortKey>('id')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [completionDetails, setCompletionDetails] = useState<CbaCompletionDetails | null>(null)
+  const [completionDetailsLoading, setCompletionDetailsLoading] = useState(false)
+  const [completionDetailsError, setCompletionDetailsError] = useState<string | null>(null)
+
+  const openCompletionDetails = async (row: CbaRow) => {
+    if (!row.id) return
+
+    setCompletionDetails(null)
+    setCompletionDetailsError(null)
+    setCompletionDetailsLoading(true)
+    try {
+      const details = await getCbaUserCompletion(row.id)
+      setCompletionDetails({
+        ...details,
+        records: Array.isArray(details.records) ? details.records : [],
+      })
+    } catch (err) {
+      setCompletionDetailsError(err instanceof Error ? err.message : 'Unable to load completion details')
+    } finally {
+      setCompletionDetailsLoading(false)
+    }
+  }
 
   const loadRows = async () => {
     try {
@@ -423,9 +488,16 @@ export function SalesCBAPage() {
                     <TableCell>{row.lastName || '-'}</TableCell>
                     <TableCell>{row.email || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant={completionBadgeVariant(row.completion)}>
-                        {row.completion || 'Not started'}
-                      </Badge>
+                      <button
+                        type="button"
+                        className="cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        onClick={() => void openCompletionDetails(row)}
+                        aria-label={`View completion details for ${row.firstName} ${row.lastName}`}
+                      >
+                        <Badge variant={completionBadgeVariant(row.completion)}>
+                          {row.completion || 'Not started'}
+                        </Badge>
+                      </button>
                     </TableCell>
                     <TableCell>{row.lastLogin || '-'}</TableCell>
                     <TableCell>{row.removedFromCba || '-'}</TableCell>
@@ -450,6 +522,146 @@ export function SalesCBAPage() {
           />
         </CardContent>
       </Card>
+
+      <Dialog
+        open={completionDetailsLoading || Boolean(completionDetails) || Boolean(completionDetailsError)}
+        onOpenChange={(open) => {
+          if (!open && !completionDetailsLoading) {
+            setCompletionDetails(null)
+            setCompletionDetailsError(null)
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[88vh] max-w-5xl flex-col gap-0 overflow-hidden border-0 bg-slate-50 p-0 shadow-2xl">
+          <div className="relative overflow-hidden bg-slate-950 px-6 pb-7 pt-6 text-white sm:px-8">
+            <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-cyan-400/20 blur-3xl" />
+            <div className="relative flex items-start gap-4 pr-8">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/15 text-cyan-300 ring-1 ring-cyan-300/30">
+                <BookOpen className="h-6 w-6" />
+              </div>
+              <DialogHeader className="space-y-1 text-left">
+                <DialogTitle className="text-xl font-semibold tracking-tight text-white">Course completion</DialogTitle>
+                <DialogDescription className="text-slate-300">
+                  Enrollment and progress details from the live course API.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+
+            {completionDetails ? (
+              <div className="relative mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-lg font-semibold text-white">
+                    Learner ID <span className="text-cyan-300">#{completionDetails.user_id}</span>
+                  </p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">CBA enrollment profile</p>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-300">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  {completionDetails.completed} of {completionDetails.total} courses completed
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {completionDetailsLoading ? (
+            <div className="flex items-center justify-center gap-2 bg-white py-16 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading course details...
+            </div>
+          ) : null}
+
+          {completionDetailsError ? (
+            <p className="bg-white px-6 py-8 text-sm text-destructive sm:px-8">{completionDetailsError}</p>
+          ) : null}
+
+          {completionDetails ? (
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5 sm:px-8">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Courses</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">{completionDetails.total}</p>
+                </div>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
+                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Completed</p>
+                  <p className="mt-1 text-2xl font-semibold text-emerald-800">{completionDetails.completed}</p>
+                </div>
+                <div className="col-span-2 rounded-xl border border-cyan-100 bg-cyan-50 p-4 shadow-sm sm:col-span-1">
+                  <p className="text-xs font-medium uppercase tracking-wide text-cyan-700">Remaining</p>
+                  <p className="mt-1 text-2xl font-semibold text-cyan-900">
+                    {Math.max(0, completionDetails.total - completionDetails.completed)}
+                  </p>
+                </div>
+              </div>
+
+              {completionDetails.records.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+                  <BookOpen className="mx-auto h-8 w-8 text-slate-300" />
+                  <p className="mt-3 text-sm font-medium text-slate-700">No enrolled course records were returned.</p>
+                  <p className="mt-1 text-xs text-slate-500">The learner summary is available, but the API returned no course rows.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Enrolled courses</h3>
+                      <p className="text-xs text-slate-500">Select a course to inspect every API field.</p>
+                    </div>
+                    <Badge variant="outline" className="border-slate-200 bg-white">{completionDetails.records.length} records</Badge>
+                  </div>
+
+                  {completionDetails.records.map((record, index) => {
+                    const progress = getCourseProgress(record)
+                    const isCompleted = String(record.status ?? record.display_status ?? '').toLowerCase() === 'completed'
+                    const courseName = formatApiValue(record.courseName ?? record.course_name ?? record.name)
+                    const status = formatApiValue(record.status ?? record.display_status)
+                    const recordKeys = Object.keys(record)
+
+                    return (
+                      <details
+                        key={String(record.id ?? record.courseId ?? index)}
+                        className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow open:shadow-md"
+                      >
+                        <summary className="flex cursor-pointer list-none items-center gap-4 px-4 py-4 [&::-webkit-details-marker]:hidden">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-cyan-100 text-cyan-700'}`}>
+                            {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-900">{courseName}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                              <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{status}</span>
+                              <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{formatApiValue(record.registered_on)}</span>
+                            </div>
+                          </div>
+                          <div className="hidden w-28 shrink-0 sm:block">
+                            <div className="mb-1 flex justify-between text-[11px] text-slate-500"><span>Progress</span><span>{progress}%</span></div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-cyan-500'}`} style={{ width: `${progress}%` }} />
+                            </div>
+                          </div>
+                          <span className="text-slate-400 transition-transform group-open:rotate-180">⌄</span>
+                        </summary>
+                        <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4">
+                          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            <FileJson className="h-4 w-4" /> API response fields
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {recordKeys.map((key) => (
+                              <div key={key} className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <p className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-400" title={key}>{formatApiKey(key)}</p>
+                                <p className="mt-1 break-words text-sm text-slate-700" title={formatApiValue(record[key])}>{formatApiValue(record[key])}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </details>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

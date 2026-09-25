@@ -1444,6 +1444,7 @@ export async function getCbaUserCompletion(userId: string | number): Promise<{
   user_id: number
   completed: number
   total: number
+  records: Array<Record<string, unknown>>
 }> {
   return fetchApi(`/sales/cba-user-completion?user_id=${encodeURIComponent(String(userId))}`)
 }
