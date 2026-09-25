@@ -21,7 +21,7 @@ import {
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { Search, RefreshCw, Zap } from 'lucide-react'
 
-import { getCbaTabularUsers } from '@/lib/api'
+import { getCbaTabularUsers, getCbaUserCompletion } from '@/lib/api'
 
 const CBA_SHEET_CSV_URL =
   'https://docs.google.com/spreadsheets/d/1Ybwii_XozjqthwI77fmalbWbmOWBcAXrXAsAFLd8UfA/gviz/tq?tqx=out:csv&sheet=Live_List'
@@ -278,6 +278,31 @@ export function SalesCBAPage() {
     const start = (safePage - 1) * perPage
     return sortedRows.slice(start, start + perPage)
   }, [safePage, perPage, sortedRows])
+
+  useEffect(() => {
+    const visibleRows = pagedRows
+    if (visibleRows.length === 0) return
+
+    let cancelled = false
+    void Promise.all(
+      visibleRows.map(async (row) => {
+        if (!row.id) return null
+        try {
+          const completion = await getCbaUserCompletion(row.id)
+          return { id: row.id, completion: `${completion.completed} / ${completion.total} completed` }
+        } catch {
+          return null
+        }
+      })
+    ).then((updates) => {
+      if (cancelled) return
+      const byId = new Map(updates.filter(Boolean).map((update) => [update!.id, update!.completion]))
+      if (byId.size === 0) return
+      setAllRows((rows) => rows.map((row) => byId.has(row.id) ? { ...row, completion: byId.get(row.id)! } : row))
+    })
+
+    return () => { cancelled = true }
+  }, [pagedRows])
 
   useEffect(() => {
     setPage(1)

@@ -1330,7 +1330,7 @@ export function mapUserApiRecordToCbaRow(record: Record<string, any>): CbaUserRo
 
   let completion = String(record.completion ?? '').trim()
   if (!completion && record.completed_courses !== undefined && record.total_courses !== undefined) {
-    completion = `${record.completed_courses}/${record.total_courses}`
+    completion = `${record.completed_courses} / ${record.total_courses} completed`
   }
 
   const lastLogin = String(record.lastLogin ?? record.last_login ?? record.last_login_at ?? '').trim()
@@ -1346,13 +1346,25 @@ export function mapUserApiRecordToCbaRow(record: Record<string, any>): CbaUserRo
     // Preserved untouched for senior review / future backend mapping alignment
     removedFromCba: String(record.removedFromCba ?? record.removed_from_cba ?? '').trim(),
     emailUpdate: String(record.emailUpdate ?? record.email_update ?? '').trim(),
-    lockAcct: String(record.lockAcct ?? record.lock_acct ?? '').trim(),
+    lockAcct: String(
+      record.lockAcct ??
+      record.lock_acct ??
+      (record.is_disabled === true ? 'Yes' : record.is_disabled === false ? 'No' : '')
+    ).trim(),
     missingCourses: String(record.missingCourses ?? record.missing_courses ?? '').trim(),
     addedLlProUpdate: String(record.addedLlProUpdate ?? record.added_ll_pro_update ?? '').trim(),
   }
 }
 
 const CBA_PAGE_SIZE = 500
+
+function isCbaPortalRecord(record: Record<string, any>): boolean {
+  const portals = Array.isArray(record.portals)
+    ? record.portals.map((portal: any) => portal?.portalName ?? portal?.name ?? portal).join(' ')
+    : String(record.portals ?? '')
+
+  return portals.toLowerCase().includes('commercial brokers association')
+}
 
 export async function getCbaTabularUsers(params?: {
   searchPortalIds?: Array<number | string>
@@ -1420,10 +1432,20 @@ export async function getCbaTabularUsers(params?: {
     }
   }
 
+  const cbaRecords = allRecords.filter(isCbaPortalRecord)
+
   return {
-    items: allRecords.map(mapUserApiRecordToCbaRow),
-    total: grandTotal,
+    items: cbaRecords.map(mapUserApiRecordToCbaRow),
+    total: cbaRecords.length,
   }
+}
+
+export async function getCbaUserCompletion(userId: string | number): Promise<{
+  user_id: number
+  completed: number
+  total: number
+}> {
+  return fetchApi(`/sales/cba-user-completion?user_id=${encodeURIComponent(String(userId))}`)
 }
 
 export interface CbaFunnelStudent {
