@@ -432,7 +432,7 @@ export function SalesCBAPage() {
                     <TableCell>{row.emailUpdate || '-'}</TableCell>
                     <TableCell>{row.lockAcct || '-'}</TableCell>
                     <TableCell>{row.missingCourses || '-'}</TableCell>
-                    <TableCell>{row.addedLlProUpdate || '-'}</TableCell>
+                    <TableCell>LLPro Update 3-30</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -451,13 +451,6 @@ export function SalesCBAPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="py-3">
-          <p className="text-xs text-muted-foreground">
-            Source: Live_List tab from CBA/ExceedCE Master List Google Sheet.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   )
 }
