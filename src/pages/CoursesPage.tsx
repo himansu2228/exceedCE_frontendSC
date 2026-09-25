@@ -28,6 +28,9 @@ import {
   Eye,
   Loader2,
   XCircle,
+  BadgeCheck,
+  CalendarDays,
+  MapPin,
 } from 'lucide-react'
 import {
   getSCCoursesPaginated,
@@ -297,67 +300,136 @@ export function CoursesPage() {
                             View
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden">
-                          <DialogHeader>
-                            <DialogTitle>{course.name}</DialogTitle>
-                            <DialogDescription>
-                              CE Broker ID: {course.ceb_course_id} | State: {course.state}
-                            </DialogDescription>
+                        <DialogContent className="flex max-h-[88vh] w-[calc(100%-1.5rem)] max-w-5xl flex-col gap-0 overflow-hidden rounded-xl border-slate-200 bg-white p-0 shadow-2xl shadow-slate-950/15">
+                          <DialogHeader className="relative shrink-0 overflow-hidden border-b border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50/70 px-5 py-5 pr-14 text-left sm:px-7">
+                            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-800 via-teal-500 to-emerald-400" />
+                            <div className="flex items-start gap-3.5">
+                              <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-cyan-100 bg-white text-cyan-800 shadow-sm">
+                                <GraduationCap className="h-5 w-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="mb-1 text-[10px] font-semibold uppercase text-cyan-800">Course record</p>
+                                <DialogTitle className="text-lg leading-snug text-slate-950 sm:text-xl">{course.name}</DialogTitle>
+                                <DialogDescription className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <MapPin className="h-3.5 w-3.5 text-teal-700" />
+                                    {course.state}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="font-medium text-slate-500">CE Broker ID</span>
+                                    <span className="font-mono text-slate-800">{course.ceb_course_id}</span>
+                                  </span>
+                                </DialogDescription>
+                              </div>
+                            </div>
                           </DialogHeader>
-                          <div className="mt-4 overflow-y-auto pr-1">
-                            <h4 className="font-semibold mb-3">Completed Students</h4>
+
+                          <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3.5 sm:px-7">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                                <Users className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-slate-500">Completed learners</p>
+                                <p className="text-lg font-semibold leading-tight tabular-nums text-slate-950">
+                                  {loadingCompletions ? '—' : completionsTotal.toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="shrink-0 text-right text-xs text-slate-500">
+                              {loadingCompletions
+                                ? 'Loading roster'
+                                : completions.length > 0
+                                  ? `Page ${completionsPage} of ${completionsTotalPages}`
+                                  : 'Course completions'}
+                            </p>
+                          </div>
+
+                          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-7">
                             {loadingCompletions ? (
-                              <div className="flex items-center justify-center py-8">
-                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                <span className="ml-2 text-muted-foreground">Loading completions...</span>
+                              <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+                                <Loader2 className="h-6 w-6 animate-spin text-cyan-700" />
+                                <div>
+                                  <p className="text-sm font-medium text-slate-800">Loading completed learners</p>
+                                  <p className="mt-1 text-xs text-slate-500">Course records are being retrieved.</p>
+                                </div>
                               </div>
                             ) : completions.length === 0 ? (
-                              <p className="text-muted-foreground text-center py-8">No completed students found</p>
+                              <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                                  <Users className="h-5 w-5" />
+                                </div>
+                                <p className="text-sm font-medium text-slate-800">No completed learners</p>
+                                <p className="text-xs text-slate-500">There are no completion records for this course.</p>
+                              </div>
                             ) : (
-                              <div className="max-h-[calc(85vh-13rem)] overflow-auto space-y-3">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Name</TableHead>
-                                      <TableHead>Email</TableHead>
-                                      <TableHead>License #</TableHead>
-                                      <TableHead>Completed</TableHead>
+                              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                <Table className="min-w-[680px]">
+                                  <TableHeader className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
+                                    <TableRow className="border-slate-200 hover:bg-transparent">
+                                      <TableHead className="h-10 px-4 text-[10px] font-semibold uppercase text-slate-500">Learner</TableHead>
+                                      <TableHead className="h-10 px-4 text-[10px] font-semibold uppercase text-slate-500">Email</TableHead>
+                                      <TableHead className="h-10 px-4 text-[10px] font-semibold uppercase text-slate-500">License number</TableHead>
+                                      <TableHead className="h-10 px-4 text-[10px] font-semibold uppercase text-slate-500">Completed</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
                                     {completions.map((student) => (
-                                      <TableRow key={student.user_id}>
-                                        <TableCell className="font-medium">
-                                          {student.first_name} {student.last_name}
+                                      <TableRow key={student.user_id} className="border-slate-100 hover:bg-cyan-50/40">
+                                        <TableCell className="px-4 py-3">
+                                          <div className="flex items-center gap-2.5">
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-800">
+                                              {`${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase() || '—'}
+                                            </div>
+                                            <span className="whitespace-nowrap text-sm font-medium text-slate-900">
+                                              {student.first_name} {student.last_name}
+                                            </span>
+                                          </div>
                                         </TableCell>
-                                        <TableCell>{student.email}</TableCell>
-                                        <TableCell>
-                                          <code className="text-sm">{(student as any).exceedce_license || student.license_number || 'N/A'}</code>
+                                        <TableCell className="px-4 py-3 text-sm text-slate-600">{student.email}</TableCell>
+                                        <TableCell className="px-4 py-3">
+                                          {student.license_number ? (
+                                            <span className="inline-flex items-center gap-1.5 font-mono text-xs tabular-nums text-slate-800">
+                                              <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                              {student.license_number}
+                                            </span>
+                                          ) : (
+                                            <span className="text-sm text-slate-400">N/A</span>
+                                          )}
                                         </TableCell>
-                                        <TableCell>{student.date_completed || 'N/A'}</TableCell>
+                                        <TableCell className="px-4 py-3">
+                                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-700">
+                                            <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+                                            {student.date_completed || 'N/A'}
+                                          </span>
+                                        </TableCell>
                                       </TableRow>
                                     ))}
                                   </TableBody>
                                 </Table>
-
-                                <PaginationControls
-                                  page={completionsPage}
-                                  totalPages={completionsTotalPages}
-                                  totalItems={completionsTotal}
-                                  pageSize={completionsPerPage}
-                                  onPageChange={(nextPage) => {
-                                    if (!selectedCourse) return
-                                    void fetchCourseCompletions(selectedCourse.id, nextPage, completionsPerPage)
-                                  }}
-                                  onPageSizeChange={(nextPerPage) => {
-                                    if (!selectedCourse) return
-                                    setCompletionsPerPage(nextPerPage)
-                                    void fetchCourseCompletions(selectedCourse.id, 1, nextPerPage)
-                                  }}
-                                />
                               </div>
                             )}
                           </div>
+
+                          {!loadingCompletions && completions.length > 0 && (
+                            <div className="shrink-0 border-t border-slate-200 bg-slate-50/70 px-4 py-3 sm:px-7">
+                              <PaginationControls
+                                page={completionsPage}
+                                totalPages={completionsTotalPages}
+                                totalItems={completionsTotal}
+                                pageSize={completionsPerPage}
+                                onPageChange={(nextPage) => {
+                                  if (!selectedCourse) return
+                                  void fetchCourseCompletions(selectedCourse.id, nextPage, completionsPerPage)
+                                }}
+                                onPageSizeChange={(nextPerPage) => {
+                                  if (!selectedCourse) return
+                                  setCompletionsPerPage(nextPerPage)
+                                  void fetchCourseCompletions(selectedCourse.id, 1, nextPerPage)
+                                }}
+                              />
+                            </div>
+                          )}
                         </DialogContent>
                       </Dialog>
                       <Button variant="ghost" size="sm">
