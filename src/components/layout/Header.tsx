@@ -29,6 +29,8 @@ const pageTitles: Record<string, string> = {
   '/sales/cba-sales': 'CBA Sales',
   '/sales/cba-completion': 'CBA Completion',
   '/sales/partner-reports': 'Partner Reports',
+  '/sales/upcoming-classes': 'Upcoming Classes',
+  '/sales/course-evaluations': 'Course Evaluation',
   '/sales/settings': 'Sales Settings',
 }
 

@@ -27,6 +27,8 @@ import {
   SalesCRCBRPage,
   SalesPartnerReportsPage,
   SalesSettingsPage,
+  SalesUpcomingClassesPage,
+  SalesCourseEvaluationsPage,
 } from "@/pages"
 import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
 
@@ -132,6 +134,8 @@ function App() {
               <Route path="sales/cba-completion" element={<SalesCBACompletionsPage />} />
               <Route path="sales/crcbr" element={<SalesCRCBRPage />} />
               <Route path="sales/partner-reports" element={<SalesPartnerReportsPage />} />
+              <Route path="sales/upcoming-classes" element={<SalesUpcomingClassesPage />} />
+              <Route path="sales/course-evaluations" element={<SalesCourseEvaluationsPage />} />
               <Route path="sales/settings" element={<SalesSettingsPage />} />
             </Route>
 

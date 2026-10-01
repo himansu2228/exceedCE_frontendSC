@@ -56,6 +56,28 @@ export interface Course {
   total_completed?: number
 }
 
+export interface NcScheduledClass {
+  id: string
+  date: string
+  startsAt: string | null
+  instructorName: string | null
+  moderatorName?: string | null
+  scheduledTitle?: string
+  courseId?: number
+  courseName?: string
+  matchStatus: 'matched' | 'ambiguous' | 'unmatched'
+  candidates?: Array<{ id: number; name: string }>
+  enrollmentCount: number | null
+  enrollmentScope?: string
+  enrollmentCheckedAt?: string
+}
+
+export interface NcUpcomingClassesResponse {
+  source: string
+  generatedAt: string
+  classes: NcScheduledClass[]
+}
+
 export interface Student {
   user_id: number
   first_name: string
@@ -351,6 +373,120 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
   }
 
   return requestPromise
+}
+
+export async function getNcUpcomingClasses(): Promise<NcUpcomingClassesResponse> {
+  return fetchApi<NcUpcomingClassesResponse>('/nc-class-rosters/upcoming', { timeoutMs: 60000 })
+}
+
+export interface InstructorCourseOption {
+  courseId: number
+  courseName: string
+  titleStartsAt: string | null
+}
+
+export interface InstructorUpcomingClass {
+  courseId: number
+  courseName: string
+  instructorId: 'donald-croteau' | 'cheryl-crawford'
+  instructorName: string
+  startsAt: string
+  sendLeadMinutes: number
+  enrollmentCount: number
+  enrollmentCheckedAt: string
+}
+
+export async function getInstructorCourseOptions(): Promise<InstructorCourseOption[]> {
+  const response = await fetchApi<{ courses: InstructorCourseOption[] }>('/instructor-class-rosters/courses', { timeoutMs: 60000 })
+  return response.courses || []
+}
+
+export async function getInstructorUpcomingClasses(
+  instructorId: InstructorUpcomingClass['instructorId']
+): Promise<InstructorUpcomingClass[]> {
+  const query = new URLSearchParams({ instructorId })
+  const response = await fetchApi<{ classes: InstructorUpcomingClass[] }>(`/instructor-class-rosters/upcoming?${query.toString()}`, { timeoutMs: 60000 })
+  return response.classes || []
+}
+
+export async function saveInstructorUpcomingClass(input: {
+  courseId: number
+  instructorId: InstructorUpcomingClass['instructorId']
+  startsAt: string
+  sendLeadMinutes: number
+}): Promise<InstructorUpcomingClass> {
+  const response = await fetchApi<{ success: boolean; item: InstructorUpcomingClass }>(`/instructor-class-rosters/${input.courseId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      instructorId: input.instructorId,
+      startsAt: input.startsAt,
+      sendLeadMinutes: input.sendLeadMinutes,
+    }),
+  })
+  return response.item
+}
+
+export interface CourseEvaluationRecord {
+  id?: number | string
+  courseName?: string
+  course?: string | { id?: number | string; name?: string; title?: string }
+  course_name?: string
+  course_title?: string
+  rating?: number | string
+  reviews?: string | null
+  review?: string | null
+  created_at?: string
+  submissionDate?: string
+}
+
+export interface CourseEvaluationsResponse {
+  records: CourseEvaluationRecord[]
+  total: number
+  truncated: boolean
+}
+
+export async function getCourseEvaluations(refresh = false): Promise<CourseEvaluationsResponse> {
+  if (refresh) invalidateApiCache('/sales/course-evaluations')
+  return fetchApi<CourseEvaluationsResponse>('/sales/course-evaluations', { timeoutMs: 120000 })
+}
+
+export async function downloadNcClassRoster(entryId: string): Promise<Blob> {
+  if (!getAccessToken()) throw new Error('AUTH_REQUIRED')
+  const response = await fetch(`${API_BASE}/nc-class-rosters/${encodeURIComponent(entryId)}/roster.xlsx`, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: getTenantHeaders(),
+  })
+  if (!response.ok) {
+    if (response.status === 401) {
+      signOut()
+      invalidateApiCache()
+      throw new Error('AUTH_REQUIRED')
+    }
+    throw new Error(`Roster download failed: ${response.status}`)
+  }
+  return response.blob()
+}
+
+export async function downloadInstructorClassRoster(
+  instructorId: InstructorUpcomingClass['instructorId'],
+  courseId: number
+): Promise<Blob> {
+  if (!getAccessToken()) throw new Error('AUTH_REQUIRED')
+  const response = await fetch(`${API_BASE}/instructor-class-rosters/${encodeURIComponent(instructorId)}/${courseId}/roster.xlsx`, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: getTenantHeaders(),
+  })
+  if (!response.ok) {
+    if (response.status === 401) {
+      signOut()
+      invalidateApiCache()
+      throw new Error('AUTH_REQUIRED')
+    }
+    throw new Error(`Roster download failed: ${response.status}`)
+  }
+  return response.blob()
 }
 
 export async function prefetchSuperAdminSidebarData(): Promise<void> {
