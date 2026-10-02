@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CalendarClock, Download, Eye, RefreshCw } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -50,23 +49,30 @@ export function SalesUpcomingClassesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [downloadingId, setDownloadingId] = useState('')
-  const [managedClass, setManagedClass] = useState<NcScheduledClass | null>(null)
+  const [managedClass, setManagedClass] = useState<NcScheduledClass | InstructorUpcomingClass | null>(null)
+  const classRequestId = useRef(0)
 
   const loadClasses = useCallback(async () => {
+    const requestId = ++classRequestId.current
     setLoading(true)
     setError('')
+    if (instructorFilter === 'nc') setClasses([])
+    else setInstructorClasses([])
     try {
       if (instructorFilter === 'nc') {
         const response = await getNcUpcomingClasses()
+        if (requestId !== classRequestId.current) return
         setClasses(response.classes)
       } else {
         const assignedClasses = await getInstructorUpcomingClasses(instructorFilter)
+        if (requestId !== classRequestId.current) return
         setInstructorClasses(assignedClasses)
       }
     } catch (loadError) {
+      if (requestId !== classRequestId.current) return
       setError(loadError instanceof Error ? loadError.message : 'Unable to load upcoming classes.')
     } finally {
-      setLoading(false)
+      if (requestId === classRequestId.current) setLoading(false)
     }
   }, [instructorFilter])
 
@@ -78,7 +84,13 @@ export function SalesUpcomingClassesPage() {
   }, [loadClasses])
 
   const handleInstructorChange = (value: string) => {
-    if (INSTRUCTOR_OPTIONS.some((item) => item.id === value)) setInstructorFilter(value as InstructorFilter)
+    if (!INSTRUCTOR_OPTIONS.some((item) => item.id === value)) return
+    classRequestId.current += 1
+    setLoading(true)
+    setError('')
+    setClasses([])
+    setInstructorClasses([])
+    setInstructorFilter(value as InstructorFilter)
   }
 
   const handleRosterDownload = async (item: NcScheduledClass) => {
@@ -121,7 +133,7 @@ export function SalesUpcomingClassesPage() {
         <div>
           <p className="text-xs font-semibold uppercase text-blue-700">Instructor rosters</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950">Upcoming classes</h1>
-          <p className="mt-1 text-sm text-slate-600">NC calendar classes or configured Donald and Cheryl classes with current LMS enrollments.</p>
+          <p className="mt-1 text-sm text-slate-600">NC calendar classes and automatically matched Donald/Cheryl courses with current LMS enrollments.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => void loadClasses()} disabled={loading} aria-label="Refresh schedule">
@@ -148,14 +160,12 @@ export function SalesUpcomingClassesPage() {
           </div>
 
           {instructorFilter === 'nc' ? <div className="overflow-x-auto rounded-md border border-slate-200">
-            <table className="w-full min-w-[850px] text-left text-sm">
+            <table className="w-full min-w-[680px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Class / Date</th>
                   <th className="px-4 py-3 font-semibold">Instructor</th>
-                  <th className="px-4 py-3 font-semibold">LMS ID</th>
                   <th className="px-4 py-3 font-semibold">Enrolled</th>
-                  <th className="px-4 py-3 font-semibold">Match</th>
                   <th className="px-4 py-3 font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -165,17 +175,10 @@ export function SalesUpcomingClassesPage() {
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{classTitle(item)}</p>
                       <p className="mt-1 text-xs text-slate-500">{item.startsAt ? formatClassDate(item.startsAt) : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${item.date}T00:00:00Z`))}</p>
-                      {item.courseName && item.scheduledTitle && <p className="mt-1 text-xs text-slate-500">LMS: {item.courseName}</p>}
                       {item.moderatorName && <p className="mt-1 text-xs text-slate-500">Moderator: {item.moderatorName}</p>}
                     </td>
                     <td className="px-4 py-3 text-slate-700">{item.instructorName || 'Needs instructor confirmation'}</td>
-                    <td className="px-4 py-3 text-slate-700">{item.courseId ?? 'Needs match'}</td>
                     <td className="px-4 py-3 text-slate-700">{item.enrollmentCount ?? 'Not available'}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={item.matchStatus === 'matched' ? 'secondary' : 'outline'}>
-                        {item.matchStatus === 'matched' ? 'Matched' : item.matchStatus === 'ambiguous' ? 'Review match' : 'Needs LMS match'}
-                      </Badge>
-                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" onClick={() => setManagedClass(item)} aria-label={`View details for ${classTitle(item)}`}>
@@ -189,9 +192,9 @@ export function SalesUpcomingClassesPage() {
                   </tr>
                 ))}
                 {!loading && classes.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No upcoming NC classes found.</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No upcoming NC classes found.</td></tr>
                 )}
-                {loading && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Loading schedule and LMS counts…</td></tr>}
+                {loading && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading schedule and enrollment counts…</td></tr>}
               </tbody>
             </table>
           </div> : (
@@ -209,17 +212,24 @@ export function SalesUpcomingClassesPage() {
                   {instructorClasses.map((item) => (
                     <tr key={item.courseId} className="bg-white">
                       <td className="px-4 py-3 font-medium text-slate-900">{item.courseName}</td>
-                      <td className="px-4 py-3 text-slate-700">{formatClassDate(item.startsAt)}</td>
-                      <td className="px-4 py-3 text-slate-700">{item.enrollmentCount}</td>
+                      <td className="px-4 py-3 text-slate-700">{item.startsAt ? formatClassDate(item.startsAt) : 'Date/time not found in title'}</td>
+                      <td className="px-4 py-3 text-slate-700" title={item.enrollmentError || undefined}>
+                        {item.enrollmentError ? 'Unavailable' : item.enrollmentCount ?? 'Unavailable'}
+                      </td>
                       <td className="px-4 py-3">
-                        <Button size="sm" variant="outline" disabled={downloadingId === String(item.courseId)} onClick={() => void handleInstructorRosterDownload(item)}>
-                          <Download className="mr-2 h-4 w-4" />{downloadingId === String(item.courseId) ? 'Preparing' : 'XLSX'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setManagedClass(item)} aria-label={`Manage ${item.courseName}`}>
+                            <Eye className="mr-2 h-4 w-4" />Manage
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={Boolean(item.enrollmentError) || downloadingId === String(item.courseId)} onClick={() => void handleInstructorRosterDownload(item)}>
+                            <Download className="mr-2 h-4 w-4" />{downloadingId === String(item.courseId) ? 'Preparing' : 'XLSX'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {!loading && instructorClasses.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-600">Automatic ExceedCE class discovery is not connected yet.</td></tr>
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-600">No future ExceedCE courses matched this instructor&apos;s course-name rules.</td></tr>
                   )}
                   {loading && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading ExceedCE classes and enrollments…</td></tr>}
                 </tbody>
@@ -227,7 +237,7 @@ export function SalesUpcomingClassesPage() {
             </div>
           )}
 
-          <p className="text-xs text-slate-500">North Carolina classes continue to use the NC calendar. Donald and Cheryl classes are selected from ExceedCE and use the current LMS enrollment list.</p>
+          <p className="text-xs text-slate-500">NC uses the NC calendar. Donald and Cheryl are matched by the client&apos;s course-title rules; class times are read from titles and rosters come from LMS enrollments.</p>
         </CardContent>
       </Card>
 
@@ -235,21 +245,30 @@ export function SalesUpcomingClassesPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Eye className="h-5 w-5 text-blue-600" />Class details</DialogTitle>
-            <DialogDescription>{managedClass ? classTitle(managedClass) : ''}</DialogDescription>
+            <DialogDescription>{managedClass ? ('scheduleStatus' in managedClass ? managedClass.courseName : classTitle(managedClass)) : ''}</DialogDescription>
           </DialogHeader>
 
           {managedClass && (
             <div className="divide-y divide-slate-100 rounded-md border border-slate-200 text-sm">
-              {[
-                ['Date and time', managedClass.startsAt ? formatClassDate(managedClass.startsAt) : managedClass.date],
-                ['Instructor', managedClass.instructorName || 'Needs confirmation'],
-                ['Moderator', managedClass.moderatorName || 'None listed'],
-                ['LMS course', managedClass.courseName || 'Needs LMS match'],
-                ['LMS ID', managedClass.courseId ?? 'Not available'],
-                ['Enrolled', managedClass.enrollmentCount ?? 'Not available'],
-                ['Roster', managedClass.matchStatus === 'matched' ? 'Available for XLSX download' : 'Unavailable until LMS match'],
-                ['Mail schedule', '24 hours before class'],
-              ].map(([label, value]) => (
+              {('scheduleStatus' in managedClass
+                ? [
+                    ['Course name', managedClass.courseName],
+                    ['Date and time', managedClass.startsAt ? formatClassDate(managedClass.startsAt) : 'Not available'],
+                    ['Instructor', managedClass.instructorName],
+                    ['Instructor email', managedClass.instructorEmail || 'Not configured'],
+                    ['Enrollments', managedClass.enrollmentError ? 'Unavailable' : managedClass.enrollmentCount ?? 'Unavailable'],
+                    ['Email timing', `${Math.round(managedClass.sendLeadMinutes / 60)} hours before class`],
+                  ]
+                : [
+                    ['Class name', classTitle(managedClass)],
+                    ['Date and time', managedClass.startsAt ? formatClassDate(managedClass.startsAt) : managedClass.date],
+                    ['Instructor', managedClass.instructorName || 'Needs confirmation'],
+                    ['Moderator', managedClass.moderatorName || 'None listed'],
+                    ['Enrollments', managedClass.enrollmentCount ?? 'Not available'],
+                    ['Roster', managedClass.matchStatus === 'matched' ? 'Available for XLSX download' : 'Not available'],
+                    ['Mail timing', '24 hours before class'],
+                  ]
+              ).map(([label, value]) => (
                 <div key={String(label)} className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3">
                   <span className="font-medium text-slate-500">{label}</span>
                   <span className="text-slate-900">{value}</span>

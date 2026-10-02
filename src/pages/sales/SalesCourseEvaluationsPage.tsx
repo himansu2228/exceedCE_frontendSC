@@ -6,12 +6,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getCourseEvaluations, type CourseEvaluationRecord, type CourseEvaluationsResponse } from '@/lib/api'
 
+const STATE_NAMES: Record<string, string> = {
+  CA: 'California', CO: 'Colorado', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois',
+  MI: 'Michigan', MO: 'Missouri', MT: 'Montana', NC: 'North Carolina', NV: 'Nevada',
+  OR: 'Oregon', PA: 'Pennsylvania', SC: 'South Carolina', WA: 'Washington',
+}
+
 function courseName(record: CourseEvaluationRecord): string {
   if (record.courseName) return record.courseName
   const course = record.course
   if (typeof course === 'string' && course.trim()) return course.trim()
   if (course && typeof course === 'object') return course.name || course.title || `Course ${course.id ?? 'unknown'}`
   return record.course_name || record.course_title || 'Unknown course'
+}
+
+function courseState(record: CourseEvaluationRecord): string | null {
+  return courseName(record).match(/^([A-Z]{2})\s/)?.[1] || null
 }
 
 function score(record: CourseEvaluationRecord): number | null {
@@ -37,6 +47,7 @@ function ChartPanel({ title, detail, children }: { title: string; detail: string
 export function SalesCourseEvaluationsPage() {
   const [data, setData] = useState<CourseEvaluationsResponse | null>(null)
   const [selectedCourse, setSelectedCourse] = useState('all')
+  const [selectedState, setSelectedState] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -59,8 +70,10 @@ export function SalesCourseEvaluationsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const courses = useMemo(() => [...new Set((data?.records || []).map(courseName))].sort(), [data])
-  const records = useMemo(() => (data?.records || []).filter((record) => selectedCourse === 'all' || courseName(record) === selectedCourse), [data, selectedCourse])
+  const states = useMemo(() => [...new Set((data?.records || []).map(courseState).filter((state): state is string => Boolean(state)))].sort(), [data])
+  const stateRecords = useMemo(() => (data?.records || []).filter((record) => selectedState === 'all' || courseState(record) === selectedState), [data, selectedState])
+  const courses = useMemo(() => [...new Set(stateRecords.map(courseName))].sort(), [stateRecords])
+  const records = useMemo(() => stateRecords.filter((record) => selectedCourse === 'all' || courseName(record) === selectedCourse), [stateRecords, selectedCourse])
   const scored = records.map((record) => ({ record, rating: score(record) })).filter((item): item is { record: CourseEvaluationRecord; rating: number } => item.rating !== null)
   const average = scored.length ? scored.reduce((sum, item) => sum + item.rating, 0) / scored.length : null
   const written = records.filter((record) => String(record.reviews || record.review || '').trim()).length
@@ -97,6 +110,7 @@ export function SalesCourseEvaluationsPage() {
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-semibold uppercase text-teal-700">Learner feedback</p><h1 className="mt-1 text-2xl font-semibold text-slate-950">Course Evaluation</h1><p className="mt-1 text-sm text-slate-600">Rating trends and course feedback from ExceedCE.</p></div>
         <div className="flex flex-wrap items-center gap-2">
+          <Select value={selectedState} onValueChange={(value) => { setSelectedState(value); setSelectedCourse('all') }}><SelectTrigger className="w-48" aria-label="Filter by course state"><SelectValue placeholder="All states" /></SelectTrigger><SelectContent><SelectItem value="all">All states</SelectItem>{states.map((code) => <SelectItem key={code} value={code}>{STATE_NAMES[code] ? `${STATE_NAMES[code]} (${code})` : code}</SelectItem>)}</SelectContent></Select>
           <Select value={selectedCourse} onValueChange={setSelectedCourse}><SelectTrigger className="w-56" aria-label="Filter by course"><SelectValue placeholder="All courses" /></SelectTrigger><SelectContent><SelectItem value="all">All courses</SelectItem>{courses.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select>
           <Button variant="outline" disabled={loading} onClick={() => void load(true)}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
         </div>
