@@ -25,6 +25,8 @@ import {
   LogOut,
   Zap,
   Target,
+  CalendarClock,
+  Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -91,6 +93,8 @@ const getSuperAdminSalesItems = (): NavItem[] => {
     },
     { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
     { path: '/sales/partner-reports', icon: FileSpreadsheet, label: 'Partner Reports' },
+    { path: '/sales/upcoming-classes', icon: CalendarClock, label: 'Upcoming Classes' },
+    { path: '/sales/course-evaluations', icon: Star, label: 'Course Evaluation' },
     { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
   )
 
