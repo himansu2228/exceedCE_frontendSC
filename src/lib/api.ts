@@ -425,6 +425,53 @@ export async function getCourseEvaluations(refresh = false): Promise<CourseEvalu
   return fetchApi<CourseEvaluationsResponse>('/sales/course-evaluations', { timeoutMs: 120000 })
 }
 
+export interface QuizOption {
+  id: string
+  name: string
+}
+
+export interface LowAccuracyQuizQuestion {
+  id: string
+  quizId: string
+  quizName: string
+  question: string
+  correctPercentage: number
+  difficulty: string | null
+}
+
+export interface LowAccuracyQuiz {
+  id: string | number
+  name: string
+  questions: LowAccuracyQuizQuestion[]
+}
+
+export interface LowAccuracyQuizQuestionsResponse {
+  questions: LowAccuracyQuizQuestion[]
+  quizzes: LowAccuracyQuiz[]
+  threshold: number
+  quizCount: number
+  questionCount: number
+  unscoredQuestionCount: number
+  failedQuizCount: number
+  cursor: number
+  nextCursor: number | null
+  hasNextPage: boolean
+}
+
+export async function getQuizOptions(refresh = false): Promise<QuizOption[]> {
+  if (refresh) invalidateApiCache('/sales/quiz-questions/quizzes')
+  const endpoint = `/sales/quiz-questions/quizzes${refresh ? '?refresh=true' : ''}`
+  const response = await fetchApi<{ quizzes: QuizOption[] }>(endpoint, { timeoutMs: 60000 })
+  return response.quizzes || []
+}
+
+export async function getLowAccuracyQuizQuestions(quizId = 'all', cursor = 0, refresh = false): Promise<LowAccuracyQuizQuestionsResponse> {
+  const query = new URLSearchParams({ quizId, cursor: String(cursor), threshold: '60', ...(refresh ? { refresh: 'true' } : {}) })
+  const endpoint = `/sales/quiz-questions?${query.toString()}`
+  if (refresh) invalidateApiCache(endpoint)
+  return fetchApi<LowAccuracyQuizQuestionsResponse>(endpoint, { timeoutMs: 300000 })
+}
+
 export async function downloadNcClassRoster(entryId: string): Promise<Blob> {
   if (!getAccessToken()) throw new Error('AUTH_REQUIRED')
   const response = await fetch(`${API_BASE}/nc-class-rosters/${encodeURIComponent(entryId)}/roster.xlsx`, {
@@ -1639,8 +1686,7 @@ export interface PartnerReportItem {
   netSales: number
   state: string
   stripeFee: number
-  referralFee: number
-  partnerShare: number
+  partnerShare: number | null
   remittanceFromStripe: number
   source?: string
 }

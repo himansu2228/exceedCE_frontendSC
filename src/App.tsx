@@ -29,6 +29,7 @@ import {
   SalesSettingsPage,
   SalesUpcomingClassesPage,
   SalesCourseEvaluationsPage,
+  SalesQuizQuestionsPage,
 } from "@/pages"
 import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
 
@@ -136,6 +137,7 @@ function App() {
               <Route path="sales/partner-reports" element={<SalesPartnerReportsPage />} />
               <Route path="sales/upcoming-classes" element={<SalesUpcomingClassesPage />} />
               <Route path="sales/course-evaluations" element={<SalesCourseEvaluationsPage />} />
+              <Route path="sales/quiz-questions" element={<SalesQuizQuestionsPage />} />
               <Route path="sales/settings" element={<SalesSettingsPage />} />
             </Route>
 

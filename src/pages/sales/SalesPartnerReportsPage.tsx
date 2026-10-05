@@ -40,7 +40,7 @@ function formatUSD(value: number): string {
   }).format(value)
 }
 
-// Real vendor list supplied by client; keep in sync with backend PARTNERS_CONFIG in src/sales/service.js.
+  // Fallback partner list used only when the partner API is unavailable.
 const DEFAULT_PARTNERS: PartnerConfig[] = [
   { id: '123-coned', name: '123 ConEd LLC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
   { id: 'abe-lee', name: 'Abe Lee Seminars', partnerSharePct: 25, referralFeePct: 0, frequency: 'Quarterly', description: 'Hawaii Real Estate Partner' },
@@ -49,7 +49,7 @@ const DEFAULT_PARTNERS: PartnerConfig[] = [
   { id: 'cheryl-crawford', name: 'Cheryl Crawford', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
   { id: 'crcbr', name: 'CRCBR', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'Charlotte Region Commercial Board of Realtors' },
   { id: 'devon-higgins', name: 'Devon Higgins', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
-  { id: 'donald-croteau', name: 'Donald Croteau', partnerSharePct: 40, referralFeePct: 5, frequency: 'Monthly', description: 'Instructor & Course Author Partner' },
+  { id: 'donald-croteau', name: 'Donald Croteau', partnerSharePct: 35, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor & Course Author Partner' },
   { id: 'house-of-kaos', name: 'House of Kaos LLC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
   { id: 'joseph-fisher', name: 'Joseph Fisher', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
   { id: 'mtritt', name: 'MTritt INC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
@@ -188,7 +188,6 @@ export function SalesPartnerReportsPage() {
       'Refunds ($)',
       'Net Sales ($)',
       'Stripe Fee ($)',
-      'Referral Fee ($)',
       'Partner Share ($)',
       'Remittance from Stripe ($)',
     ]
@@ -204,8 +203,7 @@ export function SalesPartnerReportsPage() {
       item.refunds || 0,
       item.netSales || item.grossSale,
       item.stripeFee,
-      item.referralFee || 0,
-      item.partnerShare,
+      item.partnerShare ?? '',
       item.remittanceFromStripe,
     ])
 
@@ -223,7 +221,6 @@ export function SalesPartnerReportsPage() {
       totalRefunds,
       reportData.items.reduce((sum, item) => sum + Number(item.netSales || item.grossSale || 0), 0),
       reportData.summary.totalStripeFees,
-      0,
       reportData.summary.totalPartnerShare,
       reportData.summary.totalRemittanceFromStripe,
     ]
@@ -333,17 +330,7 @@ export function SalesPartnerReportsPage() {
                 <span>{selectedPartner.name}</span>
               </div>
               <div className="h-4 w-px bg-blue-200" />
-              <div>
-                Partner Share: <strong className="text-blue-700">{selectedPartner.partnerSharePct}%</strong>
-              </div>
-              {selectedPartner.referralFeePct > 0 && (
-                <>
-                  <div className="h-4 w-px bg-blue-200" />
-                  <div>
-                    Referral Fee: <strong className="text-blue-700">{selectedPartner.referralFeePct}%</strong>
-                  </div>
-                </>
-              )}
+              <div>Partner Share is calculated from each course's vendor payment system rate.</div>
             </div>
           )}
         </CardContent>
@@ -475,7 +462,7 @@ export function SalesPartnerReportsPage() {
                       <td className="px-3 py-3 text-right text-slate-500">{formatUSD(item.refunds || 0)}</td>
                       <td className="px-4 py-3 text-right font-medium text-emerald-700">{formatUSD(item.netSales || item.grossSale)}</td>
                       <td className="px-4 py-3 text-right text-amber-700">{formatUSD(item.stripeFee)}</td>
-                      <td className="px-4 py-3 text-right text-blue-700 font-medium">{formatUSD(item.partnerShare)}</td>
+                      <td className="px-4 py-3 text-right text-blue-700 font-medium">{item.partnerShare === null ? '' : formatUSD(item.partnerShare)}</td>
                       <td className="px-4 py-3 text-right font-bold text-blue-700 bg-blue-50/30">
                         {formatUSD(item.remittanceFromStripe)}
                       </td>
