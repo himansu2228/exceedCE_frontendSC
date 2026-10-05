@@ -27,6 +27,7 @@ import {
   Target,
   CalendarClock,
   Star,
+  HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -95,6 +96,7 @@ const getSuperAdminSalesItems = (): NavItem[] => {
     { path: '/sales/partner-reports', icon: FileSpreadsheet, label: 'Partner Reports' },
     { path: '/sales/upcoming-classes', icon: CalendarClock, label: 'Upcoming Classes' },
     { path: '/sales/course-evaluations', icon: Star, label: 'Course Evaluation' },
+    { path: '/sales/quiz-questions', icon: HelpCircle, label: 'Quiz Questions' },
     { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
   )
 
@@ -206,7 +208,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {tenant.allowedStates.map((name) => {
+                {tenant.allowedStates.filter((name) => normalizeStateCode(name) !== 'NV').map((name) => {
                   const code = normalizeStateCode(name)
                   return (
                     <SelectItem key={code} value={code}>
