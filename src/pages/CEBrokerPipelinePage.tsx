@@ -38,11 +38,15 @@ import {
   Shield,
   ExternalLink,
   AlertCircle,
-  Monitor,
   Workflow,
+  ListChecks,
+  UserPlus,
+  Save,
+  Settings2,
 } from 'lucide-react'
 import {
   apiUrl,
+  getPipelineFlow,
   getRosterPipelineHistory,
   getRosterPipelineSchedulerStatus,
   getTenantCoursesWithSignal,
@@ -50,7 +54,9 @@ import {
   startRosterPipeline,
   stopPipeline,
   stopRosterPipeline,
+  type AutomationStepState,
   type Course,
+  type StateAutomationFlow,
 } from '@/lib/api'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
@@ -58,9 +64,9 @@ import { getHiddenPipelineTabLabel, toPipelineStateCode } from '@/lib/ceBrokerPi
 
 // ============== Types ==============
 
-// Unified Pipeline step type
+// Unified Pipeline step type (stepId matches the backend SSE step id within its phase)
 interface PipelineStep {
-  id: number
+  stepId: number
   name: string
   description: string
   icon: React.ComponentType<{ className?: string }>
@@ -139,209 +145,26 @@ interface CEBrokerPipelinePageProps {
   forcedStateCode?: 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO'
 }
 
-interface FlowStepTemplate {
-  name: string
-  description: string
-  icon: React.ComponentType<{ className?: string }>
-  tracksCount?: boolean
-  tracksProgress?: boolean
+// Presentation-only icon lookup keyed by backend step key; steps themselves come from the backend.
+const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  'fetch-courses': Database,
+  'filter-state': Filter,
+  'get-completions': Users,
+  'resolve-attendees': FileCheck,
+  'submit-xml': Send,
+  'record-results': Save,
+  init: Settings2,
+  'fetch-completions': ListChecks,
+  'check-access': Shield,
+  'lookup-profession': Globe,
+  login: LogIn,
+  'fetch-portal-courses': Database,
+  'enroll-attendees': UserPlus,
+  'create-roster': FileEdit,
+  'post-roster': Send,
+  complete: CheckCircle2,
 }
 
-interface ArchitectureNode {
-  id: string
-  label: string
-  subtitle: string
-  colorClass: string
-  icon?: React.ComponentType<{ className?: string }>
-  token?: string
-}
-
-interface StateFlowConfig {
-  stateCode: 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO'
-  stateName: string
-  flowDescription: string
-  phaseOneTitle: string
-  phaseTwoTitle: string
-  phaseConnectorLabel: string
-  architectureDescription: string
-  lookupPortalLabel: string
-  lookupPortalUrl: string
-  xmlSteps: FlowStepTemplate[]
-  rosterSteps: FlowStepTemplate[]
-  architectureNodes: ArchitectureNode[]
-}
-
-const DEFAULT_XML_STEPS: FlowStepTemplate[] = [
-  {
-    name: 'Fetch Courses',
-    description: 'Pull courses from ExceedCE API',
-    icon: Database,
-    tracksCount: true,
-  },
-  {
-    name: 'Filter State',
-    description: 'Filter active state mapped courses',
-    icon: Filter,
-    tracksCount: true,
-  },
-  {
-    name: 'Get Completions',
-    description: 'Fetch completed students per course',
-    icon: Users,
-    tracksCount: true,
-    tracksProgress: true,
-  },
-  {
-    name: 'Resolve Attendees',
-    description: 'Match licenses and validate data',
-    icon: FileCheck,
-    tracksCount: true,
-  },
-]
-
-function createArchitectureNodes(stateCode: string, lookupLabel: string): ArchitectureNode[] {
-  return [
-    {
-      id: 'exceedce',
-      label: 'ExceedCE',
-      subtitle: 'Data Source',
-      colorClass: 'bg-blue-500',
-      token: 'ECE',
-    },
-    {
-      id: 'xml',
-      label: 'XML Pipeline',
-      subtitle: 'Processing',
-      colorClass: 'bg-indigo-500',
-      icon: Database,
-    },
-    {
-      id: 'lookup',
-      label: lookupLabel,
-      subtitle: 'Profession Lookup',
-      colorClass: 'bg-orange-500',
-      icon: Globe,
-    },
-    {
-      id: 'browser',
-      label: 'Puppeteer',
-      subtitle: 'Browser Bot',
-      colorClass: 'bg-purple-500',
-      icon: Monitor,
-    },
-    {
-      id: 'cebroker',
-      label: 'CE Broker',
-      subtitle: `${stateCode} Roster Posted`,
-      colorClass: 'bg-green-500',
-      token: 'CEB',
-    },
-  ]
-}
-
-function createStateFlowConfig(
-  stateCode: 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO',
-  stateName: string,
-  lookupPortalUrl: string,
-  rosterCreationDescription: string
-): StateFlowConfig {
-  const lookupPortalLabel = 'License Lookup Portal'
-  const architectureLookupLabel = 'License Lookup'
-
-  return {
-    stateCode,
-    stateName,
-    flowDescription: `Full workflow: ExceedCE Data → XML Processing → ${stateCode} Roster Posting → CE Broker`,
-    phaseOneTitle: 'Data Processing (XML Pipeline)',
-    phaseTwoTitle: `${stateCode} Roster Posting (Browser Automation)`,
-    phaseConnectorLabel: `${stateCode} Browser Automation`,
-    architectureDescription: `Complete ${stateCode} active-state data flow from ExceedCE to CE Broker`,
-    lookupPortalLabel,
-    lookupPortalUrl,
-    xmlSteps: DEFAULT_XML_STEPS,
-    rosterSteps: [
-      {
-        name: 'Check VPN',
-        description: 'Verify lookup portal access',
-        icon: Shield,
-      },
-      {
-        name: 'Lookup Profession',
-        description: 'Resolve profession from lookup portal',
-        icon: Globe,
-      },
-      {
-        name: 'Login CE Broker',
-        description: 'Authenticate to CE Broker portal',
-        icon: LogIn,
-      },
-      {
-        name: 'Create Roster',
-        description: rosterCreationDescription,
-        icon: FileEdit,
-      },
-      {
-        name: 'Post Roster',
-        description: 'Submit to CE Broker',
-        icon: Send,
-      },
-      {
-        name: 'Complete',
-        description: 'Pipeline finished',
-        icon: CheckCircle2,
-      },
-    ],
-    architectureNodes: createArchitectureNodes(stateCode, architectureLookupLabel),
-  }
-}
-
-const STATE_FLOW_CONFIG: Record<'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO', StateFlowConfig> = {
-  SC: createStateFlowConfig(
-    'SC',
-    'South Carolina',
-    'https://verify.llronline.com/LicLookup/Rec/Rec.aspx?div=19',
-    'Fill roster form'
-  ),
-  HI: createStateFlowConfig(
-    'HI',
-    'Hawaii',
-    'https://cca.hawaii.gov/pvl/boards/real-estate/',
-    'Prepare HI roster payload'
-  ),
-  NC: createStateFlowConfig(
-    'NC',
-    'North Carolina',
-    'https://license.ncrec.gov/ncrec/oecgi3.exe/O4W_LIC_SEARCH_NEW',
-    'Prepare NC roster payload'
-  ),
-  NV: createStateFlowConfig(
-    'NV',
-    'Nevada',
-    'https://red.nv.gov/Content/Compliance/Online_Orders/Verification/',
-    'Prepare NV roster payload'
-  ),
-  MI: createStateFlowConfig(
-    'MI',
-    'Michigan',
-    'https://www.michigan.gov/lara',
-    'Prepare MI roster payload'
-  ),
-  MO: createStateFlowConfig(
-    'MO',
-    'Missouri',
-    'https://pr.mo.gov/realestate.asp',
-    'Prepare MO roster payload'
-  ),
-}
-
-function getFlowConfigForState(stateCode: string): StateFlowConfig {
-  if (stateCode === 'HI') return STATE_FLOW_CONFIG.HI
-  if (stateCode === 'NC') return STATE_FLOW_CONFIG.NC
-  if (stateCode === 'NV') return STATE_FLOW_CONFIG.NV
-  if (stateCode === 'MI') return STATE_FLOW_CONFIG.MI
-  if (stateCode === 'MO') return STATE_FLOW_CONFIG.MO
-  return STATE_FLOW_CONFIG.SC
-}
 
 function isTransientBackendError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -426,30 +249,28 @@ function mapRosterEntryToFeed(entry: {
 
 // ============== Initial Pipeline Steps ==============
 
-// Combined pipeline steps: XML Pipeline → Roster Posting
-const getInitialSteps = (flowConfig: StateFlowConfig): PipelineStep[] => {
-  const xmlSteps = flowConfig.xmlSteps.map((step, index) => ({
-    id: index + 1,
-    name: step.name,
-    description: step.description,
-    icon: step.icon,
-    status: 'pending' as const,
-    count: step.tracksCount ? 0 : undefined,
-    progress: step.tracksProgress ? 0 : undefined,
-    phase: 'xml' as const,
-  }))
+// Build steps from the backend-provided flow, optionally applying a live runtime snapshot
+const getInitialSteps = (
+  flow: StateAutomationFlow | null,
+  snapshot?: Partial<Record<'xml' | 'roster', AutomationStepState>>
+): PipelineStep[] => {
+  if (!flow || !flow.configured) return []
 
-  const rosterOffset = xmlSteps.length
-  const rosterSteps = flowConfig.rosterSteps.map((step, index) => ({
-    id: rosterOffset + index + 1,
-    name: step.name,
-    description: step.description,
-    icon: step.icon,
-    status: 'pending' as const,
-    phase: 'roster' as const,
-  }))
-
-  return [...xmlSteps, ...rosterSteps]
+  return flow.phases.flatMap((phase) =>
+    phase.steps.map((step) => {
+      const live = snapshot?.[phase.id]?.[String(step.id)]
+      return {
+        stepId: step.id,
+        name: step.name,
+        description: step.description,
+        icon: STEP_ICONS[step.key] || Zap,
+        status: live?.status || ('pending' as const),
+        count: step.tracksCount ? live?.count ?? 0 : undefined,
+        progress: step.tracksProgress ? live?.progress ?? 0 : undefined,
+        phase: phase.id,
+      }
+    })
+  )
 }
 
 // ============== Main Component ==============
@@ -461,10 +282,15 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     const initial = forcedStateCode || getActiveState() || tenant.stateCode || 'SC'
     return toPipelineStateCode(initial)
   })
-  const flowConfig = getFlowConfigForState(activeStateCode)
   const maskedPipelineLabel = getHiddenPipelineTabLabel(activeStateCode)
-  const rosterSseOffset = flowConfig.xmlSteps.length
   const PAGE_REQUEST_TIMEOUT_MS = 12000
+
+  // State-specific automation flow served by the backend
+  const [flow, setFlow] = useState<StateAutomationFlow | null>(null)
+  const [flowLoading, setFlowLoading] = useState(true)
+  const [flowError, setFlowError] = useState<string | null>(null)
+  const [flowReloadKey, setFlowReloadKey] = useState(0)
+  const automationUnavailable = flow !== null && !flow.configured
 
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false)
@@ -480,7 +306,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const [loadingCourses, setLoadingCourses] = useState(true)
   
   // Pipeline steps state
-  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(() => getInitialSteps(flowConfig))
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([])
   
   // Current phase tracking
   const [currentPhase, setCurrentPhase] = useState<'idle' | 'xml' | 'roster'>('idle')
@@ -532,6 +358,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const schedulerAbortRef = useRef<AbortController | null>(null)
   const historyAbortRef = useRef<AbortController | null>(null)
   const coursesAbortRef = useRef<AbortController | null>(null)
+  // True only when this client started the XML phase and must chain the roster phase
+  const ownsXmlRunRef = useRef(false)
   
   // Refs to track current values for SSE callbacks (avoids stale closure issues)
   const dryRunRef = useRef(dryRun)
@@ -699,15 +527,15 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // ============== Pipeline Step Management ==============
 
   // Update pipeline step
-  const updateStep = useCallback((stepId: number, updates: Partial<PipelineStep>) => {
+  const updateStep = useCallback((phase: 'xml' | 'roster', stepId: number, updates: Partial<PipelineStep>) => {
     setPipelineSteps(prev => 
-      prev.map(step => step.id === stepId ? { ...step, ...updates } : step)
+      prev.map(step => step.phase === phase && step.stepId === stepId ? { ...step, ...updates } : step)
     )
   }, [])
 
   // Reset pipeline
   const resetPipeline = useCallback(() => {
-    setPipelineSteps(getInitialSteps(flowConfig))
+    setPipelineSteps(getInitialSteps(flow))
     setProcessingStats({
       currentCourse: '',
       courseIndex: 0,
@@ -726,13 +554,41 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     setError(null)
     setCurrentPhase('idle')
     setLiveRosterFeed([])
-  }, [flowConfig])
+  }, [flow])
 
+  // Load the active state's configured automation flow and any in-progress run snapshot
   useEffect(() => {
-    if (!isRunning) {
-      setPipelineSteps(getInitialSteps(flowConfig))
-    }
-  }, [flowConfig, isRunning])
+    const controller = new AbortController()
+    setFlow(null)
+    setFlowLoading(true)
+    setFlowError(null)
+    setPipelineSteps([])
+
+    getPipelineFlow(controller.signal, PAGE_REQUEST_TIMEOUT_MS)
+      .then((loaded) => {
+        if (controller.signal.aborted) return
+        const xmlRunning = Boolean(loaded.runtime?.xml.isRunning)
+        const rosterRunning = Boolean(loaded.runtime?.roster.isRunning)
+        setFlow(loaded)
+        setPipelineSteps(getInitialSteps(loaded, {
+          xml: xmlRunning ? loaded.runtime?.xml.stepState : undefined,
+          roster: rosterRunning ? loaded.runtime?.roster.stepState : undefined,
+        }))
+        if (rosterRunning || xmlRunning) {
+          setIsRunning(true)
+          setCurrentPhase(rosterRunning ? 'roster' : 'xml')
+        }
+      })
+      .catch((loadError) => {
+        if (controller.signal.aborted) return
+        setFlowError(loadError instanceof Error ? loadError.message : 'Failed to load automation flow')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setFlowLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [activeStateCode, flowReloadKey])
 
   // ============== SSE Connection Management ==============
 
@@ -750,19 +606,31 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         const data = JSON.parse(event.data)
         
         switch (data.type) {
+          case 'connected':
+            if (data.isRunning && data.stepState) {
+              const stepState = data.stepState as AutomationStepState
+              setPipelineSteps(prev => prev.map(step => {
+                const live = step.phase === 'xml' ? stepState[String(step.stepId)] : undefined
+                return live ? { ...step, ...live } : step
+              }))
+              setIsRunning(true)
+              setCurrentPhase(prev => (prev === 'roster' ? prev : 'xml'))
+            }
+            break
+
           case 'step-start':
-            updateStep(data.stepId, { status: 'active', count: 0, progress: 0 })
+            updateStep('xml', data.stepId, { status: 'active', count: 0, progress: 0 })
             break
             
           case 'step-progress':
-            updateStep(data.stepId, { 
+            updateStep('xml', data.stepId, { 
               count: data.count, 
               progress: data.progress 
             })
             break
             
           case 'step-complete':
-            updateStep(data.stepId, { 
+            updateStep('xml', data.stepId, { 
               status: 'completed', 
               count: data.count,
               progress: 100 
@@ -770,7 +638,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             break
             
           case 'step-error':
-            updateStep(data.stepId, { status: 'error' })
+            updateStep('xml', data.stepId, { status: 'error' })
             break
             
           case 'processing':
@@ -796,9 +664,23 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             break
             
           case 'complete':
-            // XML phase complete, now start roster phase
+            if (data.cancelled) {
+              ownsXmlRunRef.current = false
+              break
+            }
+            // XML phase complete; only the client that started the run chains the roster phase
             setCurrentPhase('roster')
-            startRosterPhase()
+            if (ownsXmlRunRef.current) {
+              ownsXmlRunRef.current = false
+              startRosterPhase()
+            }
+            break
+
+          case 'error':
+            ownsXmlRunRef.current = false
+            setError(data.message)
+            setIsRunning(false)
+            setCurrentPhase('idle')
             break
         }
       } catch (err) {
@@ -827,15 +709,26 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         const data = JSON.parse(event.data)
         
         switch (data.type) {
+          case 'connected':
+            if (data.isRunning && data.stepState) {
+              const stepState = data.stepState as AutomationStepState
+              setPipelineSteps(prev => prev.map(step => {
+                const live = step.phase === 'roster' ? stepState[String(step.stepId)] : undefined
+                return live ? { ...step, status: live.status } : step
+              }))
+              setIsRunning(true)
+              setCurrentPhase('roster')
+            }
+            break
+
           case 'step-change':
-            // Map roster step IDs (1-8) to unified step IDs (5-10)
-            const unifiedStepId = data.stepId + rosterSseOffset
             setPipelineSteps(prev => 
               prev.map(step => {
-                if (step.id < unifiedStepId && step.phase === 'roster' && step.status !== 'completed') {
+                if (step.phase !== 'roster') return step
+                if (step.stepId < data.stepId && step.status !== 'completed' && step.status !== 'error') {
                   return { ...step, status: 'completed' }
                 }
-                if (step.id === unifiedStepId) {
+                if (step.stepId === data.stepId) {
                   return { ...step, status: data.status || 'active' }
                 }
                 return step
@@ -892,10 +785,17 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 setLiveRosterFeed(mapped.slice(0, 30))
               }
             }
-            // Mark all steps as completed
-            setPipelineSteps(prev => 
-              prev.map(step => ({ ...step, status: 'completed' }))
-            )
+            // A step still active here is where the run ended (early exit or final step)
+            {
+              const endedWithErrors = Array.isArray(data.summary?.errors) && data.summary.errors.length > 0
+              setPipelineSteps(prev =>
+                prev.map(step =>
+                  step.phase === 'roster' && step.status === 'active'
+                    ? { ...step, status: endedWithErrors ? 'error' : 'completed' }
+                    : step
+                )
+              )
+            }
 
             loadHistory().catch(() => {})
             break
@@ -904,6 +804,11 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             setError(data.message)
             setIsRunning(false)
             setCurrentPhase('idle')
+            setPipelineSteps(prev =>
+              prev.map(step =>
+                step.phase === 'roster' && step.status === 'active' ? { ...step, status: 'error' } : step
+              )
+            )
             break
         }
       } catch (err) {
@@ -916,7 +821,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       es.close()
       rosterEventSourceRef.current = null
     }
-  }, [rosterSseOffset])
+  }, [])
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -955,7 +860,15 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       rosterEventSourceRef.current.close()
       rosterEventSourceRef.current = null
     }
+    ownsXmlRunRef.current = false
   }, [activeStateCode])
+
+  // Subscribe to the active state's live events so runs started elsewhere are reflected too
+  useEffect(() => {
+    if (!flow?.configured) return
+    if (!xmlEventSourceRef.current) connectXmlSSE()
+    if (!rosterEventSourceRef.current) connectRosterSSE()
+  }, [flow, connectXmlSSE, connectRosterSSE])
 
   const handleStartRosterOnly = async () => {
     resetPipeline()
@@ -1003,6 +916,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     resetPipeline()
     setIsRunning(true)
     setCurrentPhase('xml')
+    ownsXmlRunRef.current = true
     connectXmlSSE()
     
     try {
@@ -1018,6 +932,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       })
     } catch (error) {
       console.error('Failed to start pipeline:', error)
+      ownsXmlRunRef.current = false
       setIsRunning(false)
       setCurrentPhase('idle')
       setError(error instanceof Error ? error.message : 'Failed to start pipeline')
@@ -1026,6 +941,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
 
   // Stop pipeline
   const handleStopPipeline = async () => {
+    ownsXmlRunRef.current = false
     try {
       // Stop both pipelines
       await Promise.all([
@@ -1082,6 +998,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // Get XML steps and Roster steps
   const xmlSteps = pipelineSteps.filter(s => s.phase === 'xml')
   const rosterSteps = pipelineSteps.filter(s => s.phase === 'roster')
+  const xmlPhase = flow?.phases.find(p => p.id === 'xml')
+  const rosterPhase = flow?.phases.find(p => p.id === 'roster')
 
   const rosterHistoryFeed: RosterFeedEntry[] = history
     .flatMap(run =>
@@ -1107,7 +1025,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             {maskedPipelineLabel}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {maskedPipelineLabel}: ExceedCE → XML Processing → Roster Posting → CE Broker
+            {maskedPipelineLabel}: {flow?.configured ? flow.description : flow ? flow.message : flowLoading ? 'Loading automation flow...' : 'Automation flow unavailable'}
           </p>
         </div>
       </div>
@@ -1154,7 +1072,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                         Stop Pipeline
                       </Button>
                     ) : (
-                      <Button onClick={handleStartPipeline}>
+                      <Button onClick={handleStartPipeline} disabled={automationUnavailable}>
                         <Play className="h-4 w-4 mr-2" />
                         Start Pipeline
                       </Button>
@@ -1310,21 +1228,53 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             <CardHeader>
               <CardTitle>Complete Pipeline Flow</CardTitle>
               <CardDescription>
-                {flowConfig.flowDescription}
+                {flow?.configured
+                  ? flow.description
+                  : flowLoading
+                    ? 'Loading automation flow...'
+                    : 'Automation flow for the active state'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Phase 1: XML Pipeline */}
+              {flowLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading automation flow...
+                </div>
+              ) : flowError ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Unable to load automation flow</AlertTitle>
+                  <AlertDescription className="flex items-center justify-between gap-4">
+                    <span>{flowError}</span>
+                    <Button size="sm" variant="outline" onClick={() => setFlowReloadKey(key => key + 1)}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Retry
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : automationUnavailable ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>No automation configured</AlertTitle>
+                  <AlertDescription>
+                    {flow?.message || 'No roster posting automation is configured for this state.'}
+                  </AlertDescription>
+                </Alert>
+              ) : (
+              <>
+              {/* Phase 1: Data processing */}
+              {xmlSteps.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Badge variant={currentPhase === 'xml' ? 'default' : 'outline'} className="text-xs">
                     Phase 1
                   </Badge>
-                  <span className="font-semibold text-sm">{flowConfig.phaseOneTitle}</span>
+                  <span className="font-semibold text-sm">{xmlPhase?.title}</span>
                 </div>
                 <div className="flex items-center justify-between overflow-x-auto pb-4 px-2">
                   {xmlSteps.map((step, index) => (
-                    <div key={step.id} className="flex items-center">
+                    <div key={`${step.phase}-${step.stepId}`} className="flex items-center">
                       {/* Step Card */}
                       <div
                         className={`
@@ -1391,29 +1341,33 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   ))}
                 </div>
               </div>
+              )}
 
               {/* Phase Connector */}
+              {xmlSteps.length > 0 && rosterSteps.length > 0 && (
               <div className="flex justify-center my-4">
                 <div className={`
                   flex flex-col items-center p-3 rounded-lg border-2 border-dashed
                   ${currentPhase === 'roster' ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-slate-50'}
                 `}>
                   <ArrowRight className={`h-6 w-6 rotate-90 ${currentPhase === 'roster' ? 'text-blue-500' : 'text-slate-400'}`} />
-                  <span className="text-xs text-muted-foreground mt-1">{flowConfig.phaseConnectorLabel}</span>
+                  <span className="text-xs text-muted-foreground mt-1">{flow?.connectorLabel}</span>
                 </div>
               </div>
+              )}
 
               {/* Phase 2: Roster Posting */}
+              {rosterSteps.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Badge variant={currentPhase === 'roster' ? 'default' : 'outline'} className="text-xs">
-                    Phase 2
+                    Phase {xmlSteps.length > 0 ? 2 : 1}
                   </Badge>
-                  <span className="font-semibold text-sm">{flowConfig.phaseTwoTitle}</span>
+                  <span className="font-semibold text-sm">{rosterPhase?.title}</span>
                 </div>
                 <div className="flex items-center justify-between overflow-x-auto pb-4 px-2">
                   {rosterSteps.map((step, index) => (
-                    <div key={step.id} className="flex items-center">
+                    <div key={`${step.phase}-${step.stepId}`} className="flex items-center">
                       {/* Step Card */}
                       <div
                         className={`
@@ -1463,6 +1417,9 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   ))}
                 </div>
               </div>
+              )}
+              </>
+              )}
             </CardContent>
           </Card>
 
@@ -1572,43 +1529,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               </CardContent>
             </Card>
           )}
-
-          {/* Architecture Diagram */}
-         {/* <Card>
-            <CardHeader>
-              <CardTitle>System Architecture</CardTitle>
-              <CardDescription>
-                {flowConfig.architectureDescription}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center gap-3 py-8 overflow-x-auto">
-                {flowConfig.architectureNodes.map((node, index) => {
-                  const NodeIcon = node.icon
-
-                  return (
-                    <div key={node.id} className="flex items-center gap-3">
-                      <div className="flex flex-col items-center min-w-[80px]">
-                        <div className={`h-14 w-14 rounded-xl ${node.colorClass} flex items-center justify-center text-white`}>
-                          {NodeIcon ? (
-                            <NodeIcon className="h-7 w-7" />
-                          ) : (
-                            <span className="font-bold text-sm">{node.token || 'N/A'}</span>
-                          )}
-                        </div>
-                        <p className="mt-2 font-semibold text-xs">{node.label}</p>
-                        <p className="text-xs text-muted-foreground">{node.subtitle}</p>
-                      </div>
-
-                      {index < flowConfig.architectureNodes.length - 1 && (
-                        <ArrowRight className="h-5 w-5 text-slate-400 shrink-0" />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>  */}
         </TabsContent>
 
         {/* ============== Roster Post Tab ============== */}
@@ -1625,11 +1545,11 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-3">
-                <Button onClick={handleStartPipeline} disabled={isRunning}>
+                <Button onClick={handleStartPipeline} disabled={isRunning || automationUnavailable}>
                   <Play className="h-4 w-4 mr-2" />
                   Start Full Pipeline
                 </Button>
-                <Button variant="secondary" onClick={handleStartRosterOnly} disabled={isRunning}>
+                <Button variant="secondary" onClick={handleStartRosterOnly} disabled={isRunning || automationUnavailable}>
                   <Zap className="h-4 w-4 mr-2" />
                   Start Roster Only
                 </Button>

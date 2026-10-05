@@ -230,6 +230,7 @@ const GET_CACHE_OVERRIDES_MS: Array<{ test: RegExp; ttlMs: number }> = [
   { test: /^\/sales\/(orders|customers|reports)(\?|$)/, ttlMs: 30000 },
   { test: /^\/sales\/sync\/(logs|failures)(\?|$)/, ttlMs: 20000 },
   { test: /^\/notifications(\?|$)/, ttlMs: 5000 },
+  { test: /^\/pipeline\/flow(\?|$)/, ttlMs: 0 },
 ]
 
 const inFlightGetRequests = new Map<string, Promise<unknown>>()
@@ -286,6 +287,16 @@ function getTenantHeaders(): Record<string, string> {
   }
 }
 
+function withCallerAbort<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise<T> {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
+
 async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise<T> {
   const token = getAccessToken()
   if (!token) {
@@ -304,12 +315,13 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
 
     const pending = inFlightGetRequests.get(cacheKey)
     if (pending) {
-      return pending as Promise<T>
+      return withCallerAbort(pending as Promise<T>, options?.signal)
     }
   }
 
   const controller = new AbortController()
-  const externalSignal = options?.signal
+  // Shared (deduped) GETs must not be cancelled by one caller; callers detach via withCallerAbort.
+  const externalSignal = cacheable ? undefined : options?.signal
   const onExternalAbort = () => controller.abort()
   if (externalSignal) {
     if (externalSignal.aborted) {
@@ -366,10 +378,12 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
   })()
 
   if (cacheable && cacheKey) {
-    inFlightGetRequests.set(cacheKey, requestPromise as Promise<unknown>)
-    return requestPromise.finally(() => {
+    const shared = requestPromise.finally(() => {
       inFlightGetRequests.delete(cacheKey)
     })
+    shared.catch(() => {})
+    inFlightGetRequests.set(cacheKey, shared as Promise<unknown>)
+    return withCallerAbort(shared, options?.signal)
   }
 
   return requestPromise
@@ -961,6 +975,43 @@ export async function stopPipeline(): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/pipeline/stop', {
     method: 'POST',
   })
+}
+
+export type AutomationStepStatus = 'pending' | 'active' | 'completed' | 'error'
+
+export interface AutomationFlowStep {
+  id: number
+  key: string
+  name: string
+  description: string
+  tracksCount: boolean
+  tracksProgress: boolean
+}
+
+export interface AutomationFlowPhase {
+  id: 'xml' | 'roster'
+  title: string
+  steps: AutomationFlowStep[]
+}
+
+export type AutomationStepState = Record<string, { status: AutomationStepStatus; count?: number; progress?: number }>
+
+export interface StateAutomationFlow {
+  stateCode: string
+  stateName: string
+  configured: boolean
+  description: string | null
+  connectorLabel: string | null
+  message: string | null
+  phases: AutomationFlowPhase[]
+  runtime?: {
+    xml: { isRunning: boolean; stepState: AutomationStepState }
+    roster: { isRunning: boolean; stepState: AutomationStepState }
+  }
+}
+
+export async function getPipelineFlow(signal?: AbortSignal, timeoutMs?: number): Promise<StateAutomationFlow> {
+  return fetchApi<StateAutomationFlow>('/pipeline/flow', { signal, timeoutMs })
 }
 
 // Logs
