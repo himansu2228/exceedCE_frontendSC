@@ -937,10 +937,23 @@ export async function resolveRosterVerification(): Promise<{ success: boolean; v
   })
 }
 
-export async function startPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean }): Promise<{ message: string }> {
+export async function startPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean, mode?: 'test' | 'live' }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/pipeline/start', {
     method: 'POST',
     body: JSON.stringify(options || {}),
+  })
+}
+
+export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean }): Promise<{ message: string }> {
+  return fetchApi<{ message: string }>('/roster-pipeline/start', {
+    method: 'POST',
+    body: JSON.stringify(options || {}),
+  })
+}
+
+export async function stopRosterPipeline(): Promise<{ message: string }> {
+  return fetchApi<{ message: string }>('/roster-pipeline/stop', {
+    method: 'POST',
   })
 }
 

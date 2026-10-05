@@ -46,6 +46,10 @@ import {
   getRosterPipelineHistory,
   getRosterPipelineSchedulerStatus,
   getTenantCoursesWithSignal,
+  startPipeline,
+  startRosterPipeline,
+  stopPipeline,
+  stopRosterPipeline,
   type Course,
 } from '@/lib/api'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
@@ -465,7 +469,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false)
   const [dryRun, setDryRun] = useState(true)
-  const [mode, setMode] = useState('test')
+  const [mode, setMode] = useState<'test' | 'live'>('test')
   const [selectedCourses, setSelectedCourses] = useState<string>('all')
   const [sinceDate, setSinceDate] = useState(() => {
     return new Date().toISOString().split('T')[0]
@@ -960,20 +964,16 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     connectRosterSSE()
 
     try {
-      await fetch(apiUrl('/api/roster-pipeline/start'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sinceDate: sinceDate || undefined,
-          dryRun,
-          courseIds: selectedCourses === 'all' ? null : [selectedCourses],
-        }),
+      await startRosterPipeline({
+        sinceDate: sinceDate || undefined,
+        dryRun,
+        courseIds: selectedCourses === 'all' ? undefined : [Number(selectedCourses)],
       })
     } catch (err) {
       console.error('Failed to start roster-only pipeline:', err)
       setIsRunning(false)
       setCurrentPhase('idle')
-      setError('Failed to start roster posting')
+      setError(err instanceof Error ? err.message : 'Failed to start roster posting')
     }
   }
 
@@ -985,19 +985,16 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     connectRosterSSE()
     
     try {
-      await fetch(apiUrl('/api/roster-pipeline/start'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sinceDate: sinceDateRef.current || undefined,
-          dryRun: dryRunRef.current,
-          courseIds: selectedCoursesRef.current === 'all' ? null : [selectedCoursesRef.current],
-        }),
+      await startRosterPipeline({
+        sinceDate: sinceDateRef.current || undefined,
+        dryRun: dryRunRef.current,
+        courseIds: selectedCoursesRef.current === 'all' ? undefined : [Number(selectedCoursesRef.current)],
       })
     } catch (err) {
       console.error('Failed to start roster pipeline:', err)
-      setError('Failed to start roster posting phase')
+      setError(err instanceof Error ? err.message : 'Failed to start roster posting phase')
       setIsRunning(false)
+      setCurrentPhase('idle')
     }
   }
 
@@ -1013,22 +1010,17 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         ? undefined 
         : [parseInt(selectedCourses, 10)]
       
-      await fetch(apiUrl('/api/pipeline/start'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseIds,
-          sinceDate: sinceDate || undefined,
-          dryRun,
-          mode,
-          // Signal to continue to roster posting after XML completes
-          continueToRoster: true,
-        }),
+      await startPipeline({
+        courseIds,
+        sinceDate: sinceDate || undefined,
+        dryRun,
+        mode,
       })
     } catch (error) {
       console.error('Failed to start pipeline:', error)
       setIsRunning(false)
-      setError('Failed to start pipeline')
+      setCurrentPhase('idle')
+      setError(error instanceof Error ? error.message : 'Failed to start pipeline')
     }
   }
 
@@ -1037,8 +1029,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     try {
       // Stop both pipelines
       await Promise.all([
-        fetch(apiUrl('/api/pipeline/stop'), { method: 'POST' }),
-        fetch(apiUrl('/api/roster-pipeline/stop'), { method: 'POST' }),
+        stopPipeline(),
+        stopRosterPipeline(),
       ])
     } catch (error) {
       console.error('Failed to stop pipeline:', error)
@@ -1175,7 +1167,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Mode</Label>
-                    <Select value={mode} onValueChange={setMode}>
+                    <Select value={mode} onValueChange={value => setMode(value === 'live' ? 'live' : 'test')}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
