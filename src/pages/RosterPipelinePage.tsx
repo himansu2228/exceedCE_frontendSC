@@ -32,7 +32,6 @@ import {
 } from 'lucide-react'
 import { apiUrl, authFetch, getRosterVerificationStatus, resolveRosterVerification, type RosterVerificationStatus } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { getBusinessDate } from '@/lib/businessDate'
 
 // Roster Pipeline step type
 interface RosterPipelineStep {
@@ -145,7 +144,7 @@ export function RosterPipelinePage() {
   const [dryRun, setDryRun] = useState(true)
   const [sinceDate, setSinceDate] = useState(() => {
     // Default to today's date
-    return getBusinessDate()
+    return new Date().toISOString().split('T')[0]
   })
   
   // Pipeline steps state

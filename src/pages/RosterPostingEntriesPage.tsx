@@ -13,7 +13,6 @@ import {
   type RosterPipelineEntry,
 } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { getBusinessDate } from '@/lib/businessDate'
 
 export function RosterPostingEntriesPage() {
   const [entries, setEntries] = useState<RosterPipelineEntry[]>([])
@@ -21,7 +20,7 @@ export function RosterPostingEntriesPage() {
   const [posting, setPosting] = useState(false)
   const [postingIds, setPostingIds] = useState<Record<string, boolean>>({})
   const [dryRun, setDryRun] = useState(true)
-  const [sinceDate, setSinceDate] = useState(() => getBusinessDate())
+  const [sinceDate, setSinceDate] = useState(() => new Date().toISOString().split('T')[0])
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -83,7 +82,7 @@ export function RosterPostingEntriesPage() {
     setPostingIds((prev) => ({ ...prev, [entry.id]: true }))
 
     try {
-      const result = await postSelectedRosterEntries({ entries: [entry], dryRun, mode: dryRun ? 'test' : 'live', sinceDate })
+      const result = await postSelectedRosterEntries({ entries: [entry], dryRun })
       const done = result.summary?.successful ?? 0
       const failed = result.summary?.failed ?? 0
       const skipped = result.summary?.skipped ?? 0
@@ -107,7 +106,7 @@ export function RosterPostingEntriesPage() {
     setSuccess(null)
 
     try {
-      const result = await postSelectedRosterEntries({ entries: selectedEntries, dryRun, mode: dryRun ? 'test' : 'live', sinceDate })
+      const result = await postSelectedRosterEntries({ entries: selectedEntries, dryRun })
       const done = result.summary?.successful ?? 0
       const failed = result.summary?.failed ?? 0
       const skipped = result.summary?.skipped ?? 0

@@ -836,7 +836,6 @@ export async function getDashboardUsers(): Promise<DashboardUserListItem[]> {
 
 export interface RosterPipelineEntry {
   id: string
-  completion_id?: string
   user_id: number | null
   first_name: string
   last_name: string
@@ -892,8 +891,6 @@ export async function getRosterPipelineEntries(filters?: {
 export async function postSelectedRosterEntries(payload: {
   entries: RosterPipelineEntry[]
   dryRun?: boolean
-  mode?: 'test' | 'live'
-  sinceDate?: string
   submissionMode?: 'api' | 'browser'
   apiVariant?: 'xml' | 'v2'
   timeoutMs?: number
@@ -969,7 +966,7 @@ export async function startPipeline(options?: { courseIds?: number[], sinceDate?
   })
 }
 
-export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean, mode?: 'test' | 'live' }): Promise<{ message: string }> {
+export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/roster-pipeline/start', {
     method: 'POST',
     body: JSON.stringify(options || {}),
@@ -1018,20 +1015,6 @@ export interface StateAutomationFlow {
   runtime?: {
     xml: { isRunning: boolean; stepState: AutomationStepState }
     roster: { isRunning: boolean; stepState: AutomationStepState }
-    run?: {
-      runId: string
-      status: string
-      mode: 'test' | 'live'
-      dryRun: boolean
-      phase1Status: string
-      phase2Status: string
-      successCount: number
-      failureCount: number
-      manualReviewCount: number
-      startedAt: string
-      endedAt: string | null
-      errors: Array<{ message?: string }>
-    } | null
   }
 }
 

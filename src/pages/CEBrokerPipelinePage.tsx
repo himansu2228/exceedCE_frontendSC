@@ -62,7 +62,6 @@ import {
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getHiddenPipelineTabLabel, toPipelineStateCode } from '@/lib/ceBrokerPipeline'
-import { getBusinessDate } from '@/lib/businessDate'
 
 // ============== Types ==============
 
@@ -136,7 +135,7 @@ interface RosterFeedEntry {
   course: string
   licenseNumber: string
   profession: string | null
-  status: 'posted' | 'skipped' | 'failed' | 'dry-run' | 'pending' | 'unknown' | 'manual-review'
+  status: 'posted' | 'skipped' | 'failed'
   mode: 'dry-run' | 'live'
   timestamp: string
   reason?: string | null
@@ -241,9 +240,7 @@ function mapRosterEntryToFeed(entry: {
     course: courseName,
     licenseNumber: licenseNum,
     profession: professionStr,
-    status: entry.dryRun ? 'dry-run' : entry.success ? 'posted'
-      : entry.skipped ? (/manual review|reconciliation/i.test(reasonStr || '') ? 'manual-review' : 'skipped')
-        : (/unknown|timeout|uncertain/i.test(errorStr || '') ? 'unknown' : 'failed'),
+    status: entry.success ? 'posted' : entry.skipped ? 'skipped' : 'failed',
     mode: entry.dryRun ? 'dry-run' : 'live',
     timestamp: entry.timestamp || new Date().toISOString(),
     reason: reasonStr,
@@ -302,7 +299,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const [mode, setMode] = useState<'test' | 'live'>('test')
   const [selectedCourses, setSelectedCourses] = useState<string>('all')
   const [sinceDate, setSinceDate] = useState(() => {
-    return getBusinessDate()
+    return new Date().toISOString().split('T')[0]
   })
   
   // Dynamic SC courses from API
@@ -367,13 +364,11 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   
   // Refs to track current values for SSE callbacks (avoids stale closure issues)
   const dryRunRef = useRef(dryRun)
-  const modeRef = useRef(mode)
   const sinceDateRef = useRef(sinceDate)
   const selectedCoursesRef = useRef(selectedCourses)
   
   // Keep refs in sync with state
   useEffect(() => { dryRunRef.current = dryRun }, [dryRun])
-  useEffect(() => { modeRef.current = mode }, [mode])
   useEffect(() => { sinceDateRef.current = sinceDate }, [sinceDate])
   useEffect(() => { selectedCoursesRef.current = selectedCourses }, [selectedCourses])
 
@@ -584,20 +579,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
           setIsRunning(true)
           setCurrentPhase(rosterRunning ? 'roster' : 'xml')
         }
-        const run = loaded.runtime?.run
-        if (run) {
-          setProcessingStats((previous) => ({
-            ...previous,
-            submitted: run.successCount || 0,
-            failed: run.failureCount || 0,
-            skipped: run.manualReviewCount || 0,
-          }))
-          if (run.status === 'interrupted') {
-            setError(`Run ${run.runId} was interrupted. Reconcile any saved or unknown submissions before retrying.`)
-            setIsRunning(false)
-            setCurrentPhase('idle')
-          }
-        }
       })
       .catch((loadError) => {
         if (controller.signal.aborted) return
@@ -688,9 +669,9 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               ownsXmlRunRef.current = false
               break
             }
-            // SC phase transitions are owned by the backend; other state flows retain client chaining.
+            // XML phase complete; only the client that started the run chains the roster phase
             setCurrentPhase('roster')
-            if (activeStateCode !== 'SC' && ownsXmlRunRef.current) {
+            if (ownsXmlRunRef.current) {
               ownsXmlRunRef.current = false
               startRosterPhase()
             }
@@ -713,7 +694,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       es.close()
       xmlEventSourceRef.current = null
     }
-  }, [activeStateCode, updateStep])
+  }, [updateStep])
 
   // Connect to Roster Pipeline SSE
   const connectRosterSSE = useCallback(() => {
@@ -742,7 +723,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             break
 
           case 'step-change':
-            setCurrentPhase('roster')
             setPipelineSteps(prev => 
               prev.map(step => {
                 if (step.phase !== 'roster') return step
@@ -755,11 +735,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 return step
               })
             )
-            break
-
-          case 'phase-start':
-            setIsRunning(true)
-            setCurrentPhase('roster')
             break
             
           case 'progress':
@@ -780,7 +755,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   course: 'Current run',
                   licenseNumber: data.licenseNumber || '-',
                   profession: data.profession || null,
-                  status: 'pending',
+                  status: 'posted',
                   mode: dryRun ? 'dry-run' : 'live',
                   timestamp: new Date().toISOString(),
                 }
@@ -906,7 +881,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       await startRosterPipeline({
         sinceDate: sinceDate || undefined,
         dryRun,
-        mode,
         courseIds: selectedCourses === 'all' ? undefined : [Number(selectedCourses)],
       })
     } catch (err) {
@@ -928,7 +902,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       await startRosterPipeline({
         sinceDate: sinceDateRef.current || undefined,
         dryRun: dryRunRef.current,
-        mode: modeRef.current,
         courseIds: selectedCoursesRef.current === 'all' ? undefined : [Number(selectedCoursesRef.current)],
       })
     } catch (err) {
@@ -1634,8 +1607,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-medium text-sm">{safeStr(entry.student)}</p>
                         <div className="flex items-center gap-2">
-                          <Badge variant={entry.status === 'posted' ? 'success' : ['skipped', 'dry-run', 'pending'].includes(entry.status) ? 'secondary' : 'destructive'}>
-                            {entry.status === 'manual-review' ? 'Manual Review' : entry.status === 'dry-run' ? 'Dry Run' : entry.status === 'pending' ? 'Pending' : entry.status === 'unknown' ? 'Unknown' : entry.status === 'posted' ? 'Posted' : entry.status === 'skipped' ? 'Skipped' : 'Failed'}
+                          <Badge variant={entry.status === 'posted' ? 'success' : entry.status === 'skipped' ? 'secondary' : 'destructive'}>
+                            {entry.status === 'posted' ? 'Posted' : entry.status === 'skipped' ? 'Skipped' : 'Failed'}
                           </Badge>
                           <Badge variant="outline">{safeStr(entry.mode)}</Badge>
                         </div>
