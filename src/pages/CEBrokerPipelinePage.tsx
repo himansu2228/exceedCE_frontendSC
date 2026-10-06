@@ -46,6 +46,7 @@ import {
 } from 'lucide-react'
 import {
   apiUrl,
+  authFetch,
   getPipelineFlow,
   getRosterPipelineHistory,
   getRosterPipelineSchedulerStatus,
@@ -995,7 +996,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // Update scheduler
   const handleUpdateScheduler = async (updates: Partial<SchedulerStatus>) => {
     try {
-      const res = await fetch(apiUrl('/api/roster-pipeline/scheduler/update'), {
+      const res = await authFetch(apiUrl('/api/roster-pipeline/scheduler/update'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -1856,7 +1857,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   <div className="flex gap-3">
                     <Button
                       onClick={async () => {
-                        await fetch(apiUrl('/api/roster-pipeline/scheduler/run-now'), {
+                        await authFetch(apiUrl('/api/roster-pipeline/scheduler/run-now'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ dryRun: schedulerStatus.dryRun }),
@@ -1872,7 +1873,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                     <Button
                       variant="outline"
                       onClick={() => {
-                        fetch(apiUrl('/api/roster-pipeline/scheduler'))
+                        authFetch(apiUrl('/api/roster-pipeline/scheduler'))
                           .then(res => res.json())
                           .then(setSchedulerStatus)
                           .catch(console.error)

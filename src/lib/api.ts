@@ -287,6 +287,14 @@ function getTenantHeaders(): Record<string, string> {
   }
 }
 
+export function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers)
+  for (const [key, value] of Object.entries(getTenantHeaders())) {
+    if (!headers.has(key)) headers.set(key, value)
+  }
+  return fetch(url, { ...init, headers })
+}
+
 function withCallerAbort<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise<T> {
   if (!signal) return promise
   if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))

@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getTenantAccessProfile, signOut, setActiveState, normalizeStateCode } from '@/lib/auth'
-import { apiUrl } from '@/lib/api'
+import { apiUrl, authFetch } from '@/lib/api'
 import { getHiddenPipelineTabLabel } from '@/lib/ceBrokerPipeline'
 
 const navItems = [
@@ -198,8 +198,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               value={activeStateCode}
               onValueChange={(code) => {
                 // Stop any active pipeline run in the previous state scope before switching.
-                fetch(apiUrl('/api/pipeline/stop'), { method: 'POST' }).catch(() => {})
-                fetch(apiUrl('/api/roster-pipeline/stop'), { method: 'POST' }).catch(() => {})
+                authFetch(apiUrl('/api/pipeline/stop'), { method: 'POST' }).catch(() => {})
+                authFetch(apiUrl('/api/roster-pipeline/stop'), { method: 'POST' }).catch(() => {})
                 setActiveState(code)
                 setActiveStateCode(normalizeStateCode(code))
               }}
