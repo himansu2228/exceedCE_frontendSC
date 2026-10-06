@@ -116,6 +116,8 @@ interface HistoryEntry {
   failed: number
   skipped: number
   errors: Array<{ error: string }>
+  run_status?: 'submitted' | 'already_submitted' | 'blocked' | 'failed' | 'dry_run' | 'no_changes' | 'no_completions'
+  message?: string
   entries?: Array<{
     student: string
     course: string
@@ -750,25 +752,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               totalStudents: data.total ?? prev.totalStudents,
             }))
 
-            if (data.student) {
-              setLiveRosterFeed(prev => {
-                const next: RosterFeedEntry = {
-                  student: data.student,
-                  course: 'Current run',
-                  licenseNumber: data.licenseNumber || '-',
-                  profession: data.profession || null,
-                  status: 'posted',
-                  mode: dryRun ? 'dry-run' : 'live',
-                  timestamp: new Date().toISOString(),
-                }
-
-                const deduped = prev.filter(
-                  item => !(item.student === next.student && item.licenseNumber === next.licenseNumber)
-                )
-
-                return [next, ...deduped].slice(0, 30)
-              })
-            }
             break
             
           case 'complete':
@@ -776,15 +759,16 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             setLastRun(new Date())
             setCurrentPhase('idle')
             setRunNotice(data.summary?.message || null)
-            if (Array.isArray(data.summary?.errors) && data.summary.errors.length > 0) {
-              setError(data.summary.errors.map((entry: { error?: string }) => entry.error).filter(Boolean).slice(0, 3).join('; ') || 'Roster posting did not complete')
-            }
+            setError(Array.isArray(data.summary?.errors) && data.summary.errors.length > 0
+              ? data.summary.errors.map((entry: { error?: string }) => entry.error).filter(Boolean).slice(0, 3).join('; ') || 'Roster posting did not complete'
+              : null)
             if (data.summary) {
               setProcessingStats(prev => ({
                 ...prev,
-                submitted: data.summary.successful || prev.submitted,
-                failed: data.summary.failed || prev.failed,
-                skipped: data.summary.skipped || prev.skipped,
+                submitted: data.summary.successful ?? 0,
+                failed: data.summary.failed ?? 0,
+                skipped: data.summary.skipped ?? 0,
+                duplicate: data.summary.already_posted ?? 0,
               }))
 
               if (Array.isArray(data.summary.entries)) {
@@ -794,7 +778,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             }
             // A step still active here is where the run ended (early exit or final step)
             {
-              const endedWithErrors = Array.isArray(data.summary?.errors) && data.summary.errors.length > 0
+              const endedWithErrors = (Array.isArray(data.summary?.errors) && data.summary.errors.length > 0)
+                || data.summary?.run_status === 'blocked' || data.summary?.run_status === 'failed'
               setPipelineSteps(prev =>
                 prev.map(step =>
                   step.phase === 'roster' && step.status === 'active'
@@ -1060,7 +1045,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
           {runNotice && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>No Completions To Post</AlertTitle>
+              <AlertTitle>Run Result</AlertTitle>
               <AlertDescription>{runNotice}</AlertDescription>
             </Alert>
           )}
@@ -1897,20 +1882,32 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   {history.map((entry, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg"
+                      className="flex flex-wrap items-start justify-between gap-4 p-4 bg-slate-50 rounded-lg"
                     >
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium">
                           {new Date(entry.started_at).toLocaleString()}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {entry.total_completions} completions processed
                         </p>
+                        {(entry.run_status || activeStateCode === 'HI') && (
+                          <Badge className="mt-2" variant={entry.run_status === 'submitted' || entry.run_status === 'already_submitted' ? 'success' : entry.run_status === 'failed' ? 'destructive' : entry.run_status === 'blocked' ? 'warning' : 'secondary'}>
+                            {entry.run_status === 'submitted' ? 'Roster Submitted'
+                              : entry.run_status === 'already_submitted' ? 'Roster Already Submitted'
+                              : entry.run_status === 'blocked' ? 'Roster Pending'
+                              : entry.run_status === 'failed' ? 'Roster Failed'
+                              : entry.run_status === 'dry_run' ? 'Dry Run'
+                              : entry.run_status === 'no_completions' ? 'No Completions'
+                              : entry.run_status === 'no_changes' ? 'No New Submission' : 'Roster Status Not Recorded'}
+                          </Badge>
+                        )}
+                        {entry.message && <p className="mt-2 break-words text-sm text-muted-foreground">{entry.message}</p>}
                       </div>
                       <div className="flex gap-4">
                         <div className="text-center">
                           <p className="text-lg font-bold text-green-600">{entry.successful}</p>
-                          <p className="text-xs text-muted-foreground">Success</p>
+                          <p className="text-xs text-muted-foreground">Attendees OK</p>
                         </div>
                         <div className="text-center">
                           <p className="text-lg font-bold text-red-600">{entry.failed}</p>
