@@ -344,6 +344,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   
   // Error state
   const [error, setError] = useState<string | null>(null)
+  const [runNotice, setRunNotice] = useState<string | null>(null)
 
   // Active tab is derived from route so sidebar can open the roster tab directly
   const [activeTab, setActiveTab] = useState<'pipeline' | 'roster' | 'scheduler' | 'history'>(
@@ -553,6 +554,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       duplicate: 0,
     })
     setError(null)
+    setRunNotice(null)
     setCurrentPhase('idle')
     setLiveRosterFeed([])
   }, [flow])
@@ -773,6 +775,10 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             setIsRunning(false)
             setLastRun(new Date())
             setCurrentPhase('idle')
+            setRunNotice(data.summary?.message || null)
+            if (Array.isArray(data.summary?.errors) && data.summary.errors.length > 0) {
+              setError(data.summary.errors.map((entry: { error?: string }) => entry.error).filter(Boolean).slice(0, 3).join('; ') || 'Roster posting did not complete')
+            }
             if (data.summary) {
               setProcessingStats(prev => ({
                 ...prev,
@@ -850,6 +856,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     setIsRunning(false)
     setCurrentPhase('idle')
     setError(null)
+    setRunNotice(null)
     setSelectedCourses('all')
     setHistoryPage(1)
 
@@ -1048,6 +1055,13 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {runNotice && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>No Completions To Post</AlertTitle>
+              <AlertDescription>{runNotice}</AlertDescription>
             </Alert>
           )}
 
