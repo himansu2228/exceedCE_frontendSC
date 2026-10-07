@@ -59,6 +59,7 @@ import {
   type Course,
   type StateAutomationFlow,
 } from '@/lib/api'
+import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getHiddenPipelineTabLabel, toPipelineStateCode } from '@/lib/ceBrokerPipeline'
@@ -1578,6 +1579,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               </div>
             </CardContent>
           </Card>
+
+          {activeStateCode === 'HI' && <HawaiiClosedCoursesCard />}
 
           <Card>
             <CardHeader>

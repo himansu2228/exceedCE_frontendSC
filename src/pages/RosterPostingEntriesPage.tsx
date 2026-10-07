@@ -12,9 +12,15 @@ import {
   postSelectedRosterEntries,
   type RosterPipelineEntry,
 } from '@/lib/api'
+import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
+import { toPipelineStateCode } from '@/lib/ceBrokerPipeline'
+import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 
 export function RosterPostingEntriesPage() {
+  const [activeStateCode, setActiveStateCode] = useState(() =>
+    toPipelineStateCode(getActiveState() || getTenantAccessProfile().stateCode || 'SC')
+  )
   const [entries, setEntries] = useState<RosterPipelineEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [posting, setPosting] = useState(false)
@@ -55,6 +61,17 @@ export function RosterPostingEntriesPage() {
   useEffect(() => {
     void loadEntries()
   }, [loadEntries])
+
+  useEffect(() => {
+    const onActiveStateChanged = () => {
+      setActiveStateCode(toPipelineStateCode(getActiveState() || getTenantAccessProfile().stateCode || 'SC'))
+    }
+
+    window.addEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+    return () => {
+      window.removeEventListener('exceedce:active-state-changed', onActiveStateChanged as EventListener)
+    }
+  }, [])
 
   const selectedEntries = useMemo(
     () => entries.filter((entry) => selectedIds[entry.id]),
@@ -152,6 +169,8 @@ export function RosterPostingEntriesPage() {
           <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
+
+      {activeStateCode === 'HI' && <HawaiiClosedCoursesCard />}
 
       <Card>
         <CardHeader>

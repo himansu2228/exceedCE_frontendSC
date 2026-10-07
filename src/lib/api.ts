@@ -959,6 +959,47 @@ export async function resolveRosterVerification(): Promise<{ success: boolean; v
   })
 }
 
+export interface HawaiiPortalCourse {
+  id: string
+  course_number: string
+  title: string
+  status: string
+  start_date: string | null
+  end_date: string | null
+  biennium: string | null
+  is_closed: boolean
+  can_reopen: boolean
+}
+
+export interface ReopenHawaiiCourseResult {
+  success: boolean
+  course_id: string
+  course_number: string
+  previous_status: string
+  status: string
+  attendees: number
+  submitted_attendees: number
+  credits_intact: boolean
+  message: string
+}
+
+export async function getHawaiiPortalCourses(): Promise<{
+  courses: HawaiiPortalCourse[]
+  closed_count: number
+  reopenable_count: number
+}> {
+  return fetchApi<{ courses: HawaiiPortalCourse[]; closed_count: number; reopenable_count: number }>(
+    '/roster-pipeline/hi/courses',
+  )
+}
+
+export async function reopenHawaiiCourse(courseId: string): Promise<ReopenHawaiiCourseResult> {
+  return fetchApi<ReopenHawaiiCourseResult>(
+    `/roster-pipeline/hi/courses/${encodeURIComponent(courseId)}/reopen`,
+    { method: 'POST' },
+  )
+}
+
 export async function startPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean, mode?: 'test' | 'live' }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/pipeline/start', {
     method: 'POST',
