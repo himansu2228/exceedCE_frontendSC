@@ -25,7 +25,6 @@ import { getCompletedEntries, getSCCourses, type CompletedEntry, type Course } f
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getActiveState, getTenantAccessProfile, normalizeStateCode } from '@/lib/auth'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
-import * as XLSX from 'xlsx'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
 
@@ -192,7 +191,11 @@ export function CompletedPage() {
     }
   }
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const [XLSX, { formatDataWorksheet }] = await Promise.all([
+      import('xlsx-js-style'),
+      import('@/lib/excelFormatting'),
+    ])
     const worksheetData = entries.map((entry) => ({
       User: entry.full_name || `${entry.first_name} ${entry.last_name}`.trim(),
       'User ID': entry.user_id ?? '',
@@ -203,17 +206,13 @@ export function CompletedPage() {
       Profession: entry.licensee_profession || '',
       'Completed Date': entry.date_completed_iso || entry.date_completed || '',
     }))
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData)
-    worksheet['!cols'] = [
-      { wch: 28 },
-      { wch: 12 },
-      { wch: 32 },
-      { wch: 44 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 20 },
-      { wch: 18 },
-    ]
+    const headers = ['User', 'User ID', 'Email', 'Course', 'CEB Course ID', 'License', 'Profession', 'Completed Date']
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData, { header: headers })
+    formatDataWorksheet(worksheet, {
+      headerRow: 0,
+      dataEndRow: worksheetData.length,
+      columnWidths: [28, 12, 32, 44, 16, 18, 24, 20],
+    })
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Completed Users')
     XLSX.writeFile(workbook, `completed-users-${activeStateCode.toLowerCase()}.xlsx`)

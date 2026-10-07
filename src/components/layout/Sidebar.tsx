@@ -95,7 +95,13 @@ const getSuperAdminSalesItems = (): NavItem[] => {
     { path: '/sales/crcbr', icon: Target, label: 'CRCBR' },
     { path: '/sales/partner-reports', icon: FileSpreadsheet, label: 'Partner Reports' },
     { path: '/sales/upcoming-classes', icon: CalendarClock, label: 'Upcoming Classes' },
-    { path: '/sales/course-evaluations', icon: Star, label: 'Course Evaluation' },
+    {
+      icon: Star, label: 'Course Evaluation',
+      children: [
+        { path: '/sales/course-evaluations/analytics', label: 'Analytics' },
+        { path: '/sales/course-evaluations/comparison', label: 'Comparison' },
+      ],
+    },
     { path: '/sales/quiz-questions', icon: HelpCircle, label: 'Quiz Questions' },
     { path: '/sales/settings', icon: Settings, label: 'Sales Settings' }
   )
@@ -110,7 +116,7 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
-  const [cbaMenuOpen, setCbaMenuOpen] = useState(false)
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({})
   const [activeStateCode, setActiveStateCode] = useState(() => normalizeStateCode(getTenantAccessProfile().stateCode || 'SC'))
   const location = useLocation()
   const navigate = useNavigate()
@@ -223,7 +229,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         {tenantNavItems.map((item) => {
           if ('children' in item) {
             const isCbaActive = item.children.some((child) => location.pathname === child.path || location.pathname.startsWith(`${child.path}/`))
-            const isExpanded = cbaMenuOpen
+            const isExpanded = openMenus[item.label] ?? isCbaActive
 
             if (collapsed) {
               return (
@@ -248,7 +254,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               <div key={item.label}>
                 <button
                   type="button"
-                  onClick={() => setCbaMenuOpen((open) => !open)}
+                  onClick={() => setOpenMenus((current) => ({ ...current, [item.label]: !isExpanded }))}
+                  aria-expanded={isExpanded}
                   className={cn(
                     'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
                     isCbaActive

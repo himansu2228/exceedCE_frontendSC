@@ -70,6 +70,8 @@ export interface NcScheduledClass {
   enrollmentCount: number | null
   enrollmentScope?: string
   enrollmentCheckedAt?: string
+  instructorAvailable?: boolean
+  sendLeadMinutes?: number
 }
 
 export interface NcUpcomingClassesResponse {
@@ -379,6 +381,18 @@ export async function getNcUpcomingClasses(): Promise<NcUpcomingClassesResponse>
   return fetchApi<NcUpcomingClassesResponse>('/nc-class-rosters/upcoming', { timeoutMs: 60000 })
 }
 
+export async function saveClassInstructorSettings(
+  classType: 'nc' | 'instructor',
+  classId: string,
+  available: boolean,
+  mailLeadHours: number
+): Promise<{ classType: 'nc' | 'instructor'; classId: string; instructorAvailable: boolean; mailLeadHours: number }> {
+  return fetchApi('/class-instructor-availability', {
+    method: 'POST',
+    body: JSON.stringify({ classType, classId, available, mailLeadHours }),
+  })
+}
+
 export interface InstructorUpcomingClass {
   courseId: number
   courseName: string
@@ -391,6 +405,7 @@ export interface InstructorUpcomingClass {
   enrollmentCheckedAt: string | null
   enrollmentError?: string
   scheduleStatus: 'scheduled' | 'date-not-found-in-title'
+  instructorAvailable?: boolean
 }
 
 export async function getInstructorUpcomingClasses(
@@ -403,6 +418,8 @@ export async function getInstructorUpcomingClasses(
 
 export interface CourseEvaluationRecord {
   id?: number | string
+  courseId?: number | string
+  userdisplayName?: string
   courseName?: string
   course?: string | { id?: number | string; name?: string; title?: string }
   course_name?: string
