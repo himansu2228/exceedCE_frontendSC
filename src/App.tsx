@@ -136,7 +136,9 @@ function App() {
               <Route path="sales/crcbr" element={<SalesCRCBRPage />} />
               <Route path="sales/partner-reports" element={<SalesPartnerReportsPage />} />
               <Route path="sales/upcoming-classes" element={<SalesUpcomingClassesPage />} />
-              <Route path="sales/course-evaluations" element={<SalesCourseEvaluationsPage />} />
+              <Route path="sales/course-evaluations" element={<Navigate to="/sales/course-evaluations/analytics" replace />} />
+              <Route path="sales/course-evaluations/analytics" element={<SalesCourseEvaluationsPage view="analytics" />} />
+              <Route path="sales/course-evaluations/comparison" element={<SalesCourseEvaluationsPage view="comparison" />} />
               <Route path="sales/quiz-questions" element={<SalesQuizQuestionsPage />} />
               <Route path="sales/settings" element={<SalesSettingsPage />} />
             </Route>

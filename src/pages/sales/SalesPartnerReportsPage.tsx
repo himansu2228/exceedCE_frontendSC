@@ -19,7 +19,6 @@ import {
   type PartnerReportSettings,
   type ReportFrequency,
 } from '@/lib/api'
-import * as XLSX from 'xlsx'
 
 const WEEKDAY_OPTIONS = [
   { value: '0', label: 'Sunday' },
@@ -173,7 +172,11 @@ export function SalesPartnerReportsPage() {
     void loadReport()
   }, [loadReport])
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const [XLSX, { formatDataWorksheet }] = await Promise.all([
+      import('xlsx-js-style'),
+      import('@/lib/excelFormatting'),
+    ])
     if (!reportData || reportData.items.length === 0) return
 
     const partnerName = selectedPartner?.name || 'Partner'
@@ -226,17 +229,13 @@ export function SalesPartnerReportsPage() {
     ]
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows, totalRow])
-    worksheet['!cols'] = [
-      { wch: 16 },
-      { wch: 24 },
-      { wch: 40 },
-      { wch: 10 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 24 },
-    ]
+    formatDataWorksheet(worksheet, {
+      headerRow: 0,
+      dataEndRow: dataRows.length + 1,
+      totalRow: dataRows.length + 1,
+      columnWidths: [18, 26, 40, 10, 12, 16, 16, 16, 16, 16, 18, 24],
+      currencyColumns: [5, 6, 7, 8, 9, 10, 11],
+    })
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Partner Remittance')

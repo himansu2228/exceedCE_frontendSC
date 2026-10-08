@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import { getSalesAnalytics } from '@/lib/api'
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns'
-import * as XLSX from 'xlsx'
 
 type ViewMode = 'sales' | 'orders'
 
@@ -179,7 +178,11 @@ export function SalesOutOfStatePage() {
     return { monthlyTotal, grandTotalRevenue, grandTotalQuantity }
   }, [rows, months])
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const [XLSX, { formatDataWorksheet }] = await Promise.all([
+      import('xlsx-js-style'),
+      import('@/lib/excelFormatting'),
+    ])
     const headers = ['Course Name', ...months.map(m => m.label), 'Grand Total']
     const dataRows = rows.map(row => [
       row.courseName,
@@ -203,12 +206,15 @@ export function SalesOutOfStatePage() {
         ? totals.grandTotalRevenue
         : totals.grandTotalQuantity,
     ]
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows, totalRow])
-    worksheet['!cols'] = [
-      { wch: 48 },
-      ...months.map(() => ({ wch: 12 })),
-      { wch: 14 },
-    ]
+    const worksheet = XLSX.utils.aoa_to_sheet([['OUT-OF-STATE SALES'], headers, ...dataRows, totalRow])
+    formatDataWorksheet(worksheet, {
+      titleRow: 0,
+      headerRow: 1,
+      dataEndRow: dataRows.length + 2,
+      totalRow: dataRows.length + 2,
+      columnWidths: [48, ...months.map(() => 14), 16],
+      currencyColumns: viewMode === 'sales' ? Array.from({ length: months.length + 1 }, (_, index) => index + 1) : [],
+    })
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, viewMode === 'sales' ? 'Sales' : 'Orders')
     XLSX.writeFile(workbook, `out-of-state-sales-${viewMode}.xlsx`)
