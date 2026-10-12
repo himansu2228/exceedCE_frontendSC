@@ -41,20 +41,20 @@ function formatUSD(value: number): string {
 
   // Fallback partner list used only when the partner API is unavailable.
 const DEFAULT_PARTNERS: PartnerConfig[] = [
-  { id: '123-coned', name: '123 ConEd LLC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
-  { id: 'abe-lee', name: 'Abe Lee Seminars', partnerSharePct: 25, referralFeePct: 0, frequency: 'Quarterly', description: 'Hawaii Real Estate Partner' },
-  { id: 'beth-baker-owens', name: 'Beth Baker Owens', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
-  { id: 'cba', name: 'Commercial Brokers Association (CBA)', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Commercial Brokers Association Washington' },
+  { id: '123-coned', name: '123 ConEd LLC', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
+  { id: 'abe-lee', name: 'Abe Lee Seminars', partnerSharePct: 50, referralFeePct: 0, frequency: 'Quarterly', description: 'Hawaii Real Estate Partner' },
+  { id: 'beth-baker-owens', name: 'Beth Baker Owens', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
+  { id: 'cba', name: 'Commercial Brokers Association (CBA)', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Commercial Brokers Association Washington' },
   { id: 'cheryl-crawford', name: 'Cheryl Crawford', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
-  { id: 'crcbr', name: 'CRCBR', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'Charlotte Region Commercial Board of Realtors' },
-  { id: 'devon-higgins', name: 'Devon Higgins', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
+  { id: 'crcbr', name: 'CRCBR', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Charlotte Region Commercial Board of Realtors' },
+  { id: 'devon-higgins', name: 'Devon Higgins', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
   { id: 'donald-croteau', name: 'Donald Croteau', partnerSharePct: 35, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor & Course Author Partner' },
-  { id: 'house-of-kaos', name: 'House of Kaos LLC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
-  { id: 'joseph-fisher', name: 'Joseph Fisher', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
-  { id: 'mtritt', name: 'MTritt INC', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
-  { id: 'nc-realtors', name: 'North Carolina Association of REALTORS', partnerSharePct: 15, referralFeePct: 0, frequency: 'Monthly', description: 'State Realtor Association Partner' },
+  { id: 'house-of-kaos', name: 'House of Kaos LLC', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
+  { id: 'joseph-fisher', name: 'Joseph Fisher', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Instructor Partner' },
+  { id: 'mtritt', name: 'MTritt INC', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
+  { id: 'nc-realtors', name: 'North Carolina Association of REALTORS', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'State Realtor Association Partner' },
   { id: 'onlineed', name: 'OnlineEd', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'CE Platform Partner' },
-  { id: 'taxonics', name: 'Taxonics', partnerSharePct: 20, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
+  { id: 'taxonics', name: 'Taxonics', partnerSharePct: 50, referralFeePct: 0, frequency: 'Monthly', description: 'Vendor Partner' },
 ]
 
 
@@ -77,7 +77,6 @@ export function SalesPartnerReportsPage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const [settingsSaved, setSettingsSaved] = useState(false)
-
   const loadSettingsForPartner = useCallback(async (partnerId: string) => {
     setSettingsLoading(true)
     setSettingsError(null)
@@ -321,7 +320,6 @@ export function SalesPartnerReportsPage() {
             </div>
           </div>
 
-          {/* Selected Vendor Configuration Details */}
           {selectedPartner && (
             <div className="mt-4 flex flex-wrap items-center gap-4 rounded-lg bg-blue-50/60 border border-blue-100 p-3 text-xs text-blue-950">
               <div className="flex items-center gap-1.5 font-semibold">
@@ -335,13 +333,10 @@ export function SalesPartnerReportsPage() {
         </CardContent>
       </Card>
 
-      {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Total Orders
-            </CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Orders</CardTitle>
             <Users className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
@@ -349,85 +344,58 @@ export function SalesPartnerReportsPage() {
             <p className="text-xs text-muted-foreground mt-1">Orders for selected period</p>
           </CardContent>
         </Card>
-
         <Card className="border shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Gross Sales
-            </CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gross Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-700">
-              {loading ? <Skeleton className="h-8 w-24" /> : formatUSD(reportData?.summary.totalGrossSale || 0)}
-            </div>
+            <div className="text-2xl font-bold text-emerald-700">{loading ? <Skeleton className="h-8 w-24" /> : formatUSD(reportData?.summary.totalGrossSale || 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Total revenue collected</p>
           </CardContent>
         </Card>
-
         <Card className="border shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Stripe Fees
-            </CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stripe Fees</CardTitle>
             <Wallet className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-700">
-              {loading ? <Skeleton className="h-8 w-24" /> : formatUSD(reportData?.summary.totalStripeFees || 0)}
-            </div>
+            <div className="text-2xl font-bold text-amber-700">{loading ? <Skeleton className="h-8 w-24" /> : formatUSD(reportData?.summary.totalStripeFees || 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Total card processing fees</p>
           </CardContent>
         </Card>
-
         <Card className="border shadow-sm bg-blue-50/40 border-blue-200">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-blue-900">
-              Remittance from Stripe
-            </CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-blue-900">Remittance from Stripe</CardTitle>
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-700">
-              {loading ? <Skeleton className="h-8 w-28" /> : formatUSD(reportData?.summary.totalRemittanceFromStripe || 0)}
-            </div>
-            <p className="text-xs text-blue-800/80 mt-1">Net sales after Stripe fees & partner share</p>
+            <div className="text-2xl font-bold text-blue-700">{loading ? <Skeleton className="h-8 w-28" /> : formatUSD(reportData?.summary.totalRemittanceFromStripe || 0)}</div>
+            <p className="text-xs text-blue-800/80 mt-1">Net sales after Stripe fees &amp; partner share</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Table Card */}
       <Card className="border shadow-sm">
         <CardHeader className="border-b bg-slate-50/50 py-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold text-slate-900">
-              Itemized Transactions & Remittance Breakdown
-            </CardTitle>
-            {reportData && (
-              <span className="text-xs font-medium text-muted-foreground">
-                Showing {reportData.items.length} records
-              </span>
-            )}
+            <CardTitle className="text-base font-semibold text-slate-900">Itemized Transactions &amp; Remittance Breakdown</CardTitle>
+            {reportData && <span className="text-xs font-medium text-muted-foreground">Showing {reportData.items.length} records</span>}
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="space-y-3 p-5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : error ? (
             <div className="m-5 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              {error}
+              <AlertTriangle className="h-4 w-4 shrink-0" />{error}
             </div>
           ) : !reportData || reportData.items.length === 0 ? (
             <div className="flex min-h-[260px] flex-col items-center justify-center p-8 text-center">
               <p className="font-semibold text-slate-800">No partner transactions found</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Try selecting a different partner or adjusting the date range filter.
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Try selecting a different partner or adjusting the date range filter.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -670,3 +638,4 @@ export function SalesPartnerReportsPage() {
     </div>
   )
 }
+
