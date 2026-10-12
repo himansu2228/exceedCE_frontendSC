@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, ChevronDown, HelpCircle, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   getLowAccuracyQuizQuestions,
@@ -30,6 +31,7 @@ export function SalesQuizQuestionsPage() {
   const [loadingQuizzes, setLoadingQuizzes] = useState(true)
   const [error, setError] = useState('')
   const [quizListError, setQuizListError] = useState('')
+  const [activeQuestion, setActiveQuestion] = useState<{ question: string; quizName: string; correctPercentage: number } | null>(null)
 
   const load = async (quizId: string, cursor = 0, requestedPage = 1, refresh = false) => {
     setLoading(true)
@@ -245,7 +247,15 @@ export function SalesQuizQuestionsPage() {
                     <ul className="space-y-2">
                       {quiz.questions.map((question) => (
                         <li key={question.id} className="flex items-start justify-between gap-4">
-                          <span>{question.question}</span>
+                          <button
+                            type="button"
+                            className="min-w-0 flex-1 text-left hover:text-teal-700 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                            onClick={() => setActiveQuestion({ question: question.question, quizName: quiz.name, correctPercentage: question.correctPercentage })}
+                            aria-label={`View full question from ${quiz.name}`}
+                            title="Click to view the full question"
+                          >
+                            <span className="line-clamp-2">{question.question}</span>
+                          </button>
                           <span className="shrink-0 font-semibold tabular-nums text-red-700">{question.correctPercentage.toFixed(1)}%</span>
                         </li>
                       ))}
@@ -275,7 +285,17 @@ export function SalesQuizQuestionsPage() {
               {questions.map((question) => (
                 <tr key={question.id} className="align-top hover:bg-slate-50">
                   <td className="max-w-64 px-4 py-4 font-medium text-slate-700">{question.quizName}</td>
-                  <td className="min-w-80 px-4 py-4 text-slate-900">{question.question}</td>
+                  <td className="min-w-80 px-4 py-4 text-slate-900">
+                    <button
+                      type="button"
+                      className="line-clamp-2 text-left hover:text-teal-700 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                      onClick={() => setActiveQuestion({ question: question.question, quizName: question.quizName, correctPercentage: question.correctPercentage })}
+                      aria-label={`View full question from ${question.quizName}`}
+                      title="Click to view the full question"
+                    >
+                      {question.question}
+                    </button>
+                  </td>
                   <td className="px-4 py-4 text-right font-semibold tabular-nums text-red-700">{question.correctPercentage.toFixed(1)}%</td>
                 </tr>
               ))}
@@ -295,6 +315,20 @@ export function SalesQuizQuestionsPage() {
           </Button>
         </div>
       )}
+      <Dialog open={activeQuestion !== null} onOpenChange={(open) => { if (!open) setActiveQuestion(null) }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Quiz question</DialogTitle>
+            <DialogDescription className="break-words">{activeQuestion?.quizName}</DialogDescription>
+          </DialogHeader>
+          {activeQuestion && (
+            <div className="space-y-4">
+              <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-900">{activeQuestion.question}</p>
+              <p className="border-t border-slate-200 pt-3 text-sm text-slate-600">Correct: {activeQuestion.correctPercentage.toFixed(1)}%</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download, RefreshCw, Star, X, GitCompareArrows } from 'lucide-react'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -22,12 +22,13 @@ function monthKey(value?: string): string | null {
 }
 
 const RATING_COLORS = ['#dc2626', '#ea580c', '#ca8a04', '#0891b2', '#0d9488']
+const COMPARISON_COLORS = ['#0d9488', '#2563eb', '#d97706', '#db2777', '#7c3aed', '#65a30d', '#0891b2', '#ea580c', '#4f46e5', '#be123c', '#0f766e', '#a16207', '#0369a1', '#9333ea']
 
-function ChartPanel({ title, detail, children, controls, empty }: { title: string; detail: string; children: React.ReactElement; controls?: React.ReactNode; empty?: React.ReactNode }) {
+function ChartPanel({ title, detail, children, controls, empty, chartHeight = 288 }: { title: string; detail: string; children: React.ReactElement; controls?: React.ReactNode; empty?: React.ReactNode; chartHeight?: number }) {
   return (
     <Card className="min-w-0 border-slate-200">
       <CardHeader className="pb-3"><CardTitle className="text-base">{title}</CardTitle><p className="text-sm text-slate-500">{detail}</p>{controls}</CardHeader>
-      <CardContent><div className="h-72 w-full min-w-0">{empty ?? <ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer>}</div></CardContent>
+      <CardContent><div className="w-full min-w-0" style={{ height: chartHeight }}>{empty ?? <ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer>}</div></CardContent>
     </Card>
   )
 }
@@ -40,6 +41,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   const [selectedVersions, setSelectedVersions] = useState<string[]>([])
   const [courseSearch, setCourseSearch] = useState('')
   const [comparisonOpen, setComparisonOpen] = useState(false)
+  const [comparisonView, setComparisonView] = useState<'table' | 'analytics'>('table')
   const [details, setDetails] = useState<{ title: string; records: CourseEvaluationRecord[] } | null>(null)
   const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -91,6 +93,51 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   const combinedRecords = (data?.records || []).filter((record) => selectedVersions.includes(courseKey(record)))
   const combined = evaluationSummary(combinedRecords)
   const combinedCourses = summarizeCourses(combinedRecords)
+  const comparisonCourseSeries = combinedCourses.map((course, index) => ({
+    ...course,
+    seriesKey: `course_${index}`,
+    color: COMPARISON_COLORS[index % COMPARISON_COLORS.length],
+  }))
+  const comparisonCourseKeys = new Map(comparisonCourseSeries.map((course) => [course.key, course.seriesKey]))
+  const comparisonEvaluationShare = comparisonCourseSeries.map((course) => ({ name: course.course, value: course.count, color: course.color }))
+  const comparisonCommentShare = comparisonCourseSeries.map((course) => ({ name: course.course, value: course.comments, color: course.color }))
+  const comparisonRatingDistribution = comparisonCourseSeries.map((course) => {
+    const courseRecords = combinedRecords.filter((record) => courseKey(record) === course.key)
+    return {
+      course: course.course,
+      key: course.key,
+      ...Object.fromEntries([1, 2, 3, 4, 5].map((rating) => [
+        `rating${rating}`,
+        courseRecords.filter((record) => {
+          const value = score(record)
+          return value !== null && Math.round(value) === rating
+        }).length,
+      ])),
+    }
+  })
+  const comparisonMonthlyMap = new Map<string, Map<string, { sum: number; count: number }>>()
+  for (const record of combinedRecords) {
+    const month = monthKey(record.submissionDate || record.created_at)
+    const seriesKey = comparisonCourseKeys.get(courseKey(record))
+    if (!month || !seriesKey) continue
+    const rating = score(record)
+    if (rating === null) continue
+    const monthCourses = comparisonMonthlyMap.get(month) || new Map<string, { sum: number; count: number }>()
+    const current = monthCourses.get(seriesKey) || { sum: 0, count: 0 }
+    current.sum += rating
+    current.count += 1
+    monthCourses.set(seriesKey, current)
+    comparisonMonthlyMap.set(month, monthCourses)
+  }
+  const comparisonMonthlyTrend = [...comparisonMonthlyMap.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([month, monthCourses]) => ({
+      month,
+      ...Object.fromEntries(comparisonCourseSeries.map((course) => {
+        const bucket = monthCourses.get(course.seriesKey)
+        return [course.seriesKey, bucket ? Number((bucket.sum / bucket.count).toFixed(2)) : null]
+      })),
+    }))
   const openCourse = (key: string) => {
     const matching = (data?.records || []).filter((record) => courseKey(record) === key)
     setDetails({ title: matching.length ? courseName(matching[0]) : 'Course evaluations', records: matching })
@@ -231,15 +278,67 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
       </>}
       <Dialog open={details !== null} onOpenChange={(open) => { if (!open) setDetails(null) }}><DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden"><DialogHeader className="pr-6"><DialogTitle className="break-words leading-normal">{details?.title}</DialogTitle><DialogDescription>ExceedCE evaluation records</DialogDescription></DialogHeader>{details && <EvaluationDetails records={details.records} exporting={exporting} onExport={(rows) => void exportRecords(rows, details.title)} />}</DialogContent></Dialog>
       <Dialog open={comparisonOpen} onOpenChange={setComparisonOpen}>
-        <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden">
+        <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-6xl flex-col overflow-hidden">
           <DialogHeader><DialogTitle>Course version comparison</DialogTitle><DialogDescription>{combinedCourses.length} selected versions · {combined.rated} rated responses</DialogDescription></DialogHeader>
-          <div className="min-h-0 overflow-auto">
+          <div className="flex gap-1 border-b border-slate-200 pb-2" role="tablist" aria-label="Comparison view">
+            <button type="button" role="tab" aria-selected={comparisonView === 'table'} onClick={() => setComparisonView('table')} className={`rounded-sm px-3 py-2 text-sm font-medium ${comparisonView === 'table' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>Comparison table</button>
+            <button type="button" role="tab" aria-selected={comparisonView === 'analytics'} onClick={() => setComparisonView('analytics')} className={`rounded-sm px-3 py-2 text-sm font-medium ${comparisonView === 'analytics' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>View analytics</button>
+          </div>
+          {comparisonView === 'table' ? <div className="min-h-0 overflow-auto">
             <table className="w-full min-w-[600px] text-left text-sm">
               <thead className="bg-slate-50"><tr>{['Course / LMS ID', 'State', 'Evaluations', 'Rated responses', 'Average / 5', 'Comments'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead>
               <tbody className="divide-y divide-slate-100">{combinedCourses.map((row) => <tr key={row.key}><td className="max-w-xs px-3 py-3"><button className="text-left font-medium text-teal-700 hover:underline" onClick={() => { setComparisonOpen(false); openCourse(row.key) }}>{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-3 py-3">{row.state || 'Not identified'}</td><td className="px-3 py-3">{row.count}</td><td className="px-3 py-3">{row.rated}</td><td className="px-3 py-3 font-semibold">{row.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{row.comments}</td></tr>)}</tbody>
               <tfoot className="border-t-2 border-teal-600 bg-teal-50 font-semibold"><tr><td className="px-3 py-3">Combined</td><td className="px-3 py-3">Selected states</td><td className="px-3 py-3">{combined.count}</td><td className="px-3 py-3">{combined.rated}</td><td className="px-3 py-3">{combined.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{combined.comments}</td></tr></tfoot>
             </table>
-          </div>
+          </div> : <div className="min-h-0 flex-1 overflow-auto py-2">
+            {combinedRecords.length === 0 ? <p className="py-12 text-center text-sm text-slate-500">No evaluations for the selected courses.</p> : <div className="grid gap-4 lg:grid-cols-2">
+              {[{ title: 'Evaluation share by course', detail: `${combined.count} total evaluations`, data: comparisonEvaluationShare }, { title: 'Written comments by course', detail: `${combined.comments} written comments`, data: comparisonCommentShare }].map((chart) => (
+                <ChartPanel key={chart.title} title={chart.title} detail={chart.detail} empty={
+                  <div className="flex h-full min-w-0 items-center gap-2">
+                    <div className="h-full min-w-0 flex-[0_0_42%]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={chart.data.filter((item) => item.value > 0)} dataKey="value" nameKey="name" innerRadius="48%" outerRadius="78%" paddingAngle={2}>
+                            {chart.data.filter((item) => item.value > 0).map((item) => <Cell key={item.name} fill={item.color} />)}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="min-w-0 flex-1 overflow-y-auto" style={{ maxHeight: 288 }}>
+                      {chart.data.map((item) => (
+                        <div key={item.name} className="flex min-w-0 items-center gap-2 py-1 text-xs" title={item.name}>
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
+                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                          <span className="shrink-0 tabular-nums text-slate-500">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                }><PieChart /></ChartPanel>
+              ))}
+              <ChartPanel title="Rating distribution by course" detail="Rated responses rounded to the nearest star" chartHeight={Math.max(320, comparisonRatingDistribution.length * 34 + 72)}>
+                <BarChart layout="vertical" data={comparisonRatingDistribution} margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
+                  <CartesianGrid stroke="#e2e8f0" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis type="category" dataKey="course" width={150} tickFormatter={axisName} tick={{ fontSize: 10 }} interval={0} />
+                  <Tooltip labelFormatter={(label) => String(label)} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {[1, 2, 3, 4, 5].map((rating, index) => <Bar key={rating} dataKey={`rating${rating}`} name={`${rating} star${rating === 1 ? '' : 's'}`} stackId="ratings" fill={RATING_COLORS[index]} />)}
+                </BarChart>
+              </ChartPanel>
+              <ChartPanel title="Monthly average rating" detail="Select courses in the legend to focus the trend" chartHeight={390}>
+                {comparisonMonthlyTrend.length === 0 ? <p className="flex h-full items-center justify-center text-sm text-slate-500">No dated ratings are available for these courses.</p> : <LineChart data={comparisonMonthlyTrend} margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
+                  <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis domain={[1, 5]} />
+                  <Tooltip />
+                  <Legend height={105} wrapperStyle={{ overflowY: 'auto', fontSize: 11, lineHeight: '20px' }} />
+                  {comparisonCourseSeries.map((course) => <Line key={course.seriesKey} type="monotone" dataKey={course.seriesKey} name={course.course} stroke={course.color} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />)}
+                </LineChart>}
+              </ChartPanel>
+            </div>}
+          </div>}
           <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setComparisonOpen(false); setDetails({ title: 'Combined course evaluations', records: combinedRecords }) }}>View evaluations</Button><Button variant="outline" disabled={exporting} onClick={() => void exportRecords(combinedRecords, 'Combined course evaluations')}><Download className="mr-2 h-4 w-4" />Export selected</Button></div>
         </DialogContent>
       </Dialog>
