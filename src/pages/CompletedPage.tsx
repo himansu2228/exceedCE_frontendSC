@@ -27,6 +27,8 @@ import { getActiveState, getTenantAccessProfile, normalizeStateCode } from '@/li
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
+// A cold load fetches every course plus per-user licences, which can exceed the default API timeout.
+const COMPLETED_REQUEST_TIMEOUT_MS = 120000
 
 function readCachedCompletedEntries(stateCode: string): CompletedEntry[] {
   try {
@@ -65,7 +67,7 @@ export function CompletedPage() {
   const [perPage, setPerPage] = useState(100)
   const [totalEntries, setTotalEntries] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
-
+  const [summary, setSummary] = useState<{ uniqueUsers?: number; courses?: number }>({})
   const [courseFilter, setCourseFilter] = useState('all')
   const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [searchTerm, setSearchTerm] = useState('')
@@ -98,10 +100,12 @@ export function CompletedPage() {
         page: targetPage,
         perPage: targetPerPage,
         refresh: forceRefresh,
+        timeoutMs: COMPLETED_REQUEST_TIMEOUT_MS,
       })
       setEntries(response.entries)
       setTotalEntries(response.total)
       setTotalPages(response.totalPages || 1)
+      setSummary({ uniqueUsers: response.unique_users, courses: response.courses_in_result })
       setPage(response.page || targetPage)
       setPerPage(response.perPage || targetPerPage)
       writeCachedCompletedEntries(stateCodeForCache, response.entries)
@@ -111,6 +115,7 @@ export function CompletedPage() {
         setEntries(fallbackEntries)
         setTotalEntries(fallbackEntries.length)
         setTotalPages(1)
+        setSummary({})
         setWarning('Live completed records timed out. Showing the latest cached snapshot.')
       } else {
         setError(err instanceof Error ? err.message : 'Failed to fetch completed users')
@@ -178,10 +183,11 @@ export function CompletedPage() {
     setLoading(true)
     setError(null)
     try {
-      const response = await getCompletedEntries({ resolveProfession: true, page: 1, perPage })
+      const response = await getCompletedEntries({ resolveProfession: true, page: 1, perPage, timeoutMs: COMPLETED_REQUEST_TIMEOUT_MS })
       setEntries(response.entries)
       setTotalEntries(response.total)
       setTotalPages(response.totalPages || 1)
+      setSummary({ uniqueUsers: response.unique_users, courses: response.courses_in_result })
       writeCachedCompletedEntries(activeStateCode, response.entries)
       setWarning(null)
     } catch (err) {
@@ -192,11 +198,20 @@ export function CompletedPage() {
   }
 
   const exportExcel = async () => {
-    const [XLSX, { formatDataWorksheet }] = await Promise.all([
+    // Export every record matching the current filters, not just the visible page.
+    const [XLSX, { formatDataWorksheet }, allResponse] = await Promise.all([
       import('xlsx-js-style'),
       import('@/lib/excelFormatting'),
+      getCompletedEntries({
+        courseId: courseFilter === 'all' ? undefined : Number(courseFilter),
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
+        search: searchTerm.trim() || undefined,
+        resolveProfession: true,
+        timeoutMs: COMPLETED_REQUEST_TIMEOUT_MS,
+      }),
     ])
-    const worksheetData = entries.map((entry) => ({
+    const worksheetData = allResponse.entries.map((entry) => ({
       User: entry.full_name || `${entry.first_name} ${entry.last_name}`.trim(),
       'User ID': entry.user_id ?? '',
       Email: entry.email || '',
@@ -225,14 +240,16 @@ export function CompletedPage() {
   }, [page, perPage, activeStateCode])
 
   const totalUsers = useMemo(() => {
+    if (summary.uniqueUsers !== undefined) return summary.uniqueUsers
     const ids = new Set(entries.map((entry) => String(entry.user_id || `${entry.email}:${entry.full_name}`)))
     return ids.size
-  }, [entries])
+  }, [entries, summary.uniqueUsers])
 
   const totalCourses = useMemo(() => {
+    if (summary.courses !== undefined) return summary.courses
     const ids = new Set(entries.map((entry) => entry.course_id))
     return ids.size
-  }, [entries])
+  }, [entries, summary.courses])
 
   const statTiles = [
     {
@@ -369,8 +386,8 @@ export function CompletedPage() {
             </div>
           </div>
         </CardHeader>
-          <CardTitle>{tenant.stateName} Completed Records</CardTitle>
         <CardContent>
+          <CardTitle className="mb-4 text-base">{tenant.stateName} Completed Records</CardTitle>
           <div className="mb-4">
             <PaginationControls
               page={page}

@@ -6,7 +6,12 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(dateStr: string | Date): string {
-  const date = new Date(dateStr)
+  // Date-only strings (YYYY-MM-DD) are parsed as UTC by `new Date`, which shifts the shown day
+  // back by one in timezones behind UTC. Build them as local dates instead.
+  const dateOnly = typeof dateStr === 'string' ? dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(dateStr)
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',

@@ -43,6 +43,9 @@ import { getTenantAccessProfile, signOut, setActiveState, normalizeStateCode } f
 import { apiUrl, authFetch } from '@/lib/api'
 import { getHiddenPipelineTabLabel } from '@/lib/ceBrokerPipeline'
 
+// States temporarily hidden from the Active State dropdown
+const HIDDEN_STATE_CODES = ['NV', 'NC', 'MO']
+
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/courses', icon: GraduationCap, label: 'Courses' },
@@ -214,7 +217,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {tenant.allowedStates.filter((name) => normalizeStateCode(name) !== 'NV').map((name) => {
+                {tenant.allowedStates.filter((name) => !HIDDEN_STATE_CODES.includes(normalizeStateCode(name))).map((name) => {
                   const code = normalizeStateCode(name)
                   return (
                     <SelectItem key={code} value={code}>

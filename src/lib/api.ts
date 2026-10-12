@@ -113,6 +113,8 @@ export interface CompletedEntry {
 export interface CompletedEntriesResponse {
   entries: CompletedEntry[]
   total: number
+  unique_users?: number
+  courses_in_result?: number
   courses_scanned: number
   page?: number
   perPage?: number
