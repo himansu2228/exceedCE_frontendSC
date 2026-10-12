@@ -101,7 +101,6 @@ export function SalesUpcomingClassesPage() {
     calendarEvents.set(key, [...(calendarEvents.get(key) || []), item])
   }
   const unscheduledClasses = scheduledClasses.filter((item) => !scheduledDate(item))
-
   const loadClasses = useCallback(async () => {
     const requestId = ++classRequestId.current
     setLoading(true)
