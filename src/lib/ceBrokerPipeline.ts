@@ -26,7 +26,7 @@ export function toPipelineStateCode(state: string | undefined | null): PipelineS
 export function getHiddenPipelineTabLabel(state: string | undefined | null): string {
   const code = toPipelineStateCode(state)
   const mappedCode = PIPELINE_TAB_STATE_MAP[code] || FALLBACK_STATE
-  return `CE Broker Pipeline ${mappedCode}`
+  return `Pipeline ${mappedCode}`
 }
 
 export function getPipelineScopeKey(state: string | undefined | null): string {

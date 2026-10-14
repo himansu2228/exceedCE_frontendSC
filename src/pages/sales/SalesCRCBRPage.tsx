@@ -43,7 +43,7 @@ export function SalesCRCBRPage() {
       const mapped = (response.revenueByCourse || [])
         .filter((item) => {
           const courseName = (item.course || '').toLowerCase().trim()
-          return validCourses.some(valid => courseName.includes(valid))
+          return !/\bexp\b/.test(courseName) && validCourses.some(valid => courseName.includes(valid))
         })
         .map((item) => ({
           courseName: item.course,
