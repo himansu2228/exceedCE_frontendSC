@@ -435,6 +435,7 @@ export interface CourseEvaluationsResponse {
   records: CourseEvaluationRecord[]
   total: number
   truncated: boolean
+  enrollmentByCourse?: Record<string, { enrolled: number; completed: number }>
 }
 
 export async function getCourseEvaluations(refresh = false): Promise<CourseEvaluationsResponse> {
@@ -447,6 +448,11 @@ export interface QuizOption {
   name: string
 }
 
+export interface QuizCourseOption {
+  id: string
+  name: string
+}
+
 export interface LowAccuracyQuizQuestion {
   id: string
   quizId: string
@@ -454,6 +460,8 @@ export interface LowAccuracyQuizQuestion {
   question: string
   correctPercentage: number
   difficulty: string | null
+  options?: Array<{ id: string; text: string; isCorrect: boolean | null }>
+  correctAnswer?: string | null
 }
 
 export interface LowAccuracyQuiz {
@@ -475,18 +483,30 @@ export interface LowAccuracyQuizQuestionsResponse {
   hasNextPage: boolean
 }
 
-export async function getQuizOptions(refresh = false): Promise<QuizOption[]> {
-  if (refresh) invalidateApiCache('/sales/quiz-questions/quizzes')
-  const endpoint = `/sales/quiz-questions/quizzes${refresh ? '?refresh=true' : ''}`
+export async function getQuizOptions(refresh = false, courseId = 'all'): Promise<QuizOption[]> {
+  const query = new URLSearchParams({ courseId, ...(refresh ? { refresh: 'true' } : {}) })
+  const endpoint = `/sales/quiz-questions/quizzes?${query.toString()}`
+  if (refresh) invalidateApiCache(endpoint)
   const response = await fetchApi<{ quizzes: QuizOption[] }>(endpoint, { timeoutMs: 60000 })
   return response.quizzes || []
 }
 
-export async function getLowAccuracyQuizQuestions(quizId = 'all', cursor = 0, refresh = false): Promise<LowAccuracyQuizQuestionsResponse> {
-  const query = new URLSearchParams({ quizId, cursor: String(cursor), threshold: '60', ...(refresh ? { refresh: 'true' } : {}) })
+export async function getQuizCourseOptions(refresh = false): Promise<QuizCourseOption[]> {
+  if (refresh) invalidateApiCache('/sales/quiz-questions/courses')
+  const endpoint = `/sales/quiz-questions/courses${refresh ? '?refresh=true' : ''}`
+  const response = await fetchApi<{ courses: QuizCourseOption[] }>(endpoint, { timeoutMs: 60000 })
+  return response.courses || []
+}
+
+export async function getLowAccuracyQuizQuestions(quizId = 'all', cursor = 0, refresh = false, courseId = 'all'): Promise<LowAccuracyQuizQuestionsResponse> {
+  const query = new URLSearchParams({ quizId, cursor: String(cursor), threshold: '60', courseId, ...(refresh ? { refresh: 'true' } : {}) })
   const endpoint = `/sales/quiz-questions?${query.toString()}`
   if (refresh) invalidateApiCache(endpoint)
   return fetchApi<LowAccuracyQuizQuestionsResponse>(endpoint, { timeoutMs: 300000 })
+}
+
+export async function getQuizQuestionDetail(questionId: string): Promise<Pick<LowAccuracyQuizQuestion, 'question' | 'options' | 'correctAnswer'>> {
+  return fetchApi<Pick<LowAccuracyQuizQuestion, 'question' | 'options' | 'correctAnswer'>>(`/sales/quiz-questions/${encodeURIComponent(questionId)}`, { timeoutMs: 60000 })
 }
 
 export async function downloadNcClassRoster(entryId: string): Promise<Blob> {

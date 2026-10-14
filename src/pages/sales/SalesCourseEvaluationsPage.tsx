@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Download, RefreshCw, Star, X, GitCompareArrows } from 'lucide-react'
+import { ArrowLeft, Download, RefreshCw, Star, X, GitCompareArrows } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import { getCourseEvaluations, type CourseEvaluationRecord, type CourseEvaluationsResponse } from '@/lib/api'
 import { courseKey, courseName, courseState, evaluationSummary, reviewText, score, summarizeCourses } from '@/lib/courseEvaluations'
 
@@ -38,11 +39,13 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   const [selectedCourse, setSelectedCourse] = useState('all')
   const [selectedState, setSelectedState] = useState('all')
   const [ratingState, setRatingState] = useState('all')
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [selectedVersions, setSelectedVersions] = useState<string[]>([])
   const [courseSearch, setCourseSearch] = useState('')
   const [comparisonOpen, setComparisonOpen] = useState(false)
   const [comparisonView, setComparisonView] = useState<'table' | 'analytics'>('table')
   const [details, setDetails] = useState<{ title: string; records: CourseEvaluationRecord[] } | null>(null)
+  const [detailsReturnToComparison, setDetailsReturnToComparison] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -68,8 +71,15 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
 
   const states = useMemo(() => [...new Set((data?.records || []).map(courseState).filter((state): state is string => Boolean(state)))].sort(), [data])
   const stateRecords = useMemo(() => (data?.records || []).filter((record) => selectedState === 'all' || courseState(record) === selectedState), [data, selectedState])
-  const courses = useMemo(() => summarizeCourses(stateRecords), [stateRecords])
-  const records = useMemo(() => stateRecords.filter((record) => selectedCourse === 'all' || courseKey(record) === selectedCourse), [stateRecords, selectedCourse])
+  const courses = useMemo(() => summarizeCourses(stateRecords, data?.enrollmentByCourse), [stateRecords, data?.enrollmentByCourse])
+  const records = useMemo(() => stateRecords.filter((record) => {
+    if (selectedCourse !== 'all' && courseKey(record) !== selectedCourse) return false
+    if (view !== 'analytics' || (!dateRange.fromDate && !dateRange.toDate)) return true
+    const date = new Date(record.submissionDate || record.created_at || '')
+    if (Number.isNaN(date.getTime())) return false
+    const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    return (!dateRange.fromDate || day >= dateRange.fromDate) && (!dateRange.toDate || day <= dateRange.toDate)
+  }), [stateRecords, selectedCourse, view, dateRange.fromDate, dateRange.toDate])
   const scored = records.map((record) => ({ record, rating: score(record) })).filter((item): item is { record: CourseEvaluationRecord; rating: number } => item.rating !== null)
   const average = scored.length ? scored.reduce((sum, item) => sum + item.rating, 0) / scored.length : null
   const written = records.filter((record) => reviewText(record)).length
@@ -88,19 +98,25 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   }
   const monthly = [...monthlyMap.values()].sort((a, b) => a.month.localeCompare(b.month)).map((item) => ({ ...item, average: item.rated ? Number((item.sum / item.rated).toFixed(2)) : null }))
 
-  const courseRows = summarizeCourses(records)
+  const courseRows = summarizeCourses(records, data?.enrollmentByCourse)
+  const coursesWithEnrollment = courseRows.filter((course) => course.enrolled !== null)
+  const enrollmentTotal = coursesWithEnrollment.length
+    ? coursesWithEnrollment.reduce((sum, course) => sum + (course.enrolled ?? 0), 0)
+    : null
   const visibleCourses = courseRows.filter((row) => row.course.toLowerCase().includes(courseSearch.toLowerCase()))
+  const visibleCourseKeys = visibleCourses.map((row) => row.key)
+  const allVisibleCoursesSelected = visibleCourseKeys.length > 0 && visibleCourseKeys.every((key) => selectedVersions.includes(key))
   const combinedRecords = (data?.records || []).filter((record) => selectedVersions.includes(courseKey(record)))
   const combined = evaluationSummary(combinedRecords)
-  const combinedCourses = summarizeCourses(combinedRecords)
+  const combinedCourses = summarizeCourses(combinedRecords, data?.enrollmentByCourse)
   const comparisonCourseSeries = combinedCourses.map((course, index) => ({
     ...course,
     seriesKey: `course_${index}`,
     color: COMPARISON_COLORS[index % COMPARISON_COLORS.length],
   }))
   const comparisonCourseKeys = new Map(comparisonCourseSeries.map((course) => [course.key, course.seriesKey]))
-  const comparisonEvaluationShare = comparisonCourseSeries.map((course) => ({ name: course.course, value: course.count, color: course.color }))
-  const comparisonCommentShare = comparisonCourseSeries.map((course) => ({ name: course.course, value: course.comments, color: course.color }))
+  const comparisonEvaluationShare = comparisonCourseSeries.map((course) => ({ key: course.key, name: course.course, value: course.count, color: course.color }))
+  const comparisonCommentShare = comparisonCourseSeries.map((course) => ({ key: course.key, name: course.course, value: course.comments, color: course.color }))
   const comparisonRatingDistribution = comparisonCourseSeries.map((course) => {
     const courseRecords = combinedRecords.filter((record) => courseKey(record) === course.key)
     return {
@@ -147,7 +163,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
     setExporting(true)
     try {
       const { exportEvaluationWorkbook } = await import('../../lib/exportEvaluations.ts')
-      exportEvaluationWorkbook(rows, title)
+      exportEvaluationWorkbook(rows, title, data?.enrollmentByCourse)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to export evaluations.')
     } finally {
@@ -180,6 +196,11 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
     if (!month) return
     setDetails({ title: `${month} evaluations`, records: records.filter((record) => monthKey(record.submissionDate || record.created_at) === month && (commentsOnly === undefined || Boolean(reviewText(record)) === commentsOnly)) })
   }
+  const openComparisonDetails = (title: string, matchingRecords: CourseEvaluationRecord[]) => {
+    setComparisonOpen(false)
+    setDetailsReturnToComparison(true)
+    setDetails({ title, records: matchingRecords })
+  }
 
   return (
     <div className="space-y-6 pb-8 animate-fadeIn">
@@ -192,10 +213,15 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
         </div>
       </header>
 
+      {view === 'analytics' && <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <p className="text-sm font-medium text-slate-600">Filter analytics by evaluation date</p>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} showLabels={false} className="min-w-0" />
+      </div>}
+
       {error && <div role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
       {loading && !data ? <p className="py-12 text-center text-sm text-slate-500">Loading evaluations…</p> : data && <>
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Evaluation summary">
-          {[['Evaluations', records.length.toLocaleString()], ['Average rating', average === null ? 'No ratings' : `${average.toFixed(2)} / 5`], ['Written reviews', written.toLocaleString()], ['Courses', courseRows.length.toLocaleString()]].map(([label, value]) => <div key={label} className="border-t-2 border-teal-600 bg-slate-50 px-5 py-4"><p className="text-xs font-medium uppercase text-slate-500">{label}</p><button disabled={!records.length} onClick={() => setDetails({ title: 'Filtered evaluations', records: label === 'Written reviews' ? records.filter((record) => reviewText(record)) : records })} className="mt-2 flex items-center gap-2 text-left text-xl font-semibold text-slate-900 hover:text-teal-700 hover:underline disabled:no-underline" aria-label={`View ${label.toLowerCase()} records`}>{label === 'Average rating' && <Star className="h-4 w-4 fill-amber-400 text-amber-500" />}{value}</button></div>)}
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Evaluation summary">
+          {[['Evaluations', records.length.toLocaleString()], ['Average rating', average === null ? 'No ratings' : `${average.toFixed(2)} / 5`], ['Written reviews', written.toLocaleString()], ['Courses', courseRows.length.toLocaleString()], ['Course enrollments', enrollmentTotal?.toLocaleString() ?? 'Not available']].map(([label, value]) => <div key={label} className="border-t-2 border-teal-600 bg-slate-50 px-5 py-4"><p className="text-xs font-medium uppercase text-slate-500">{label}</p>{label === 'Course enrollments' ? <><p className="mt-2 text-xl font-semibold text-slate-900">{value}</p><p className="mt-1 text-xs leading-5 text-slate-500"></p></> : <button disabled={!records.length} onClick={() => setDetails({ title: 'Filtered evaluations', records: label === 'Written reviews' ? records.filter((record) => reviewText(record)) : records })} className="mt-2 flex items-center gap-2 text-left text-xl font-semibold text-slate-900 hover:text-teal-700 hover:underline disabled:no-underline" aria-label={`View ${label.toLowerCase()} records`}>{label === 'Average rating' && <Star className="h-4 w-4 fill-amber-400 text-amber-500" />}{value}</button>}</div>)}
         </section>
         {view === 'comparison' && <><section className="space-y-3 border-y border-slate-200 py-5" aria-label="Combined course ratings">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Selected versions ({combinedCourses.length})</h2><Button variant="ghost" disabled={!selectedVersions.length} onClick={() => setSelectedVersions([])}><X className="mr-2 h-4 w-4" />Clear selection</Button></div>
@@ -205,8 +231,8 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
           </> : <p className="text-sm text-slate-500">No course versions selected.</p>}
         </section>
         <section className="space-y-3" aria-label="Course versions">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Course versions</h2><div className="flex max-w-full flex-wrap gap-2"><Input className="w-60 max-w-full" placeholder="Search courses" aria-label="Search course versions" value={courseSearch} onChange={(event) => setCourseSearch(event.target.value)} /><Button variant="outline" disabled={!records.length || exporting} onClick={() => void exportRecords(records, 'Filtered course evaluations')}><Download className="mr-2 h-4 w-4" />Export filtered</Button></div></div>
-          <div className="overflow-x-auto rounded-md border border-slate-200"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Combine</th><th className="px-4 py-3">Course / LMS ID</th><th className="px-4 py-3">Course state</th><th className="px-4 py-3">Responses</th><th className="px-4 py-3">Average</th><th className="px-4 py-3">Comments</th></tr></thead><tbody className="divide-y divide-slate-100">{visibleCourses.map((row) => <tr key={row.key} className={selectedVersions.includes(row.key) ? 'bg-teal-50/50' : ''}><td className="px-4 py-3"><input type="checkbox" className="h-4 w-4 accent-teal-600" checked={selectedVersions.includes(row.key)} onChange={() => toggleVersion(row.key)} aria-label={`Combine ${row.course} (ID ${row.courseId ?? 'unknown'})`} /></td><td className="max-w-md px-4 py-3"><button onClick={() => openCourse(row.key)} className="text-left font-medium text-teal-700 hover:underline">{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-4 py-3">{row.state || 'Not identified'}</td><td className="px-4 py-3">{row.rated} rated / {row.count} total</td><td className="px-4 py-3"><button onClick={() => openCourse(row.key)} className="font-semibold text-teal-700 hover:underline">{row.average === null ? 'No ratings' : `${row.average.toFixed(2)} / 5`}</button></td><td className="px-4 py-3"><button onClick={() => { const matching = (data.records || []).filter((record) => courseKey(record) === row.key && reviewText(record)); setDetails({ title: `${row.course} comments`, records: matching }) }} className="text-teal-700 hover:underline">{row.comments}</button></td></tr>)}{!visibleCourses.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No matching course versions.</td></tr>}</tbody></table></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Course versions</h2><div className="flex max-w-full flex-wrap gap-2"><Input className="w-60 max-w-full" placeholder="Search courses" aria-label="Search course versions" value={courseSearch} onChange={(event) => setCourseSearch(event.target.value)} /><Button type="button" variant="outline" disabled={!visibleCourseKeys.length} onClick={() => setSelectedVersions((current) => allVisibleCoursesSelected ? current.filter((key) => !visibleCourseKeys.includes(key)) : [...new Set([...current, ...visibleCourseKeys])])}>{allVisibleCoursesSelected ? 'Clear filtered' : 'Select all'}</Button><Button variant="outline" disabled={!records.length || exporting} onClick={() => void exportRecords(records, 'Filtered course evaluations')}><Download className="mr-2 h-4 w-4" />Export filtered</Button></div></div>
+          <div className="overflow-x-auto rounded-md border border-slate-200"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Combine</th><th className="px-4 py-3">Course / LMS ID</th><th className="px-4 py-3">Course state</th><th className="px-4 py-3">Enrolled</th><th className="px-4 py-3">Completed</th><th className="px-4 py-3">Evaluations</th><th className="px-4 py-3">Rated responses</th><th className="px-4 py-3">Average</th><th className="px-4 py-3">Comments</th></tr></thead><tbody className="divide-y divide-slate-100">{visibleCourses.map((row) => <tr key={row.key} className={selectedVersions.includes(row.key) ? 'bg-teal-50/50' : ''}><td className="px-4 py-3"><input type="checkbox" className="h-4 w-4 accent-teal-600" checked={selectedVersions.includes(row.key)} onChange={() => toggleVersion(row.key)} aria-label={`Combine ${row.course} (ID ${row.courseId ?? 'unknown'})`} /></td><td className="max-w-md px-4 py-3"><button onClick={() => openCourse(row.key)} className="text-left font-medium text-teal-700 hover:underline">{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-4 py-3">{row.state || 'Not identified'}</td><td className="px-4 py-3">{row.enrolled?.toLocaleString() ?? '—'}</td><td className="px-4 py-3">{row.completed?.toLocaleString() ?? '—'}</td><td className="px-4 py-3">{row.count}</td><td className="px-4 py-3">{row.rated}</td><td className="px-4 py-3"><button onClick={() => openCourse(row.key)} className="font-semibold text-teal-700 hover:underline">{row.average === null ? 'No ratings' : `${row.average.toFixed(2)} / 5`}</button></td><td className="px-4 py-3"><button onClick={() => { const matching = (data.records || []).filter((record) => courseKey(record) === row.key && reviewText(record)); setDetails({ title: `${row.course} comments`, records: matching }) }} className="text-teal-700 hover:underline">{row.comments}</button></td></tr>)}{!visibleCourses.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No matching course versions.</td></tr>}</tbody></table></div>
         </section></>}
         {view === 'analytics' && (records.length === 0 ? <p className="py-12 text-center text-sm text-slate-500">No evaluations found for this course.</p> : <div className="grid gap-4 xl:grid-cols-2">
           <ChartPanel title="Most evaluated courses" detail="Courses with the most learner feedback"><BarChart layout="vertical" data={mostReviewed} margin={{ top: 4, right: 16, bottom: 4, left: 12 }}><CartesianGrid stroke="#e2e8f0" horizontal={false} /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="course" width={125} tickFormatter={axisName} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="count" name="Evaluations" fill="#2563eb" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(_entry, index) => openCourse(mostReviewed[index].key)} /></BarChart></ChartPanel>
@@ -276,7 +302,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
           </ChartPanel>
         </div>)}
       </>}
-      <Dialog open={details !== null} onOpenChange={(open) => { if (!open) setDetails(null) }}><DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden"><DialogHeader className="pr-6"><DialogTitle className="break-words leading-normal">{details?.title}</DialogTitle><DialogDescription>ExceedCE evaluation records</DialogDescription></DialogHeader>{details && <EvaluationDetails records={details.records} exporting={exporting} onExport={(rows) => void exportRecords(rows, details.title)} />}</DialogContent></Dialog>
+      <Dialog open={details !== null} onOpenChange={(open) => { if (!open) { setDetails(null); setDetailsReturnToComparison(false) } }}><DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden"><DialogHeader className="pr-6"><DialogTitle className="break-words leading-normal">{details?.title}</DialogTitle><DialogDescription>ExceedCE evaluation records</DialogDescription></DialogHeader>{detailsReturnToComparison && <Button variant="outline" className="w-fit" onClick={() => { setDetails(null); setDetailsReturnToComparison(false); setComparisonOpen(true) }}><ArrowLeft className="mr-2 h-4 w-4" />Back to comparison</Button>}{details && <EvaluationDetails records={details.records} exporting={exporting} onExport={(rows) => void exportRecords(rows, details.title)} />}</DialogContent></Dialog>
       <Dialog open={comparisonOpen} onOpenChange={setComparisonOpen}>
         <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-6xl flex-col overflow-hidden">
           <DialogHeader><DialogTitle>Course version comparison</DialogTitle><DialogDescription>{combinedCourses.length} selected versions · {combined.rated} rated responses</DialogDescription></DialogHeader>
@@ -285,10 +311,10 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
             <button type="button" role="tab" aria-selected={comparisonView === 'analytics'} onClick={() => setComparisonView('analytics')} className={`rounded-sm px-3 py-2 text-sm font-medium ${comparisonView === 'analytics' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>View analytics</button>
           </div>
           {comparisonView === 'table' ? <div className="min-h-0 overflow-auto">
-            <table className="w-full min-w-[600px] text-left text-sm">
-              <thead className="bg-slate-50"><tr>{['Course / LMS ID', 'State', 'Evaluations', 'Rated responses', 'Average / 5', 'Comments'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead>
-              <tbody className="divide-y divide-slate-100">{combinedCourses.map((row) => <tr key={row.key}><td className="max-w-xs px-3 py-3"><button className="text-left font-medium text-teal-700 hover:underline" onClick={() => { setComparisonOpen(false); openCourse(row.key) }}>{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-3 py-3">{row.state || 'Not identified'}</td><td className="px-3 py-3">{row.count}</td><td className="px-3 py-3">{row.rated}</td><td className="px-3 py-3 font-semibold">{row.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{row.comments}</td></tr>)}</tbody>
-              <tfoot className="border-t-2 border-teal-600 bg-teal-50 font-semibold"><tr><td className="px-3 py-3">Combined</td><td className="px-3 py-3">Selected states</td><td className="px-3 py-3">{combined.count}</td><td className="px-3 py-3">{combined.rated}</td><td className="px-3 py-3">{combined.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{combined.comments}</td></tr></tfoot>
+            <table className="w-full min-w-[850px] text-left text-sm">
+              <thead className="bg-slate-50"><tr>{['Course / LMS ID', 'State', 'Enrolled', 'Completed', 'Evaluations', 'Rated responses', 'Average / 5', 'Comments'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead>
+              <tbody className="divide-y divide-slate-100">{combinedCourses.map((row) => <tr key={row.key}><td className="max-w-xs px-3 py-3"><button className="text-left font-medium text-teal-700 hover:underline" onClick={() => openComparisonDetails(`${row.course} evaluations`, combinedRecords.filter((record) => courseKey(record) === row.key))}>{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-3 py-3">{row.state || 'Not identified'}</td><td className="px-3 py-3">{row.enrolled?.toLocaleString() ?? '—'}</td><td className="px-3 py-3">{row.completed?.toLocaleString() ?? '—'}</td><td className="px-3 py-3">{row.count}</td><td className="px-3 py-3">{row.rated}</td><td className="px-3 py-3 font-semibold">{row.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{row.comments}</td></tr>)}</tbody>
+              <tfoot className="border-t-2 border-teal-600 bg-teal-50 font-semibold"><tr><td className="px-3 py-3">Selected-version totals</td><td className="px-3 py-3">Registrations may overlap</td><td className="px-3 py-3">{combinedCourses.some((row) => row.enrolled !== null) ? combinedCourses.reduce((sum, row) => sum + (row.enrolled ?? 0), 0).toLocaleString() : '—'}</td><td className="px-3 py-3">{combinedCourses.some((row) => row.completed !== null) ? combinedCourses.reduce((sum, row) => sum + (row.completed ?? 0), 0).toLocaleString() : '—'}</td><td className="px-3 py-3">{combined.count}</td><td className="px-3 py-3">{combined.rated}</td><td className="px-3 py-3">{combined.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{combined.comments}</td></tr></tfoot>
             </table>
           </div> : <div className="min-h-0 flex-1 overflow-auto py-2">
             {combinedRecords.length === 0 ? <p className="py-12 text-center text-sm text-slate-500">No evaluations for the selected courses.</p> : <div className="grid gap-4 lg:grid-cols-2">
@@ -298,7 +324,12 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
                     <div className="h-full min-w-0 flex-[0_0_42%]">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={chart.data.filter((item) => item.value > 0)} dataKey="value" nameKey="name" innerRadius="48%" outerRadius="78%" paddingAngle={2}>
+                          <Pie data={chart.data.filter((item) => item.value > 0)} dataKey="value" nameKey="name" innerRadius="48%" outerRadius="78%" paddingAngle={2} cursor="pointer" onClick={(_entry, index) => {
+                            const item = chart.data.filter((course) => course.value > 0)[index]
+                            if (!item) return
+                            const commentsOnly = chart.title === 'Written comments by course'
+                            openComparisonDetails(`${item.name}${commentsOnly ? ' comments' : ' evaluations'}`, combinedRecords.filter((record) => courseKey(record) === item.key && (!commentsOnly || Boolean(reviewText(record)))))
+                          }}>
                             {chart.data.filter((item) => item.value > 0).map((item) => <Cell key={item.name} fill={item.color} />)}
                           </Pie>
                           <Tooltip />
@@ -324,22 +355,37 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
                   <YAxis type="category" dataKey="course" width={150} tickFormatter={axisName} tick={{ fontSize: 10 }} interval={0} />
                   <Tooltip labelFormatter={(label) => String(label)} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {[1, 2, 3, 4, 5].map((rating, index) => <Bar key={rating} dataKey={`rating${rating}`} name={`${rating} star${rating === 1 ? '' : 's'}`} stackId="ratings" fill={RATING_COLORS[index]} />)}
+                  {[1, 2, 3, 4, 5].map((rating, index) => <Bar key={rating} dataKey={`rating${rating}`} name={`${rating} star${rating === 1 ? '' : 's'}`} stackId="ratings" fill={RATING_COLORS[index]} cursor="pointer" onClick={(entry) => {
+                    const courseKeyValue = (entry as { payload?: { key?: string } })?.payload?.key
+                    if (!courseKeyValue) return
+                    const course = combinedCourses.find((item) => item.key === courseKeyValue)
+                    if (!course) return
+                    openComparisonDetails(`${course.course} · ${rating}-star evaluations`, combinedRecords.filter((record) => {
+                      if (courseKey(record) !== courseKeyValue) return false
+                      const value = score(record)
+                      return value !== null && Math.round(value) === rating
+                    }))
+                  }} />)}
                 </BarChart>
               </ChartPanel>
               <ChartPanel title="Monthly average rating" detail="Select courses in the legend to focus the trend" chartHeight={390}>
-                {comparisonMonthlyTrend.length === 0 ? <p className="flex h-full items-center justify-center text-sm text-slate-500">No dated ratings are available for these courses.</p> : <LineChart data={comparisonMonthlyTrend} margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
+                {comparisonMonthlyTrend.length === 0 ? <p className="flex h-full items-center justify-center text-sm text-slate-500">No dated ratings are available for these courses.</p> : <LineChart data={comparisonMonthlyTrend} margin={{ top: 8, right: 12, bottom: 8, left: 0 }} style={{ cursor: 'pointer' }} onClick={(chart) => {
+                  if (chart.activeTooltipIndex == null) return
+                  const month = comparisonMonthlyTrend[Number(chart.activeTooltipIndex)]?.month
+                  if (!month) return
+                  openComparisonDetails(`${month} · selected-course evaluations`, combinedRecords.filter((record) => monthKey(record.submissionDate || record.created_at) === month && score(record) !== null))
+                }}>
                   <CartesianGrid stroke="#e2e8f0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis domain={[1, 5]} />
                   <Tooltip />
                   <Legend height={105} wrapperStyle={{ overflowY: 'auto', fontSize: 11, lineHeight: '20px' }} />
-                  {comparisonCourseSeries.map((course) => <Line key={course.seriesKey} type="monotone" dataKey={course.seriesKey} name={course.course} stroke={course.color} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />)}
+                  {comparisonCourseSeries.map((course) => <Line key={course.seriesKey} type="monotone" dataKey={course.seriesKey} name={course.course} stroke={course.color} strokeWidth={2} dot={{ r: 3, cursor: 'pointer' }} activeDot={{ r: 6, cursor: 'pointer' }} connectNulls={false} />)}
                 </LineChart>}
               </ChartPanel>
             </div>}
           </div>}
-          <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setComparisonOpen(false); setDetails({ title: 'Combined course evaluations', records: combinedRecords }) }}>View evaluations</Button><Button variant="outline" disabled={exporting} onClick={() => void exportRecords(combinedRecords, 'Combined course evaluations')}><Download className="mr-2 h-4 w-4" />Export selected</Button></div>
+          <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => openComparisonDetails('Combined course evaluations', combinedRecords)}>View evaluations</Button><Button variant="outline" disabled={exporting} onClick={() => void exportRecords(combinedRecords, 'Combined course evaluations')}><Download className="mr-2 h-4 w-4" />Export selected</Button></div>
         </DialogContent>
       </Dialog>
     </div>

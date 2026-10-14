@@ -43,3 +43,17 @@ test('missing or invalid ratings do not lower an average and missing states stay
   assert.equal(courseState({ courseName: 'HI Safety' }), 'HI')
   assert.equal(evaluationSummary([]).average, null)
 })
+
+test('enrollment and completion totals attach to matching course IDs only', () => {
+  const courses = summarizeCourses([
+    { courseId: 75, courseName: 'CA Agency', rating: 5 },
+    { courseId: 76, courseName: 'CA Agency', rating: 4 },
+  ], {
+    75: { enrolled: 160, completed: 110 },
+  })
+  assert.equal(courses.length, 2)
+  assert.equal(courses.find((course) => course.courseId === 75).enrolled, 160)
+  assert.equal(courses.find((course) => course.courseId === 75).completed, 110)
+  assert.equal(courses.find((course) => course.courseId === 76).enrolled, null)
+  assert.equal(courses.find((course) => course.courseId === 76).completed, null)
+})

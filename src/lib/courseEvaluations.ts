@@ -1,4 +1,4 @@
-import type { CourseEvaluationRecord } from './api'
+import type { CourseEvaluationRecord, CourseEvaluationsResponse } from './api'
 
 export function courseName(record: CourseEvaluationRecord): string {
   if (record.courseName) return record.courseName
@@ -37,7 +37,7 @@ export function evaluationSummary(records: CourseEvaluationRecord[]) {
   }
 }
 
-export function summarizeCourses(records: CourseEvaluationRecord[]) {
+export function summarizeCourses(records: CourseEvaluationRecord[], enrollmentByCourse: CourseEvaluationsResponse['enrollmentByCourse'] = {}) {
   const groups = new Map<string, CourseEvaluationRecord[]>()
   for (const record of records) {
     const key = courseKey(record)
@@ -45,9 +45,17 @@ export function summarizeCourses(records: CourseEvaluationRecord[]) {
     group.push(record)
     groups.set(key, group)
   }
-  return [...groups.entries()].map(([key, group]) => ({
-    key, course: courseName(group[0]), state: courseState(group[0]),
-    courseId: group[0].courseId ?? (typeof group[0].course === 'object' ? group[0].course?.id : undefined),
-    ...evaluationSummary(group),
-  })).sort((left, right) => left.course.localeCompare(right.course) || left.key.localeCompare(right.key))
+  return [...groups.entries()].map(([key, group]) => {
+    const courseId = group[0].courseId ?? (typeof group[0].course === 'object' ? group[0].course?.id : undefined)
+    const enrollment = courseId === undefined || courseId === null ? undefined : enrollmentByCourse[String(courseId)]
+    return {
+      key,
+      course: courseName(group[0]),
+      state: courseState(group[0]),
+      courseId,
+      enrolled: enrollment?.enrolled ?? null,
+      completed: enrollment?.completed ?? null,
+      ...evaluationSummary(group),
+    }
+  }).sort((left, right) => left.course.localeCompare(right.course) || left.key.localeCompare(right.key))
 }
