@@ -199,7 +199,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
         {!collapsed && tenant.allowedStates && (
           <div className="px-1 pb-2">
             <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-400">Active State</p>

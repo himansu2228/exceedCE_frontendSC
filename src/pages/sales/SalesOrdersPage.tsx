@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { PaginationControls } from '@/components/ui/pagination-controls'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatusBadge, formatCurrency } from './shared'
 import { getSalesOrders } from '@/lib/api'
 import type { SalesOrder } from '@/lib/api'
@@ -62,7 +63,17 @@ export function SalesOrdersPage() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
           <Input placeholder="Search customer/course" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Input placeholder="Status (e.g. COMPLETED)" value={status === 'all' ? '' : status} onChange={(e) => setStatus(e.target.value || 'all')} />
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger aria-label="Filter by order status">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="COMPLETED">Completed</SelectItem>
+              <SelectItem value="REFUNDED">Refunded</SelectItem>
+              <SelectItem value="PENDING_PAYMENT">Pending payment</SelectItem>
+            </SelectContent>
+          </Select>
           <DateRangeFilter
             value={dateRange}
             onChange={setDateRange}
