@@ -1386,6 +1386,63 @@ export async function getSalesCustomers(filters?: {
   return fetchApi<PaginatedResponse<SalesCustomer>>(`/sales/customers${query ? `?${query}` : ''}`)
 }
 
+export type LicenseRenewalStatus = 'outreach' | 'active' | 'expired' | 'no_license' | 'no_expiry'
+
+export interface LicenseRenewalRow {
+  customerId: number
+  aomUserId: number | null
+  fullName: string
+  email: string
+  companyName: string | null
+  totalOrders: number
+  latestOrderDate: string | null
+  licenseUpdatedDate: string | null
+  licenseState: string
+  licenseNumber: string
+  licenseExpiry: string | null
+  cycleYears: number | null
+  nextRenewalDate: string | null
+  renewalEstimated: boolean
+  outreachStartDate: string | null
+  status: LicenseRenewalStatus
+}
+
+export interface LicenseRenewalCycle {
+  stateCode: string
+  cycleYears: number
+  updatedAt: string
+}
+
+export interface LicenseRenewalsResponse extends PaginatedResponse<LicenseRenewalRow> {
+  summary: { total: number; outreach: number; expired: number; active: number; noLicense: number; noExpiry: number }
+  cycles: LicenseRenewalCycle[]
+}
+
+export async function getLicenseRenewals(filters?: {
+  page?: number
+  perPage?: number
+  search?: string
+  state?: string
+  status?: string
+}): Promise<LicenseRenewalsResponse> {
+  const params = new URLSearchParams()
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.perPage) params.set('perPage', String(filters.perPage))
+  if (filters?.search) params.set('search', filters.search)
+  if (filters?.state) params.set('state', filters.state)
+  if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+
+  const query = params.toString()
+  return fetchApi<LicenseRenewalsResponse>(`/sales/license-renewals${query ? `?${query}` : ''}`)
+}
+
+export async function updateLicenseRenewalCycle(stateCode: string, cycleYears: number): Promise<void> {
+  await fetchApi(`/sales/license-renewal-cycles/${encodeURIComponent(stateCode)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ cycleYears }),
+  })
+}
+
 export async function getSalesReports(filters?: {
   page?: number
   perPage?: number

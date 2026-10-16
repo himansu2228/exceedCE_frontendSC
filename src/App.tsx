@@ -14,6 +14,7 @@ import {
   SalesDashboardPage,
   SalesOrdersPage,
   SalesCustomersPage,
+  SalesLicenseRenewalsPage,
   SalesProductsPage,
   SalesRevenuePage,
   SalesTransactionsPage,
@@ -123,6 +124,7 @@ function App() {
               <Route path="sales/dashboard" element={<SalesDashboardPage />} />
               <Route path="sales/orders" element={<SalesOrdersPage />} />
               <Route path="sales/customers" element={<SalesCustomersPage />} />
+              <Route path="sales/license-renewals" element={<SalesLicenseRenewalsPage />} />
               <Route path="sales/products" element={<SalesProductsPage />} />
               <Route path="sales/revenue" element={<SalesRevenuePage />} />
               <Route path="sales/transactions" element={<SalesTransactionsPage />} />
