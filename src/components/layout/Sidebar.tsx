@@ -28,6 +28,7 @@ import {
   CalendarClock,
   Star,
   HelpCircle,
+  BadgeCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -71,6 +72,7 @@ const getSuperAdminSalesItems = (): NavItem[] => {
     { path: '/sales/reports', icon: FileSpreadsheet, label: 'Sales Reports' },
     { path: '/sales/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/sales/customers', icon: Users2, label: 'Customers' },
+    { path: '/sales/license-renewals', icon: BadgeCheck, label: 'License Renewals' },
     { path: '/sales/products', icon: Boxes, label: 'Products / Courses' },
     { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
     { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
