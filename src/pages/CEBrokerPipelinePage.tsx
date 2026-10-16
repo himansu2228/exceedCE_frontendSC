@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -63,6 +62,7 @@ import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCourses
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getHiddenPipelineTabLabel, toPipelineStateCode } from '@/lib/ceBrokerPipeline'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 // ============== Types ==============
 
@@ -301,9 +301,13 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const [dryRun, setDryRun] = useState(true)
   const [mode, setMode] = useState<'test' | 'live'>('test')
   const [selectedCourses, setSelectedCourses] = useState<string>('all')
-  const [sinceDate, setSinceDate] = useState(() => {
-    return new Date().toISOString().split('T')[0]
+  const [dateRange, setDateRange] = useState<DateRangeValue>(() => {
+    const today = new Date().toISOString().split('T')[0]
+    return { fromDate: today, toDate: today }
   })
+  const isDateRangeValid = Boolean(
+    dateRange.fromDate && dateRange.toDate && dateRange.fromDate <= dateRange.toDate,
+  )
   
   // Dynamic SC courses from API
   const [stateCourses, setStateCourses] = useState<Course[]>([])
@@ -368,12 +372,12 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   
   // Refs to track current values for SSE callbacks (avoids stale closure issues)
   const dryRunRef = useRef(dryRun)
-  const sinceDateRef = useRef(sinceDate)
+  const dateRangeRef = useRef(dateRange)
   const selectedCoursesRef = useRef(selectedCourses)
   
   // Keep refs in sync with state
   useEffect(() => { dryRunRef.current = dryRun }, [dryRun])
-  useEffect(() => { sinceDateRef.current = sinceDate }, [sinceDate])
+  useEffect(() => { dateRangeRef.current = dateRange }, [dateRange])
   useEffect(() => { selectedCoursesRef.current = selectedCourses }, [selectedCourses])
 
   // Keep tab in sync with route changes from sidebar clicks
@@ -872,7 +876,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
 
     try {
       await startRosterPipeline({
-        sinceDate: sinceDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
         dryRun,
         courseIds: selectedCourses === 'all' ? undefined : [Number(selectedCourses)],
       })
@@ -893,7 +898,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     
     try {
       await startRosterPipeline({
-        sinceDate: sinceDateRef.current || undefined,
+        fromDate: dateRangeRef.current.fromDate || undefined,
+        toDate: dateRangeRef.current.toDate || undefined,
         dryRun: dryRunRef.current,
         courseIds: selectedCoursesRef.current === 'all' ? undefined : [Number(selectedCoursesRef.current)],
       })
@@ -920,7 +926,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       
       await startPipeline({
         courseIds,
-        sinceDate: sinceDate || undefined,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
         dryRun,
         mode,
       })
@@ -1073,7 +1080,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                         Stop Pipeline
                       </Button>
                     ) : (
-                      <Button onClick={handleStartPipeline} disabled={automationUnavailable}>
+                      <Button onClick={handleStartPipeline} disabled={automationUnavailable || !isDateRangeValid}>
                         <Play className="h-4 w-4 mr-2" />
                         Start Pipeline
                       </Button>
@@ -1125,15 +1132,17 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Completion On</Label>
-                    <Input
-                      type="date"
-                      value={sinceDate}
-                      onChange={(e) => setSinceDate(e.target.value)}
-                      placeholder="YYYY-MM-DD"
-                    />
-                  </div>
+                  <DateRangeFilter
+                    value={dateRange}
+                    onChange={setDateRange}
+                    className="md:col-span-2"
+                    maxDate={new Date().toISOString().split('T')[0]}
+                  />
+                  {!isDateRangeValid && (
+                    <p className="text-xs text-muted-foreground md:col-span-2">
+                      Select both a start date and an end date to run the pipeline.
+                    </p>
+                  )}
 
                   <div className="flex items-center space-x-4 pt-6">
                     <Switch
@@ -1545,12 +1554,17 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                maxDate={new Date().toISOString().split('T')[0]}
+              />
               <div className="grid gap-3 md:grid-cols-3">
-                <Button onClick={handleStartPipeline} disabled={isRunning || automationUnavailable}>
+                <Button onClick={handleStartPipeline} disabled={isRunning || automationUnavailable || !isDateRangeValid}>
                   <Play className="h-4 w-4 mr-2" />
                   Start Full Pipeline
                 </Button>
-                <Button variant="secondary" onClick={handleStartRosterOnly} disabled={isRunning || automationUnavailable}>
+                <Button variant="secondary" onClick={handleStartRosterOnly} disabled={isRunning || automationUnavailable || !isDateRangeValid}>
                   <Zap className="h-4 w-4 mr-2" />
                   Start Roster Only
                 </Button>

@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Loader2, FileEdit, RefreshCw, AlertCircle } from 'lucide-react'
 import {
@@ -16,6 +15,7 @@ import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { toPipelineStateCode } from '@/lib/ceBrokerPipeline'
 import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
 import { PaginationControls } from '@/components/ui/pagination-controls'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 export function RosterPostingEntriesPage() {
   const [activeStateCode, setActiveStateCode] = useState(() =>
@@ -26,7 +26,13 @@ export function RosterPostingEntriesPage() {
   const [posting, setPosting] = useState(false)
   const [postingIds, setPostingIds] = useState<Record<string, boolean>>({})
   const [dryRun, setDryRun] = useState(true)
-  const [sinceDate, setSinceDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [dateRange, setDateRange] = useState<DateRangeValue>(() => {
+    const today = new Date().toISOString().split('T')[0]
+    return { fromDate: today, toDate: today }
+  })
+  const isDateRangeValid = Boolean(
+    dateRange.fromDate && dateRange.toDate && dateRange.fromDate <= dateRange.toDate,
+  )
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -36,12 +42,25 @@ export function RosterPostingEntriesPage() {
   const [totalPages, setTotalPages] = useState(1)
 
   const loadEntries = useCallback(async () => {
+    if (!dateRange.fromDate || !dateRange.toDate || dateRange.fromDate > dateRange.toDate) {
+      setEntries([])
+      setTotalEntries(0)
+      setTotalPages(1)
+      setSelectedIds({})
+      return
+    }
+
     setLoading(true)
     setError(null)
     setSuccess(null)
 
     try {
-      const data = await getRosterPipelineEntries({ sinceDate, page, perPage })
+      const data = await getRosterPipelineEntries({
+        fromDate: dateRange.fromDate,
+        toDate: dateRange.toDate,
+        page,
+        perPage,
+      })
       setEntries(data.entries || [])
       setTotalEntries(data.total || 0)
       setTotalPages(data.totalPages || 1)
@@ -51,7 +70,7 @@ export function RosterPostingEntriesPage() {
     } finally {
       setLoading(false)
     }
-  }, [sinceDate, page, perPage])
+  }, [dateRange, page, perPage])
 
   const handlePageChange = (nextPage: number) => {
     setPage(nextPage)
@@ -179,22 +198,24 @@ export function RosterPostingEntriesPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Completion On</Label>
-              <Input
-                type="date"
-                value={sinceDate}
-                onChange={(e) => setSinceDate(e.target.value)}
-              />
-            </div>
-
+            <DateRangeFilter
+              value={dateRange}
+              onChange={setDateRange}
+              className="md:col-span-2"
+              maxDate={new Date().toISOString().split('T')[0]}
+            />
+            {!isDateRangeValid && (
+              <p className="text-xs text-muted-foreground md:col-span-2">
+                Select both a start date and an end date to load roster entries.
+              </p>
+            )}
             <div className="flex items-center gap-3 pt-6">
               <Switch id="roster-dry-run" checked={dryRun} onCheckedChange={setDryRun} />
               <Label htmlFor="roster-dry-run">Dry Run</Label>
             </div>
 
             <div className="flex items-center gap-2 pt-6">
-              <Button onClick={loadEntries} disabled={loading || posting}>
+              <Button onClick={loadEntries} disabled={loading || posting || !isDateRangeValid}>
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Load Entries
               </Button>

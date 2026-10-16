@@ -911,12 +911,16 @@ export interface RosterVerificationStatus {
 
 export async function getRosterPipelineEntries(filters?: {
   sinceDate?: string
+  fromDate?: string
+  toDate?: string
   courseIds?: number[]
   page?: number
   perPage?: number
 }): Promise<RosterEntriesResponse> {
   const params = new URLSearchParams()
   if (filters?.sinceDate) params.set('sinceDate', filters.sinceDate)
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
   if (filters?.courseIds && filters.courseIds.length > 0) {
     params.set('courseIds', filters.courseIds.join(','))
   }
@@ -1039,14 +1043,14 @@ export async function reopenHawaiiCourse(courseId: string): Promise<ReopenHawaii
   )
 }
 
-export async function startPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean, mode?: 'test' | 'live' }): Promise<{ message: string }> {
+export async function startPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean, mode?: 'test' | 'live' }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/pipeline/start', {
     method: 'POST',
     body: JSON.stringify(options || {}),
   })
 }
 
-export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, dryRun?: boolean }): Promise<{ message: string }> {
+export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/roster-pipeline/start', {
     method: 'POST',
     body: JSON.stringify(options || {}),
@@ -1933,5 +1937,3 @@ export async function getPartnerReconciliationReportApi(params: {
 
   return fetchApi<PartnerReportResponse>(`/sales/partner-report?${queryParams.toString()}`)
 }
-
-
