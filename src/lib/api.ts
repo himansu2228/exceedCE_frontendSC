@@ -1239,6 +1239,24 @@ export interface Settings {
   enable_notifications: boolean
   email_on_error: boolean
   email_recipients: string
+  email_students_on_report?: boolean
+}
+
+export interface NotificationTestEmailResult {
+  success: boolean
+  recipients: string
+  admin?: { sent: boolean; reason?: string; error?: string }
+  student?: { sent: boolean; reason?: string; error?: string } | null
+}
+
+export async function sendNotificationTestEmail(payload: {
+  to?: string
+  includeStudentSample?: boolean
+}): Promise<NotificationTestEmailResult> {
+  return fetchApi<NotificationTestEmailResult>('/settings/notifications/test-email', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function getSettings(): Promise<Settings> {

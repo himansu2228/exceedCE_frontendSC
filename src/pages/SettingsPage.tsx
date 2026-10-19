@@ -26,8 +26,9 @@ import {
   AlertTriangle,
   Loader2,
   AlertCircle,
+  Mail,
 } from 'lucide-react'
-import { getSettings, saveSettings, resetSettings, type Settings } from '@/lib/api'
+import { getSettings, saveSettings, resetSettings, sendNotificationTestEmail, type Settings } from '@/lib/api'
 
 // Default settings for initial state
 const defaultSettings: Settings = {
@@ -47,12 +48,14 @@ const defaultSettings: Settings = {
   enable_notifications: true,
   email_on_error: true,
   email_recipients: '',
+  email_students_on_report: false,
 }
 
 export function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
+  const [isSendingTest, setIsSendingTest] = useState(false)
   const [config, setConfig] = useState<Settings>(defaultSettings)
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -114,6 +117,29 @@ export function SettingsPage() {
       setStatusMessage({ type: 'error', text: 'Failed to reset settings. Please try again.' })
     } finally {
       setIsResetting(false)
+    }
+  }
+
+  const handleSendTestEmail = async () => {
+    const to = config.email_recipients.trim()
+    if (!to) {
+      setStatusMessage({ type: 'error', text: 'Add at least one email recipient first.' })
+      return
+    }
+    try {
+      setIsSendingTest(true)
+      const result = await sendNotificationTestEmail({ to })
+      if (result.success) {
+        setStatusMessage({ type: 'success', text: `Preview emails sent to ${result.recipients}` })
+      } else {
+        const reason = result.admin?.error || result.admin?.reason || result.student?.error || result.student?.reason || 'unknown error'
+        setStatusMessage({ type: 'error', text: `Preview email failed: ${reason}` })
+      }
+    } catch (error) {
+      console.error('Failed to send preview email:', error)
+      setStatusMessage({ type: 'error', text: 'Failed to send preview email. Please try again.' })
+    } finally {
+      setIsSendingTest(false)
     }
   }
 
@@ -426,8 +452,33 @@ export function SettingsPage() {
                   placeholder="email@example.com, another@example.com"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Comma-separated list of email addresses
+                  Comma-separated list of email addresses. After every pipeline run they receive a detailed
+                  report: who was posted, failed, skipped or already reported, per state (CSV attached).
                 </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Email students when CE is reported</Label>
+                  <p className="text-xs text-muted-foreground">
+                    After a successful LIVE post, email each student: "Your CE has been reported to the State of …".
+                    Dry runs never email students.
+                  </p>
+                </div>
+                <Switch
+                  checked={config.email_students_on_report === true}
+                  onCheckedChange={(v) => setConfig({ ...config, email_students_on_report: v })}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Send a sample run report and a sample student email (example data) to the recipients above.
+                </p>
+                <Button variant="outline" size="sm" onClick={handleSendTestEmail} disabled={isSendingTest}>
+                  {isSendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                  Send preview email
+                </Button>
               </div>
             </CardContent>
           </Card>
