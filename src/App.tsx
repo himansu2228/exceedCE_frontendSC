@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactElement } from "react"
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom"
 import { MainLayout } from "@/components/layout"
 import {
@@ -33,6 +33,18 @@ import {
   SalesQuizQuestionsPage,
 } from "@/pages"
 import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
+import { usesCombinedCompletedTab } from "@/lib/ceBrokerPipeline"
+import { useActiveStateCode } from "@/lib/useActiveStateCode"
+
+// Submissions and Roster Post are part of the Completed tab for combined-view states (SC);
+// old links/bookmarks land on Completed there, other states keep the original pages.
+function CombinedIntoCompletedRoute({ children }: { children: ReactElement }) {
+  const activeStateCode = useActiveStateCode()
+  if (usesCombinedCompletedTab(activeStateCode)) {
+    return <Navigate to="/completed" replace />
+  }
+  return children
+}
 
 function HomeDashboardRoute() {
   const tenant = getTenantAccessProfile()
@@ -112,10 +124,10 @@ function App() {
 
             <Route element={<StateAdminOnlyRoutes />}>
               <Route path="courses" element={<CoursesPage />} />
-              <Route path="submissions" element={<SubmissionsPage />} />
+              <Route path="submissions" element={<CombinedIntoCompletedRoute><SubmissionsPage /></CombinedIntoCompletedRoute>} />
               <Route path="completed" element={<CompletedPage />} />
               <Route path="pipeline" element={<CEBrokerPipelinePage />} />
-              <Route path="roster-posting" element={<RosterPostingEntriesPage />} />
+              <Route path="roster-posting" element={<CombinedIntoCompletedRoute><RosterPostingEntriesPage /></CombinedIntoCompletedRoute>} />
               <Route path="logs" element={<LogsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>

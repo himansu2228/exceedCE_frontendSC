@@ -32,3 +32,11 @@ export function getHiddenPipelineTabLabel(state: string | undefined | null): str
 export function getPipelineScopeKey(state: string | undefined | null): string {
   return toPipelineStateCode(state)
 }
+
+// States where Submissions and Roster Post are merged into the Completed tab (one row per
+// completion with its CE Broker reporting status and post actions).
+const COMBINED_COMPLETED_TAB_STATES = new Set(['SC'])
+
+export function usesCombinedCompletedTab(state: string | undefined | null): boolean {
+  return COMBINED_COMPLETED_TAB_STATES.has(normalizeStateCode(state))
+}

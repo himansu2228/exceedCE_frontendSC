@@ -31,15 +31,28 @@ import {
   BadgeCheck,
   CalendarDays,
   MapPin,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  RotateCcw,
+  X,
 } from 'lucide-react'
 import {
   getSCCoursesPaginated,
   getCourseCompletionsPaginated,
+  getManagedCourses,
+  addManagedCourse,
   type Course,
+  type ManagedCourse,
+  type ManagedCoursesResponse,
   type Student,
 } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getTenantAccessProfile } from '@/lib/auth'
+import { AddCourseDialog, RemoveCourseDialog } from '@/components/courses/ManageCourseDialogs'
+
+// States whose CE Broker course list (course + CE Broker course ID) is maintained by ExceedCE.
+const MANAGED_COURSE_STATES = new Set(['SC'])
 
 export function CoursesPage() {
   const [tenant, setTenant] = useState(() => getTenantAccessProfile())
@@ -58,10 +71,16 @@ export function CoursesPage() {
   const [completionsPerPage, setCompletionsPerPage] = useState(100)
   const [completionsTotalPages, setCompletionsTotalPages] = useState(1)
   const [loadingCompletions, setLoadingCompletions] = useState(false)
+  const canManageCourses = MANAGED_COURSE_STATES.has(tenant.stateCode)
+  const [managed, setManaged] = useState<ManagedCoursesResponse | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<{ name: string; ceb_course_id?: string | null } | null>(null)
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+  const [readdingName, setReaddingName] = useState<string | null>(null)
 
-  const fetchCourses = async () => {
+  const fetchCourses = async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true)
+      if (!options?.silent) setLoading(true)
       setError(null)
       const data = await getSCCoursesPaginated({
         page,
@@ -74,12 +93,52 @@ export function CoursesPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch courses')
     } finally {
-      setLoading(false)
+      if (!options?.silent) setLoading(false)
     }
   }
+
+  const fetchManagedCourses = async () => {
+    const data = canManageCourses ? await getManagedCourses().catch(() => null) : null
+    setManaged(data)
+  }
+
+  const refreshAfterCourseChange = async (message: string) => {
+    setNotice({ tone: 'success', message })
+    await Promise.all([fetchCourses({ silent: true }), fetchManagedCourses()])
+  }
+
+  const handleCourseAdded = (course: ManagedCourse) => {
+    void refreshAfterCourseChange(
+      `"${course.name}" was added with CE Broker ID ${course.id_course}. New completions will be reported to CE Broker.`
+    )
+  }
+
+  const handleCourseRemoved = (course: ManagedCourse) => {
+    void refreshAfterCourseChange(`"${course.name}" was removed. New completions will no longer be reported to CE Broker.`)
+  }
+
+  const handleReadd = async (course: ManagedCourse) => {
+    setReaddingName(course.name)
+    try {
+      const result = await addManagedCourse({
+        name: course.name,
+        id_course: course.id_course,
+        exceed_course_id: course.exceed_course_id,
+      })
+      handleCourseAdded(result.course)
+    } catch (err) {
+      setNotice({ tone: 'error', message: err instanceof Error ? err.message : 'Failed to add the course back' })
+    } finally {
+      setReaddingName(null)
+    }
+  }
+
+  const coursesMissingFromCatalog = (managed?.courses || []).filter((course) => course.in_catalog === false)
+  const recentlyRemoved = (managed?.removed || []).slice(0, 5)
     useEffect(() => {
     const syncActiveState = () => {
       setTenant(getTenantAccessProfile())
+      setNotice(null)
     }
 
     const onStorage = (event: StorageEvent) => {
@@ -101,6 +160,21 @@ export function CoursesPage() {
     useEffect(() => {
     void fetchCourses()
   }, [page, perPage, searchTerm, tenant.stateCode])
+
+  useEffect(() => {
+    if (!canManageCourses) return
+    let cancelled = false
+    getManagedCourses()
+      .then((data) => {
+        if (!cancelled) setManaged(data)
+      })
+      .catch(() => {
+        if (!cancelled) setManaged(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canManageCourses, tenant.stateCode])
 
 
   // Fetch completions when a course is selected
@@ -204,22 +278,90 @@ export function CoursesPage() {
         ))}
       </div>
 
+      {/* Course list change notices */}
+      {notice && (
+        <div
+          role={notice.tone === 'error' ? 'alert' : 'status'}
+          className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+            notice.tone === 'error'
+              ? 'border-red-200 bg-red-50 text-red-900'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+          }`}
+        >
+          {notice.tone === 'error'
+            ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+            : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />}
+          <p className="flex-1">{notice.message}</p>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="opacity-70 hover:opacity-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {canManageCourses && coursesMissingFromCatalog.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            {coursesMissingFromCatalog.length === 1
+              ? '1 course in the list was not found in the ExceedCE catalog'
+              : `${coursesMissingFromCatalog.length} courses in the list were not found in the ExceedCE catalog`}
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Completions are only reported once the title matches an ExceedCE course exactly. Remove it and add it again with the correct title if needed.
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {coursesMissingFromCatalog.map((course) => (
+              <li key={course.name} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/70 px-3 py-2">
+                <span className="min-w-0 break-words">
+                  <span className="font-medium">{course.name}</span>
+                  <span className="ml-2 font-mono text-xs text-amber-800">CEB {course.id_course}</span>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => setRemoveTarget({ name: course.name, ceb_course_id: course.id_course })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Courses Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>{tenant.stateName} Courses</CardTitle>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search courses..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value)
-                  setPage(1)
-                }}
-                className="pl-9"
-              />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <CardTitle>{tenant.stateName} Courses</CardTitle>
+              {canManageCourses && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Approved courses reported to CE Broker. Add a course once the state approves it, or remove one to stop reporting it.
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search courses..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setPage(1)
+                  }}
+                  className="pl-9"
+                />
+              </div>
+              {canManageCourses && (
+                <Button onClick={() => setAddOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Add Course
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -288,7 +430,7 @@ export function CoursesPage() {
                         {completionRate}%
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="whitespace-nowrap text-right">
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button
@@ -435,14 +577,91 @@ export function CoursesPage() {
                       <Button variant="ghost" size="sm">
                         <ExternalLink className="h-4 w-4" />
                       </Button>
+                      {canManageCourses && course.ceb_course_id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          title="Remove course from CE Broker reporting"
+                          aria-label={`Remove ${course.name}`}
+                          onClick={() => setRemoveTarget({ name: course.name, ceb_course_id: course.ceb_course_id })}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )
               })}
+              {courses.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                    {searchTerm.trim() ? 'No courses match your search.' : 'No courses in the list yet.'}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {canManageCourses && recentlyRemoved.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <RotateCcw className="h-4 w-4 text-muted-foreground" />
+              Recently removed
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              These courses are no longer reported to CE Broker. Add one back if it was removed by mistake.
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="divide-y rounded-lg border">
+              {recentlyRemoved.map((course) => (
+                <li key={course.name} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                  <div className="min-w-0">
+                    <p className="break-words font-medium text-slate-800">{course.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      CE Broker ID <span className="font-mono">{course.id_course}</span>
+                      {course.removed_at && ` · removed ${new Date(course.removed_at).toLocaleDateString()}`}
+                      {course.removed_by && ` by ${course.removed_by}`}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={readdingName !== null}
+                    onClick={() => void handleReadd(course)}
+                  >
+                    {readdingName === course.name ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                    Add back
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {canManageCourses && (
+        <>
+          <AddCourseDialog
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            stateName={tenant.stateName}
+            onAdded={handleCourseAdded}
+          />
+          <RemoveCourseDialog
+            course={removeTarget}
+            stateName={tenant.stateName}
+            onOpenChange={(open) => {
+              if (!open) setRemoveTarget(null)
+            }}
+            onRemoved={handleCourseRemoved}
+          />
+        </>
+      )}
     </div>
   )
 }

@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/select'
 import { getTenantAccessProfile, signOut, setActiveState, normalizeStateCode } from '@/lib/auth'
 import { apiUrl, authFetch } from '@/lib/api'
-import { getHiddenPipelineTabLabel } from '@/lib/ceBrokerPipeline'
+import { getHiddenPipelineTabLabel, usesCombinedCompletedTab } from '@/lib/ceBrokerPipeline'
 
 // States temporarily hidden from the Active State dropdown
 const HIDDEN_STATE_CODES = ['NV', 'NC', 'MO']
@@ -57,6 +57,9 @@ const navItems = [
   { path: '/logs', icon: FileText, label: 'Logs' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
+
+// Tabs folded into the Completed tab for states that use the combined view.
+const COMBINED_INTO_COMPLETED_PATHS = new Set(['/submissions', '/roster-posting'])
 
 type NavItem =
   | { path: string; icon: typeof LayoutDashboard; label: string }
@@ -158,14 +161,17 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const tenantNavItems = useMemo<NavItem[]>(() => {
     if (isSuperAdmin) return getSuperAdminSalesItems()
-    return navItems.map((item) => {
-      if (item.path !== '/pipeline') return item
-      return {
-        ...item,
-        label: maskedPipelineLabel,
-      }
-    })
-  }, [isSuperAdmin, maskedPipelineLabel])
+    const combinedCompleted = usesCombinedCompletedTab(activeStateCode)
+    return navItems
+      .filter((item) => !(combinedCompleted && COMBINED_INTO_COMPLETED_PATHS.has(item.path)))
+      .map((item) => {
+        if (item.path !== '/pipeline') return item
+        return {
+          ...item,
+          label: maskedPipelineLabel,
+        }
+      })
+  }, [isSuperAdmin, maskedPipelineLabel, activeStateCode])
 
   const handleLogout = () => {
     signOut()

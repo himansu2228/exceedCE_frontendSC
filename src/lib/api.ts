@@ -93,6 +93,8 @@ export interface Student {
   exceedce_profession?: string
 }
 
+export type ReportStatus = 'reported' | 'failed' | 'skipped' | 'dry_run' | 'not_reported'
+
 export interface CompletedEntry {
   id: string
   course_id: number
@@ -108,6 +110,13 @@ export interface CompletedEntry {
   licensee_profession: string
   date_completed: string | null
   date_completed_iso: string | null
+  // CE Broker reporting status joined from the submissions ledger
+  report_status?: ReportStatus
+  report_raw_status?: string | null
+  reported_at?: string | null
+  report_message?: string | null
+  report_error_code?: string | null
+  report_key?: string | null
 }
 
 export interface CompletedEntriesResponse {
@@ -119,6 +128,7 @@ export interface CompletedEntriesResponse {
   page?: number
   perPage?: number
   totalPages?: number
+  report_status_counts?: Partial<Record<ReportStatus, number>>
 }
 
 export interface PaginatedResponse<T> {
@@ -377,7 +387,9 @@ async function fetchApi<T>(endpoint: string, options?: FetchApiOptions): Promise
         invalidateApiCache()
         throw new Error('AUTH_REQUIRED')
       }
-      throw new Error(`API error: ${response.status} ${response.statusText}`)
+      const errorBody = await response.json().catch(() => null) as { error?: unknown } | null
+      const serverMessage = typeof errorBody?.error === 'string' && errorBody.error.length <= 300 ? errorBody.error : ''
+      throw new Error(serverMessage || `API error: ${response.status} ${response.statusText}`)
     }
 
     const payload = await response.json() as T
@@ -669,6 +681,60 @@ export async function getCourseCompletions(courseId: number): Promise<Student[]>
   return fetchApi<Student[]>(`/courses/${courseId}/completions`)
 }
 
+export interface ManagedCourse {
+  name: string
+  id_course: string
+  state: string
+  exceed_course_id: number | null
+  source: 'seed' | 'manual' | string
+  added_by: string | null
+  added_at: string | null
+  removed_by: string | null
+  removed_at: string | null
+  in_catalog: boolean | null
+}
+
+export interface ManagedCoursesResponse {
+  state: string
+  state_name: string
+  catalog_available: boolean
+  courses: ManagedCourse[]
+  removed: ManagedCourse[]
+}
+
+export interface CatalogCourseCandidate {
+  id: number
+  name: string
+  suggested: boolean
+}
+
+export async function getManagedCourses(): Promise<ManagedCoursesResponse> {
+  return fetchApi<ManagedCoursesResponse>('/courses/managed', { timeoutMs: 30000 })
+}
+
+export async function getCourseCatalogCandidates(): Promise<CatalogCourseCandidate[]> {
+  const response = await fetchApi<{ candidates: CatalogCourseCandidate[] }>('/courses/catalog-candidates', { timeoutMs: 30000 })
+  return response.candidates || []
+}
+
+export async function addManagedCourse(payload: {
+  name: string
+  id_course: string
+  exceed_course_id?: number | null
+}): Promise<{ success: boolean; course: ManagedCourse }> {
+  return fetchApi('/courses/managed', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function removeManagedCourse(name: string): Promise<{ success: boolean; course: ManagedCourse }> {
+  return fetchApi('/courses/managed/remove', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
 export async function getCourseCompletionsPaginated(
   courseId: number,
   options?: { page?: number; perPage?: number }
@@ -694,6 +760,7 @@ export async function getCompletedEntries(filters?: {
   perPage?: number
   refresh?: boolean
   timeoutMs?: number
+  reportStatus?: ReportStatus | 'all'
 }): Promise<CompletedEntriesResponse> {
   const params = new URLSearchParams()
 
@@ -706,6 +773,7 @@ export async function getCompletedEntries(filters?: {
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
   if (filters?.refresh) params.set('refresh', 'true')
+  if (filters?.reportStatus && filters.reportStatus !== 'all') params.set('reportStatus', filters.reportStatus)
   // Put the active state in the URL so the browser caches each state separately and a
   // state switch never reuses another state's cached response.
   params.set('state', filters?.allStates ? 'ALL' : getTenantAccessProfile().stateCode)
@@ -943,9 +1011,11 @@ export async function postSelectedRosterEntries(payload: {
   v2Endpoint?: string
   v2BearerToken?: string
 }): Promise<{ message: string; summary: RosterPostSummary }> {
+  const { timeoutMs, ...body } = payload
   return fetchApi<{ message: string; summary: RosterPostSummary }>('/roster-pipeline/post-selected', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
+    timeoutMs,
   })
 }
 
