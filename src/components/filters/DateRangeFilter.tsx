@@ -36,6 +36,7 @@ export interface DateRangeValue {
 interface DateRangeFilterProps {
   value: DateRangeValue
   onChange: (next: DateRangeValue) => void
+  onDone?: (value: DateRangeValue) => void
   className?: string
   inputClassName?: string
   selectClassName?: string
@@ -106,6 +107,7 @@ function getPresetRange(preset: DateRangePreset): DateRangeValue {
 export function DateRangeFilter({
   value,
   onChange,
+  onDone,
   className,
   inputClassName,
   selectClassName,
@@ -227,7 +229,11 @@ export function DateRangeFilter({
                       <X className="mr-1 h-3.5 w-3.5" />
                       Clear
                     </Button>
-                    <Button type="button" size="sm" onClick={() => setIsOpen(false)}>
+                    <Button type="button" size="sm" onClick={() => {
+                        setIsOpen(false)
+                        onDone?.(value)
+                      }}
+                    >
                       Done
                     </Button>
                   </div>

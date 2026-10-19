@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, BadgeCheck, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, Download, RefreshCw, Search } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -65,6 +65,7 @@ export function SalesLicenseRenewalsPage() {
   const [newState, setNewState] = useState('')
   const [newYears, setNewYears] = useState('')
   const [cycleError, setCycleError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const load = async (targetPage = page, targetPerPage = perPage, overrides?: { status?: string; state?: string }) => {
     try {
@@ -94,6 +95,60 @@ export function SalesLicenseRenewalsPage() {
   useEffect(() => {
     void load(1, perPage)
   }, [])
+
+  const exportExcel = async () => {
+    try {
+      setExporting(true)
+      setError(null)
+      const filters = { search: search || undefined, state: stateFilter || undefined, status }
+      const pageSize = 200
+      const first = await getLicenseRenewals({ ...filters, page: 1, perPage: pageSize })
+      const rest = await Promise.all(
+        Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) =>
+          getLicenseRenewals({ ...filters, page: index + 2, perPage: pageSize })
+        )
+      )
+      const allRows = [first, ...rest].flatMap((result) => result.items)
+
+      const [XLSX, { formatDataWorksheet }] = await Promise.all([
+        import('xlsx-js-style'),
+        import('@/lib/excelFormatting'),
+      ])
+      const headers = [
+        'Student', 'Email', 'Company', 'State', 'License #', 'License Expiry', 'Cycle (Years)',
+        'Next Renewal', 'Estimated', 'Outreach Starts', 'Status', 'Last Purchase', 'Completed Orders',
+      ]
+      const dataRows = allRows.map((row) => [
+        row.fullName || '',
+        row.email || '',
+        row.companyName || '',
+        row.licenseState || '',
+        row.licenseNumber || '',
+        formatDate(row.licenseExpiry),
+        row.cycleYears ?? '',
+        formatDate(row.nextRenewalDate),
+        row.renewalEstimated ? 'Yes' : 'No',
+        formatDate(row.outreachStartDate),
+        STATUS_META[row.status].label,
+        formatDate(row.latestOrderDate),
+        row.totalOrders,
+      ])
+      const worksheet = XLSX.utils.aoa_to_sheet([['STUDENT LICENSE RENEWALS'], headers, ...dataRows])
+      formatDataWorksheet(worksheet, {
+        titleRow: 0,
+        headerRow: 1,
+        dataEndRow: dataRows.length + 1,
+        columnWidths: [26, 32, 28, 8, 16, 16, 12, 16, 11, 16, 22, 16, 16],
+      })
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'License Renewals')
+      XLSX.writeFile(workbook, `student-license-renewals-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export license renewals')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const saveCycle = async (stateCode: string, years: string) => {
     try {
@@ -133,7 +188,10 @@ export function SalesLicenseRenewalsPage() {
               <p className="mt-1 text-sm text-slate-600">License expiry and next renewal date per student, based on the license stored in their ExceedCE profile and the renewal cycle for their state.</p>
             </div>
           </div>
-          <Button type="button" variant="outline" onClick={() => void load(1, perPage)} disabled={loading} className="border-sky-200 bg-white text-sky-700 hover:bg-sky-50"><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => void exportExcel()} disabled={loading || exporting || total === 0} className="border-sky-200 bg-white text-sky-700 hover:bg-sky-50"><Download className={`mr-2 h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />{exporting ? 'Exporting...' : 'Export Excel'}</Button>
+            <Button type="button" variant="outline" onClick={() => void load(1, perPage)} disabled={loading} className="border-sky-200 bg-white text-sky-700 hover:bg-sky-50"><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
+          </div>
         </div>
       </section>
 

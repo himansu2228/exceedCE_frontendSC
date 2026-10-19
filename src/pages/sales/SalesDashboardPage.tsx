@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ComponentType } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
 import {
   Bar,
   BarChart,
@@ -18,7 +17,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { RefreshCw, AlertTriangle, DollarSign, ShoppingCart, Activity, Percent } from 'lucide-react'
+import { AlertTriangle, DollarSign, ShoppingCart, Activity, Percent } from 'lucide-react'
 import { getSalesDashboard, getSalesCustomerCohort, getSalesAttributionBySource } from '@/lib/api'
 import type { SalesDashboardResponse, CustomerCohortAnalysis, SalesAttributionBySource } from '@/lib/api'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
@@ -39,9 +38,51 @@ const STATE_NAMES: Record<string, string> = {
   'WA': 'Washington',
 }
 
-function truncateCourseLabel(label: string, maxLength = 26) {
-  if (!label) return ''
-  return label.length > maxLength ? `${label.slice(0, maxLength - 3)}...` : label
+function wrapLabel(label: string, maxChars: number, maxLines: number): string[] {
+  const words = label.split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word
+    if (next.length <= maxChars || !current) {
+      current = next
+    } else {
+      lines.push(current)
+      current = word
+    }
+  }
+  if (current) lines.push(current)
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines)
+    const last = kept[maxLines - 1]
+    kept[maxLines - 1] = last.length > maxChars - 3 ? `${last.slice(0, maxChars - 3)}...` : `${last}...`
+    return kept
+  }
+  return lines
+}
+
+interface CourseTickProps {
+  x?: number
+  y?: number
+  payload?: { value: string }
+}
+
+function CourseAxisTick({ x = 0, y = 0, payload }: CourseTickProps) {
+  const lines = wrapLabel(String(payload?.value || ''), 26, 3)
+  const lineHeight = 12
+  const startDy = -((lines.length - 1) * lineHeight) / 2
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <title>{payload?.value}</title>
+      <text x={-8} textAnchor="end" fill="#334155" fontSize={11}>
+        {lines.map((line, i) => (
+          <tspan key={i} x={-8} dy={i === 0 ? startDy + 4 : lineHeight}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  )
 }
 
 function truncateSourceLabel(label: string, maxLength = 24) {
@@ -166,22 +207,22 @@ export function SalesDashboardPage() {
     return `Showing data for ${from} - ${to}`
   }, [dateRange.fromDate, dateRange.toDate])
 
-  const load = async () => {
+  const load = async (range: DateRangeValue = dateRange) => {
     try {
       setLoading(true)
       setError(null)
       const [dashboardResponse, cohortResponse, attributionResponse] = await Promise.all([
         getSalesDashboard({
-          fromDate: dateRange.fromDate || undefined,
-          toDate: dateRange.toDate || undefined,
+          fromDate: range.fromDate || undefined,
+          toDate: range.toDate || undefined,
         }),
         getSalesCustomerCohort({
-          fromDate: dateRange.fromDate || undefined,
-          toDate: dateRange.toDate || undefined,
+          fromDate: range.fromDate || undefined,
+          toDate: range.toDate || undefined,
         }),
         getSalesAttributionBySource({
-          fromDate: dateRange.fromDate || undefined,
-          toDate: dateRange.toDate || undefined,
+          fromDate: range.fromDate || undefined,
+          toDate: range.toDate || undefined,
         }),
       ])
       setData(dashboardResponse)
@@ -279,13 +320,10 @@ export function SalesDashboardPage() {
           <DateRangeFilter
             value={dateRange}
             onChange={setDateRange}
+            onDone={(range) => void load(range)}
             showLabels={false}
             className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[300px]"
           />
-          <Button onClick={() => void load()} className="w-full shadow-sm sm:w-auto">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Apply
-          </Button>
         </div>
       </div>
       </div>
@@ -384,10 +422,9 @@ export function SalesDashboardPage() {
                   <YAxis
                     dataKey="course"
                     type="category"
-                    width={108}
+                    width={190}
                     interval={0}
-                    tickMargin={10}
-                    tickFormatter={(value) => truncateCourseLabel(String(value || ''), 14)}
+                    tick={<CourseAxisTick />}
                   />
                   <Tooltip content={<CustomCourseTooltip />} />
                   <Bar dataKey="revenue" fill="#0f766e" radius={[0, 6, 6, 0]} />
