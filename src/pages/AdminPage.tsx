@@ -49,6 +49,7 @@ const AVAILABLE_STATES = [
   { code: 'HI', name: 'Hawaii' },
   { code: 'NC', name: 'North Carolina' },
   { code: 'MI', name: 'Michigan' },
+  { code: 'NV', name: 'Nevada' },
   { code: 'MO', name: 'Missouri' },
 ]
 
@@ -126,6 +127,7 @@ const STATE_NAME_MAP: Record<string, string> = {
   HI: 'Hawaii',
   NC: 'North Carolina',
   MI: 'Michigan',
+  NV: 'Nevada',
   MO: 'Missouri',
   ALL: 'All States',
 }

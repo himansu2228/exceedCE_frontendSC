@@ -45,7 +45,7 @@ import { apiUrl, authFetch } from '@/lib/api'
 import { getHiddenPipelineTabLabel, usesCombinedCompletedTab } from '@/lib/ceBrokerPipeline'
 
 // States temporarily hidden from the Active State dropdown
-const HIDDEN_STATE_CODES = ['NV', 'NC', 'MO']
+const HIDDEN_STATE_CODES = ['NC', 'MO']
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
