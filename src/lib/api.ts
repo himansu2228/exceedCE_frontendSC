@@ -1164,6 +1164,7 @@ export interface StateAutomationFlow {
   configured: boolean
   description: string | null
   connectorLabel: string | null
+  portal: { name: string; label: string; url: string } | null
   message: string | null
   phases: AutomationFlowPhase[]
   runtime?: {

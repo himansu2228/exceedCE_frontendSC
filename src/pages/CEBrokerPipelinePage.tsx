@@ -1001,6 +1001,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const rosterSteps = pipelineSteps.filter(s => s.phase === 'roster')
   const xmlPhase = flow?.phases.find(p => p.id === 'xml')
   const rosterPhase = flow?.phases.find(p => p.id === 'roster')
+  const portal = flow?.stateCode === activeStateCode ? flow.portal : null
 
   const rosterHistoryFeed: RosterFeedEntry[] = history
     .flatMap(run =>
@@ -1153,7 +1154,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                     <Label htmlFor="dry-run" className="flex flex-col">
                       <span>Dry Run</span>
                       <span className="text-xs text-muted-foreground">
-                        No actual submissions to CE Broker
+                        No actual submissions{portal ? ` to ${portal.name}` : ''}
                       </span>
                     </Label>
                   </div>
@@ -1165,24 +1166,24 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Live Mode Active</AlertTitle>
                     <AlertDescription>
-                      Pipeline will POST real data to CE Broker and perform browser automation.
-                      Ensure VPN is connected for protected lookup access.
+                      Pipeline will POST real data{portal ? ` to ${portal.name}` : ''} and perform browser automation.
+                      {activeStateCode === 'SC' && ' Ensure VPN is connected for protected lookup access.'}
                     </AlertDescription>
                   </Alert>
                 )}
 
                 {/* Quick Links */}
-                <div className="flex gap-4 pt-4 border-t">
+                {portal && <div className="flex gap-4 pt-4 border-t">
                   <a
-                    href="https://providers.cebroker.com/#rosters/create/1291177"
+                    href={portal.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    CE Broker Roster Page
+                    {portal.label}
                   </a>
-                </div>
+                </div>}
               </CardContent>
             </Card>
 
@@ -1550,7 +1551,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 Roster Posting Control
               </CardTitle>
               <CardDescription>
-                See live roster creation and either auto-post via pipeline or manually post in CE Broker.
+                See live roster creation and either auto-post via pipeline{portal ? ` or manually post in ${portal.name}` : ''}.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1568,16 +1569,16 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   <Zap className="h-4 w-4 mr-2" />
                   Start Roster Only
                 </Button>
-                <Button asChild variant="outline">
+                {portal && <Button asChild variant="outline">
                   <a
-                    href="https://providers.cebroker.com/#rosters/create/1291177"
+                    href={portal.url}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Manual Post in CE Broker
+                    Manual Post in {portal.name}
                   </a>
-                </Button>
+                </Button>}
               </div>
 
               <div className="flex flex-wrap gap-2">

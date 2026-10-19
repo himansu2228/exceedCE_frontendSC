@@ -30,7 +30,7 @@ import {
   Monitor,
   ShieldAlert,
 } from 'lucide-react'
-import { apiUrl, authFetch, getRosterVerificationStatus, resolveRosterVerification, type RosterVerificationStatus } from '@/lib/api'
+import { apiUrl, authFetch, getPipelineFlow, getRosterVerificationStatus, resolveRosterVerification, type RosterVerificationStatus, type StateAutomationFlow } from '@/lib/api'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 
 // Roster Pipeline step type
@@ -142,6 +142,21 @@ interface HistoryEntry {
 export function RosterPipelinePage() {
   const [isRunning, setIsRunning] = useState(false)
   const [dryRun, setDryRun] = useState(true)
+  const [flow, setFlow] = useState<StateAutomationFlow | null>(null)
+  const portal = flow?.portal ?? null
+
+  useEffect(() => {
+    const controller = new AbortController()
+    getPipelineFlow(controller.signal)
+      .then((loaded) => {
+        if (!controller.signal.aborted) setFlow(loaded)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFlow(null)
+      })
+    return () => controller.abort()
+  }, [])
+
   const [sinceDate, setSinceDate] = useState(() => {
     // Default to today's date
     return new Date().toISOString().split('T')[0]
@@ -542,24 +557,26 @@ export function RosterPipelinePage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Live Mode Active</AlertTitle>
                     <AlertDescription>
-                      Pipeline will perform real browser automation and post rosters to CE Broker.
-                      Ensure VPN is connected for LLR SC lookup.
+                      Pipeline will perform real browser automation and post rosters{portal ? ` to ${portal.name}` : ''}.
+                      {flow?.stateCode === 'SC' && ' Ensure VPN is connected for LLR SC lookup.'}
                     </AlertDescription>
                   </Alert>
                 )}
 
                 {/* Quick Links */}
                 <div className="flex gap-4 pt-4 border-t">
-                  <a
-                    href="https://providers.cebroker.com/#rosters/create/1291177"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    CE Broker Roster Page
-                  </a>
-                  <a
+                  {portal && (
+                    <a
+                      href={portal.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {portal.label}
+                    </a>
+                  )}
+                  {flow?.stateCode === 'SC' && <a
                     href="https://verify.llronline.com/LicLookup/Rec/Rec.aspx?div=19"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -567,7 +584,7 @@ export function RosterPipelinePage() {
                   >
                     <ExternalLink className="h-4 w-4" />
                     LLR SC License Lookup
-                  </a>
+                  </a>}
                 </div>
               </CardContent>
             </Card>
