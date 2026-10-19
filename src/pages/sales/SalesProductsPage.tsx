@@ -69,8 +69,8 @@ export function SalesProductsPage() {
     const query = search.trim().toLowerCase()
     return query ? rows.filter((row) => row.course.toLowerCase().includes(query)) : rows
   }, [rows, search])
-  const totalRevenue = useMemo(() => rows.reduce((sum, row) => sum + Number(row.revenue || 0), 0), [rows])
-  const totalQuantity = useMemo(() => rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0), [rows])
+  const totalRevenue = useMemo(() => filteredRows.reduce((sum, row) => sum + Number(row.revenue || 0), 0), [filteredRows])
+  const totalQuantity = useMemo(() => filteredRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0), [filteredRows])
   const sortedRows = useMemo(() => [...filteredRows].sort((first, second) => {
     if (sortBy === 'name') return first.course.localeCompare(second.course)
     return sortBy === 'revenue' ? second.revenue - first.revenue : second.quantity - first.quantity
@@ -92,7 +92,7 @@ export function SalesProductsPage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <MetricCard icon={Package} label="Courses Tracked" value={rows.length.toLocaleString()} accent="violet" />
+        <MetricCard icon={Package} label="Courses Tracked" value={filteredRows.length.toLocaleString()} accent="violet" />
         <MetricCard icon={ChartNoAxesCombined} label="Course Revenue" value={formatCurrency(totalRevenue)} accent="emerald" />
         <MetricCard icon={Trophy} label="Units Sold" value={totalQuantity.toLocaleString()} accent="amber" />
       </section>
