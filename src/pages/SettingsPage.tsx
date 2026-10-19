@@ -461,7 +461,8 @@ export function SettingsPage() {
                 <div className="space-y-0.5">
                   <Label>Email students when CE is reported</Label>
                   <p className="text-xs text-muted-foreground">
-                    After a successful LIVE post, email each student: "Your CE has been reported to the State of …".
+                    After a successful LIVE post, email each student: "Your CE Credits Have Been Reported"
+                    with course, completion date, CE hours and state details.
                     Dry runs never email students.
                   </p>
                 </div>
