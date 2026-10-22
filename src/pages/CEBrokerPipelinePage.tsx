@@ -377,6 +377,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // Error state
   const [error, setError] = useState<string | null>(null)
   const [runNotice, setRunNotice] = useState<string | null>(null)
+  // Set when the chosen range had no completions; lets the user jump to a range that has data.
+  const [latestCompletionOnFile, setLatestCompletionOnFile] = useState<string | null>(null)
 
   // Active tab is derived from route so sidebar can open the roster tab directly
   const [activeTab, setActiveTab] = useState<'pipeline' | 'roster' | 'scheduler' | 'history'>(
@@ -653,6 +655,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     })
     setError(null)
     setRunNotice(null)
+    setLatestCompletionOnFile(null)
     setCurrentPhase('idle')
     setLiveRosterFeed([])
     setNvLastRunFiles([])
@@ -683,6 +686,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
           setCurrentPhase(rosterRunning ? 'roster' : 'xml')
         } else if (lastRosterRun) {
           setRunNotice(lastRosterRun.message)
+          setLatestCompletionOnFile(lastRosterRun.latestCompletionOnFile || null)
           setLastRun(new Date(lastRosterRun.completedAt))
           setNvLastRunFiles(lastRosterRun.files || [])
         }
@@ -862,6 +866,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             setLastRun(new Date())
             setCurrentPhase('idle')
             setRunNotice(data.summary?.message || null)
+            setLatestCompletionOnFile(data.summary?.latest_completion_on_file || null)
             setError(Array.isArray(data.summary?.errors) && data.summary.errors.length > 0
               ? data.summary.errors.map((entry: { error?: string }) => entry.error).filter(Boolean).slice(0, 3).join('; ') || 'Roster posting did not complete'
               : null)
@@ -953,6 +958,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     setCurrentPhase('idle')
     setError(null)
     setRunNotice(null)
+    setLatestCompletionOnFile(null)
     setSelectedCourses('all')
     setHistoryPage(1)
 
@@ -1166,7 +1172,30 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Run Result</AlertTitle>
-              <AlertDescription>{runNotice}</AlertDescription>
+              <AlertDescription>
+                {runNotice}
+                {latestCompletionOnFile && !isRunning && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const to = latestCompletionOnFile
+                        const from = new Date(`${to}T00:00:00Z`)
+                        from.setUTCDate(from.getUTCDate() - 90)
+                        setDateRange({ fromDate: from.toISOString().slice(0, 10), toDate: to })
+                        setRunNotice(null)
+                        setLatestCompletionOnFile(null)
+                      }}
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Use date range ending {latestCompletionOnFile}
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Sets the range to the 90 days ending on the latest completion; then press Start Pipeline.
+                    </span>
+                  </div>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

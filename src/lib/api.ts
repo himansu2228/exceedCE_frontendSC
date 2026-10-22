@@ -1189,6 +1189,7 @@ export interface RosterLastRun {
   completedAt: string
   runStatus: string | null
   message: string | null
+  latestCompletionOnFile?: string | null
   files: string[]
 }
 
