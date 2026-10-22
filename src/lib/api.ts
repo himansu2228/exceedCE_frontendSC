@@ -1120,11 +1120,38 @@ export async function startPipeline(options?: { courseIds?: number[], sinceDate?
   })
 }
 
-export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean }): Promise<{ message: string }> {
+export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean, sendEmails?: boolean }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/roster-pipeline/start', {
     method: 'POST',
     body: JSON.stringify(options || {}),
   })
+}
+
+export interface NevadaSubmissionFile {
+  fileName: string
+  type: 'roster' | 'evaluation'
+  size: number
+  modifiedAt: string
+}
+
+export async function getNevadaSubmissionFiles(limit = 50): Promise<NevadaSubmissionFile[]> {
+  const response = await authFetch(apiUrl(`/api/roster-pipeline/nv/files?limit=${limit}`), { cache: 'no-store' })
+  if (!response.ok) throw new Error(`Failed to load Nevada files: ${response.status}`)
+  const payload = await response.json()
+  return Array.isArray(payload.files) ? payload.files : []
+}
+
+export async function downloadNevadaSubmissionFile(fileName: string): Promise<void> {
+  const response = await authFetch(apiUrl(`/api/roster-pipeline/nv/files/${encodeURIComponent(fileName)}`), { cache: 'no-store' })
+  if (!response.ok) throw new Error(`Download failed: ${response.status}`)
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export async function stopRosterPipeline(): Promise<{ message: string }> {
@@ -1158,6 +1185,13 @@ export interface AutomationFlowPhase {
 
 export type AutomationStepState = Record<string, { status: AutomationStepStatus; count?: number; progress?: number }>
 
+export interface RosterLastRun {
+  completedAt: string
+  runStatus: string | null
+  message: string | null
+  files: string[]
+}
+
 export interface StateAutomationFlow {
   stateCode: string
   stateName: string
@@ -1169,7 +1203,7 @@ export interface StateAutomationFlow {
   phases: AutomationFlowPhase[]
   runtime?: {
     xml: { isRunning: boolean; stepState: AutomationStepState }
-    roster: { isRunning: boolean; stepState: AutomationStepState }
+    roster: { isRunning: boolean; stepState: AutomationStepState; lastRun?: RosterLastRun | null }
   }
 }
 

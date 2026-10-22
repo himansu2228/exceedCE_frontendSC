@@ -42,10 +42,18 @@ import {
   UserPlus,
   Save,
   Settings2,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Mail,
+  ClipboardList,
+  Star,
 } from 'lucide-react'
 import {
   apiUrl,
   authFetch,
+  downloadNevadaSubmissionFile,
+  getNevadaSubmissionFiles,
   getPipelineFlow,
   getRosterPipelineHistory,
   getRosterPipelineSchedulerStatus,
@@ -56,6 +64,7 @@ import {
   stopRosterPipeline,
   type AutomationStepState,
   type Course,
+  type NevadaSubmissionFile,
   type StateAutomationFlow,
 } from '@/lib/api'
 import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
@@ -69,6 +78,7 @@ import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateR
 // Unified Pipeline step type (stepId matches the backend SSE step id within its phase)
 interface PipelineStep {
   stepId: number
+  key: string
   name: string
   description: string
   icon: React.ComponentType<{ className?: string }>
@@ -117,7 +127,7 @@ interface HistoryEntry {
   failed: number
   skipped: number
   errors: Array<{ error: string }>
-  run_status?: 'submitted' | 'already_submitted' | 'blocked' | 'failed' | 'dry_run' | 'no_changes' | 'no_completions'
+  run_status?: 'submitted' | 'already_submitted' | 'blocked' | 'failed' | 'dry_run' | 'no_changes' | 'no_completions' | 'generated'
   message?: string
   entries?: Array<{
     student: string
@@ -166,7 +176,20 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'enroll-attendees': UserPlus,
   'create-roster': FileEdit,
   'post-roster': Send,
+  'match-courses': ClipboardList,
+  'build-roster': FileSpreadsheet,
+  'build-evaluation': Star,
   complete: CheckCircle2,
+}
+
+// Nevada: the "Email Division" switch sits between these two roster steps.
+const NV_EMAIL_GATE_AFTER_KEY = 'build-evaluation'
+const NV_EMAIL_DIVISION_STORAGE_KEY = 'exceedce-nv-email-division'
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 
@@ -265,6 +288,7 @@ const getInitialSteps = (
       const live = snapshot?.[phase.id]?.[String(step.id)]
       return {
         stepId: step.id,
+        key: step.key,
         name: step.name,
         description: step.description,
         icon: STEP_ICONS[step.key] || Zap,
@@ -360,6 +384,71 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
 
   // Live roster feed (in-memory while current run is active)
   const [liveRosterFeed, setLiveRosterFeed] = useState<RosterFeedEntry[]>([])
+
+  // Nevada: when off, the roster phase stops after Build 612D and files are offered for download
+  const isNevada = activeStateCode === 'NV'
+  const [emailDivisionEnabled, setEmailDivisionEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(NV_EMAIL_DIVISION_STORAGE_KEY) === 'on'
+    } catch {
+      return false
+    }
+  })
+  const emailDivisionRef = useRef(emailDivisionEnabled)
+  const isNevadaRef = useRef(isNevada)
+  useEffect(() => { isNevadaRef.current = isNevada }, [isNevada])
+  // Only Nevada honours the switch; other states keep their default submission behaviour
+  const nevadaSendEmailsOption = () => (isNevadaRef.current ? { sendEmails: emailDivisionRef.current } : {})
+  const [nvFiles, setNvFiles] = useState<NevadaSubmissionFile[]>([])
+  const [nvFilesLoading, setNvFilesLoading] = useState(false)
+  const [nvLastRunFiles, setNvLastRunFiles] = useState<string[]>([])
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null)
+
+  const handleEmailDivisionChange = useCallback((enabled: boolean) => {
+    setEmailDivisionEnabled(enabled)
+    try {
+      localStorage.setItem(NV_EMAIL_DIVISION_STORAGE_KEY, enabled ? 'on' : 'off')
+    } catch {
+      // storage unavailable; keep in-memory value
+    }
+  }, [])
+
+  const loadNevadaFiles = useCallback(async () => {
+    setNvFilesLoading(true)
+    try {
+      setNvFiles(await getNevadaSubmissionFiles(50))
+    } catch (err) {
+      console.error('Failed to load Nevada files:', err)
+    } finally {
+      setNvFilesLoading(false)
+    }
+  }, [])
+
+  const handleDownloadNevadaFile = useCallback(async (fileName: string) => {
+    setDownloadingFile(fileName)
+    try {
+      await downloadNevadaSubmissionFile(fileName)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed')
+    } finally {
+      setDownloadingFile(null)
+    }
+  }, [])
+
+  const handleDownloadLastRun = useCallback(async () => {
+    for (const fileName of nvLastRunFiles) {
+      await handleDownloadNevadaFile(fileName)
+    }
+  }, [nvLastRunFiles, handleDownloadNevadaFile])
+
+  useEffect(() => {
+    if (!isNevada) return
+    let cancelled = false
+    getNevadaSubmissionFiles(50)
+      .then((files) => { if (!cancelled) setNvFiles(files) })
+      .catch((err) => console.error('Failed to load Nevada files:', err))
+    return () => { cancelled = true }
+  }, [isNevada])
   
   // SSE connection refs (one for each pipeline)
   const xmlEventSourceRef = useRef<EventSource | null>(null)
@@ -377,6 +466,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   
   // Keep refs in sync with state
   useEffect(() => { dryRunRef.current = dryRun }, [dryRun])
+  useEffect(() => { emailDivisionRef.current = emailDivisionEnabled }, [emailDivisionEnabled])
   useEffect(() => { dateRangeRef.current = dateRange }, [dateRange])
   useEffect(() => { selectedCoursesRef.current = selectedCourses }, [selectedCourses])
 
@@ -564,6 +654,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     setRunNotice(null)
     setCurrentPhase('idle')
     setLiveRosterFeed([])
+    setNvLastRunFiles([])
   }, [flow])
 
   // Load the active state's configured automation flow and any in-progress run snapshot
@@ -579,14 +670,20 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         if (controller.signal.aborted) return
         const xmlRunning = Boolean(loaded.runtime?.xml.isRunning)
         const rosterRunning = Boolean(loaded.runtime?.roster.isRunning)
+        const lastRosterRun = rosterRunning ? null : loaded.runtime?.roster.lastRun || null
         setFlow(loaded)
+        // Roster steps keep the last run's final state (e.g. green through Build 612D) after reload.
         setPipelineSteps(getInitialSteps(loaded, {
           xml: xmlRunning ? loaded.runtime?.xml.stepState : undefined,
-          roster: rosterRunning ? loaded.runtime?.roster.stepState : undefined,
+          roster: rosterRunning || lastRosterRun ? loaded.runtime?.roster.stepState : undefined,
         }))
         if (rosterRunning || xmlRunning) {
           setIsRunning(true)
           setCurrentPhase(rosterRunning ? 'roster' : 'xml')
+        } else if (lastRosterRun) {
+          setRunNotice(lastRosterRun.message)
+          setLastRun(new Date(lastRosterRun.completedAt))
+          setNvLastRunFiles(lastRosterRun.files || [])
         }
       })
       .catch((loadError) => {
@@ -780,6 +877,14 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 const mapped = data.summary.entries.map(mapRosterEntryToFeed)
                 setLiveRosterFeed(mapped.slice(0, 30))
               }
+
+              if (isNevadaRef.current && Array.isArray(data.summary.roster_submissions)) {
+                const files = (data.summary.roster_submissions as Array<{ roster_filename?: string; evaluation_filename?: string }>)
+                  .flatMap(sub => [sub.roster_filename, sub.evaluation_filename])
+                  .filter((name): name is string => Boolean(name))
+                setNvLastRunFiles(files)
+                loadNevadaFiles()
+              }
             }
             // A step still active here is where the run ended (early exit or final step)
             {
@@ -818,7 +923,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       es.close()
       rosterEventSourceRef.current = null
     }
-  }, [])
+  }, [loadNevadaFiles])
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -880,6 +985,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         toDate: dateRange.toDate || undefined,
         dryRun,
         courseIds: selectedCourses === 'all' ? undefined : [Number(selectedCourses)],
+        ...nevadaSendEmailsOption(),
       })
     } catch (err) {
       console.error('Failed to start roster-only pipeline:', err)
@@ -902,6 +1008,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         toDate: dateRangeRef.current.toDate || undefined,
         dryRun: dryRunRef.current,
         courseIds: selectedCoursesRef.current === 'all' ? undefined : [Number(selectedCoursesRef.current)],
+        ...nevadaSendEmailsOption(),
       })
     } catch (err) {
       console.error('Failed to start roster pipeline:', err)
@@ -999,6 +1106,9 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // Get XML steps and Roster steps
   const xmlSteps = pipelineSteps.filter(s => s.phase === 'xml')
   const rosterSteps = pipelineSteps.filter(s => s.phase === 'roster')
+  const nvGateIndex = isNevada ? rosterSteps.findIndex(s => s.key === NV_EMAIL_GATE_AFTER_KEY) : -1
+  const isStepSkippedByGate = (index: number) => nvGateIndex >= 0 && !emailDivisionEnabled && index > nvGateIndex
+  const nvLastRunFileSet = new Set(nvLastRunFiles)
   const xmlPhase = flow?.phases.find(p => p.id === 'xml')
   const rosterPhase = flow?.phases.find(p => p.id === 'roster')
   const portal = flow?.stateCode === activeStateCode ? flow.portal : null
@@ -1377,29 +1487,34 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   <span className="font-semibold text-sm">{rosterPhase?.title}</span>
                 </div>
                 <div className="flex items-center justify-between overflow-x-auto pb-4 px-2">
-                  {rosterSteps.map((step, index) => (
+                  {rosterSteps.map((step, index) => {
+                    const skipped = isStepSkippedByGate(index)
+                    const isGateStep = index === nvGateIndex
+                    return (
                     <div key={`${step.phase}-${step.stepId}`} className="flex items-center">
                       {/* Step Card */}
                       <div
                         className={`
                           relative flex flex-col items-center p-3 rounded-lg border-2 min-w-[100px] transition-all duration-300
-                          ${step.status === 'completed' ? 'border-green-500 bg-green-50' : ''}
-                          ${step.status === 'active' ? 'border-blue-500 bg-blue-50 animate-pulse' : ''}
-                          ${step.status === 'pending' ? 'border-slate-200 bg-slate-50' : ''}
-                          ${step.status === 'error' ? 'border-red-500 bg-red-50' : ''}
+                          ${skipped ? 'border-dashed border-slate-200 bg-slate-50/60 opacity-50' : ''}
+                          ${!skipped && step.status === 'completed' ? 'border-green-500 bg-green-50' : ''}
+                          ${!skipped && step.status === 'active' ? 'border-blue-500 bg-blue-50 animate-pulse' : ''}
+                          ${!skipped && step.status === 'pending' ? 'border-slate-200 bg-slate-50' : ''}
+                          ${!skipped && step.status === 'error' ? 'border-red-500 bg-red-50' : ''}
                         `}
                       >
                         {/* Icon */}
                         <div
                           className={`
                             flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300
-                            ${step.status === 'completed' ? 'bg-green-500 text-white' : ''}
-                            ${step.status === 'active' ? 'bg-gradient-to-br from-blue-600 to-amber-500 text-white' : ''}
-                            ${step.status === 'pending' ? 'bg-slate-200 text-slate-500' : ''}
-                            ${step.status === 'error' ? 'bg-red-500 text-white' : ''}
+                            ${skipped ? 'bg-slate-100 text-slate-400' : ''}
+                            ${!skipped && step.status === 'completed' ? 'bg-green-500 text-white' : ''}
+                            ${!skipped && step.status === 'active' ? 'bg-gradient-to-br from-blue-600 to-amber-500 text-white' : ''}
+                            ${!skipped && step.status === 'pending' ? 'bg-slate-200 text-slate-500' : ''}
+                            ${!skipped && step.status === 'error' ? 'bg-red-500 text-white' : ''}
                           `}
                         >
-                          {step.status === 'active' ? (
+                          {step.status === 'active' && !skipped ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <step.icon className="h-4 w-4" />
@@ -1413,20 +1528,150 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                             {step.description}
                           </p>
                         </div>
+
+                        {skipped && (
+                          <Badge variant="outline" className="mt-2 text-[10px] uppercase tracking-wide">
+                            Skipped
+                          </Badge>
+                        )}
+
+                        {/* Download point: generated 785A + 612D files */}
+                        {isGateStep && (nvLastRunFiles.length > 0 || !emailDivisionEnabled) && (
+                          nvLastRunFiles.length > 0 ? (
+                            <Button
+                              size="sm"
+                              variant={emailDivisionEnabled ? 'outline' : 'default'}
+                              className="mt-2 h-7 px-2 text-xs"
+                              disabled={downloadingFile !== null}
+                              onClick={handleDownloadLastRun}
+                            >
+                              {downloadingFile ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Download className="h-3 w-3 mr-1" />
+                              )}
+                              Download ({nvLastRunFiles.length})
+                            </Button>
+                          ) : (
+                            <a
+                              href="#nv-generated-files"
+                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                            >
+                              <Download className="h-3 w-3" />
+                              Download here
+                            </a>
+                          )
+                        )}
                       </div>
 
-                      {/* Arrow */}
+                      {/* Connector: Nevada Email Division switch, otherwise a plain arrow */}
                       {index < rosterSteps.length - 1 && (
-                        <ArrowRight
-                          className={`
-                            h-4 w-4 mx-1 shrink-0
-                            ${step.status === 'completed' ? 'text-green-500' : 'text-slate-300'}
-                          `}
-                        />
+                        isGateStep ? (
+                          <div
+                            className={`
+                              mx-2 flex shrink-0 flex-col items-center gap-1.5 rounded-lg border-2 px-2 py-2 transition-colors
+                              ${emailDivisionEnabled ? 'border-blue-300 bg-blue-50' : 'border-amber-300 bg-amber-50'}
+                            `}
+                            title={emailDivisionEnabled
+                              ? 'On: flow continues to Email Division and Complete'
+                              : 'Off: flow stops after Build 612D; download the files instead'}
+                          >
+                            <Mail className={`h-4 w-4 ${emailDivisionEnabled ? 'text-blue-600' : 'text-amber-600'}`} />
+                            <Switch
+                              id="nv-email-division"
+                              checked={emailDivisionEnabled}
+                              onCheckedChange={handleEmailDivisionChange}
+                              disabled={isRunning}
+                              aria-label="Continue to Email Division"
+                            />
+                            <Label htmlFor="nv-email-division" className="text-[10px] font-semibold uppercase tracking-wide text-center leading-tight">
+                              {emailDivisionEnabled ? 'Email On' : 'Email Off'}
+                            </Label>
+                          </div>
+                        ) : (
+                          <ArrowRight
+                            className={`
+                              h-4 w-4 mx-1 shrink-0
+                              ${skipped ? 'text-slate-200' : step.status === 'completed' ? 'text-green-500' : 'text-slate-300'}
+                            `}
+                          />
+                        )
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
+                {nvGateIndex >= 0 && (
+                  <p className="text-xs text-muted-foreground px-2">
+                    {emailDivisionEnabled
+                      ? 'Email Division is ON: the run emails the 785A roster to education@red.nv.gov and the 612D evaluation to Evals@red.nv.gov, then completes.'
+                      : 'Email Division is OFF: the run stops after Build 612D Evaluations. Nothing is emailed; download the 785A / 612D files below.'}
+                  </p>
+                )}
+              </div>
+              )}
+
+              {/* Nevada generated files */}
+              {isNevada && (
+              <div id="nv-generated-files" className="mt-6 rounded-lg border bg-white/60 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <Download className="h-4 w-4 text-blue-600" />
+                      Generated 785A Rosters &amp; 612D Evaluations
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Files built by recent Nevada runs. Latest run files are highlighted.
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={loadNevadaFiles} disabled={nvFilesLoading}>
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${nvFilesLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+                {nvFiles.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    {nvFilesLoading ? 'Loading files...' : 'No files generated yet. Run the pipeline to build 785A / 612D files.'}
+                  </p>
+                ) : (
+                  <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                    {nvFiles.map((file) => {
+                      const isLatest = nvLastRunFileSet.has(file.fileName)
+                      const FileIcon = file.type === 'roster' ? FileSpreadsheet : FileText
+                      return (
+                        <div
+                          key={file.fileName}
+                          className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 ${isLatest ? 'border-blue-300 bg-blue-50' : 'bg-white'}`}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FileIcon className={`h-4 w-4 shrink-0 ${file.type === 'roster' ? 'text-green-600' : 'text-red-500'}`} />
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-medium" title={file.fileName}>{file.fileName}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {file.type === 'roster' ? '785A Roster' : '612D Evaluation'} · {formatFileSize(file.size)} · {new Date(file.modifiedAt).toLocaleString()}
+                              </p>
+                            </div>
+                            {isLatest && <Badge variant="secondary" className="text-[10px]">Latest run</Badge>}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 shrink-0 px-2"
+                            disabled={downloadingFile === file.fileName}
+                            onClick={() => handleDownloadNevadaFile(file.fileName)}
+                            aria-label={`Download ${file.fileName}`}
+                          >
+                            {downloadingFile === file.fileName ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
               )}
               </>
