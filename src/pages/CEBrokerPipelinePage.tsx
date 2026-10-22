@@ -176,6 +176,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'enroll-attendees': UserPlus,
   'create-roster': FileEdit,
   'post-roster': Send,
+  'log-upload-sheet': FileSpreadsheet,
   'match-courses': ClipboardList,
   'build-roster': FileSpreadsheet,
   'build-evaluation': Star,
