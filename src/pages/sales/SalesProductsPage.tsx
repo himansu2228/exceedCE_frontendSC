@@ -66,8 +66,23 @@ export function SalesProductsPage() {
   }
 
   const filteredRows = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return query ? rows.filter((row) => row.course.toLowerCase().includes(query)) : rows
+    // "Hawaii and HI", "Hawaii, HI" or "Hawaii | HI" match courses containing any of the terms.
+    const terms = search
+      .toLowerCase()
+      .split(/\s*(?:,|;|\||\band\b|\bor\b)\s*/)
+      .map((term) => term.trim())
+      .filter(Boolean)
+    if (terms.length === 0) return rows
+    // Short terms like "HI" must match whole words, otherwise they hit "Chief", "Philadelphia", etc.
+    const matchers = terms.map((term) => {
+      if (term.length > 3) return (course: string) => course.includes(term)
+      const pattern = new RegExp(`(^|[^a-z0-9])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`)
+      return (course: string) => pattern.test(course)
+    })
+    return rows.filter((row) => {
+      const course = row.course.toLowerCase()
+      return matchers.some((matches) => matches(course))
+    })
   }, [rows, search])
   const totalRevenue = useMemo(() => filteredRows.reduce((sum, row) => sum + Number(row.revenue || 0), 0), [filteredRows])
   const totalQuantity = useMemo(() => filteredRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0), [filteredRows])

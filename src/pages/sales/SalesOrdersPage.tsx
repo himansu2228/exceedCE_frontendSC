@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatusBadge, formatCurrency } from './shared'
+import { COUNT_SORT, DATE_SORT, NUMBER_SORT, SortHeader, StateHeader, TEXT_SORT, type SortDir } from './ColumnHeaderControls'
 import { getSalesOrders } from '@/lib/api'
 import type { SalesOrder } from '@/lib/api'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -20,6 +21,16 @@ export function SalesOrdersPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
+  const [sortBy, setSortBy] = useState('orderDate')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [stateFilter, setStateFilter] = useState('')
+
+  const handleSortChange = (key: string, dir: SortDir) => {
+    setSortBy(key)
+    setSortDir(dir)
+  }
+
+  const sortProps = { activeKey: sortBy, activeDir: sortDir, onChange: handleSortChange }
 
   const load = async (targetPage = page, targetPerPage = perPage) => {
     try {
@@ -32,6 +43,9 @@ export function SalesOrdersPage() {
         status,
         fromDate: dateRange.fromDate || undefined,
         toDate: dateRange.toDate || undefined,
+        sortBy,
+        sortDir,
+        state: stateFilter || undefined,
       })
       setRows(result.items)
       setPage(result.page)
@@ -48,7 +62,7 @@ export function SalesOrdersPage() {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void load(1, perPage), 300)
     return () => window.clearTimeout(timeoutId)
-  }, [search, status, dateRange, perPage])
+  }, [search, status, dateRange, sortBy, sortDir, stateFilter, perPage])
 
   return (
     <div className="space-y-4">
@@ -92,15 +106,15 @@ export function SalesOrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Tax</TableHead>
-                  <TableHead>Discount</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Items</TableHead>
+                  <TableHead><SortHeader label="Order" sortKey="orderNumber" options={DATE_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SortHeader label="Date" sortKey="orderDate" options={DATE_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SortHeader label="Customer" sortKey="customer" options={TEXT_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SortHeader label="Status" sortKey="status" options={TEXT_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SortHeader label="Amount" sortKey="amount" options={NUMBER_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SortHeader label="Tax" sortKey="tax" options={NUMBER_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SortHeader label="Discount" sortKey="discount" options={NUMBER_SORT} {...sortProps} /></TableHead>
+                  <TableHead><StateHeader value={stateFilter} onChange={setStateFilter} /></TableHead>
+                  <TableHead><SortHeader label="Items" sortKey="items" options={COUNT_SORT} {...sortProps} /></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

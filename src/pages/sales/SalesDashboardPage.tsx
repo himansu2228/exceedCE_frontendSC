@@ -22,6 +22,7 @@ import { getSalesDashboard, getSalesCustomerCohort, getSalesAttributionBySource 
 import type { SalesDashboardResponse, CustomerCohortAnalysis, SalesAttributionBySource } from '@/lib/api'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import { formatCurrency } from './shared'
+import { OrderStatusDetailsDialog, type OrderStatusSelection } from './OrderStatusDetailsDialog'
 
 // State code to full name mapping
 const STATE_NAMES: Record<string, string> = {
@@ -127,6 +128,7 @@ interface CourseTooltipProps {
 
 interface OrderStatusDatum {
   name: string
+  apiStatus: string
   value: number
   color: string
   description: string
@@ -199,6 +201,8 @@ export function SalesDashboardPage() {
   const [attributionData, setAttributionData] = useState<SalesAttributionBySource | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [appliedRange, setAppliedRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatusSelection | null>(null)
 
   const selectedRangeLabel = useMemo(() => {
     if (!dateRange.fromDate && !dateRange.toDate) return ''
@@ -226,6 +230,7 @@ export function SalesDashboardPage() {
         }),
       ])
       setData(dashboardResponse)
+      setAppliedRange(range)
       setCohortData(cohortResponse)
       setAttributionData(attributionResponse)
     } catch (err) {
@@ -274,24 +279,28 @@ export function SalesDashboardPage() {
   const orderStatusData: OrderStatusDatum[] = [
     {
       name: 'Completed',
+      apiStatus: 'COMPLETED',
       value: kpi.completedOrders,
       color: '#16a34a',
       description: 'Successfully processed orders',
     },
     {
       name: 'Pending',
+      apiStatus: 'PENDING_PAYMENT',
       value: kpi.pendingOrders,
       color: '#f59e0b',
       description: 'Awaiting confirmation or action',
     },
     {
       name: 'Refunded',
+      apiStatus: 'REFUNDED',
       value: kpi.refundedOrders,
       color: '#0ea5e9',
       description: 'Orders reversed and refunded',
     },
     {
       name: 'Failed',
+      apiStatus: 'FAILED',
       value: kpi.failedPayments,
       color: '#ef4444',
       description: 'Payment attempt was not captured',
@@ -462,6 +471,11 @@ export function SalesDashboardPage() {
                         paddingAngle={3}
                         stroke="#ffffff"
                         strokeWidth={2}
+                        className="cursor-pointer"
+                        onClick={(_, index) => {
+                          const status = orderStatusData[index]
+                          if (status) setSelectedStatus({ name: status.name, apiStatus: status.apiStatus })
+                        }}
                       >
                         {orderStatusData.map((status) => (
                           <Cell key={status.name} fill={status.color} />
@@ -478,9 +492,11 @@ export function SalesDashboardPage() {
                   const share = totalOrderStatuses > 0 ? (status.value / totalOrderStatuses) * 100 : 0
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={status.name}
-                      className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 shadow-sm"
+                      onClick={() => setSelectedStatus({ name: status.name, apiStatus: status.apiStatus })}
+                      className="block w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 text-left shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -495,7 +511,7 @@ export function SalesDashboardPage() {
                           <p className="text-xs text-slate-600">{share.toFixed(1)}%</p>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -504,6 +520,12 @@ export function SalesDashboardPage() {
             <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
               Higher completed share indicates stronger checkout health, while pending and failed shares help identify recovery opportunities.
             </div>
+            <OrderStatusDetailsDialog
+              selection={selectedStatus}
+              fromDate={appliedRange.fromDate || undefined}
+              toDate={appliedRange.toDate || undefined}
+              onClose={() => setSelectedStatus(null)}
+            />
           </CardContent>
         </Card>
 

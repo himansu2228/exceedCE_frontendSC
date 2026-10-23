@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, parseISO, startOfMonth, startOfWeek, subMonths } from 'date-fns'
-import { CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Download, Eye, List, RefreshCw, Save } from 'lucide-react'
+import { CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Download, Eye, List, Mail, RefreshCw, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -15,12 +15,16 @@ import {
 import {
   downloadInstructorClassRoster,
   downloadNcClassRoster,
+  getInstructorClassEmailPreview,
   getInstructorUpcomingClasses,
+  getNcClassEmailPreview,
   getNcUpcomingClasses,
   saveClassInstructorSettings,
+  type ClassEmailPreview,
   type InstructorUpcomingClass,
   type NcScheduledClass,
 } from '@/lib/api'
+import { ClassEmailPreviewDialog } from './ClassEmailPreviewDialog'
 
 type InstructorFilter = 'nc' | 'donald-croteau' | 'cheryl-crawford'
 type ScheduleView = 'list' | 'calendar'
@@ -87,6 +91,10 @@ export function SalesUpcomingClassesPage() {
   const [availabilityDraft, setAvailabilityDraft] = useState(true)
   const [mailLeadHoursDraft, setMailLeadHoursDraft] = useState(24)
   const [managedClass, setManagedClass] = useState<NcScheduledClass | InstructorUpcomingClass | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [emailPreview, setEmailPreview] = useState<ClassEmailPreview | null>(null)
   const classRequestId = useRef(0)
   const scheduledClasses: Array<NcScheduledClass | InstructorUpcomingClass> = instructorFilter === 'nc' ? classes : instructorClasses
   const calendarDays = eachDayOfInterval({
@@ -180,6 +188,23 @@ export function SalesUpcomingClassesPage() {
       setError(downloadError instanceof Error ? downloadError.message : 'Unable to download roster.')
     } finally {
       setDownloadingId('')
+    }
+  }
+
+  const handleEmailPreview = async () => {
+    if (!managedClass) return
+    setPreviewOpen(true)
+    setPreviewLoading(true)
+    setPreviewError(null)
+    setEmailPreview(null)
+    try {
+      setEmailPreview('scheduleStatus' in managedClass
+        ? await getInstructorClassEmailPreview(managedClass.instructorId, managedClass.courseId)
+        : await getNcClassEmailPreview(managedClass.id))
+    } catch (previewLoadError) {
+      setPreviewError(previewLoadError instanceof Error ? previewLoadError.message : 'Unable to build the email preview.')
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -492,7 +517,14 @@ export function SalesUpcomingClassesPage() {
                 </div>
               ))}
               </div>
-              <div className="flex justify-end border-t border-slate-200 pt-4">
+              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => void handleEmailPreview()}
+                  disabled={previewLoading || ('scheduleStatus' in managedClass ? Boolean(managedClass.enrollmentError) : managedClass.matchStatus !== 'matched')}
+                >
+                  <Mail className="mr-2 h-4 w-4" />Preview instructor email
+                </Button>
                 <Button onClick={() => void handleSaveClassSettings()} disabled={savingSettings}>
                   <Save className="mr-2 h-4 w-4" />{savingSettings ? 'Saving…' : 'Save changes'}
                 </Button>
@@ -501,6 +533,14 @@ export function SalesUpcomingClassesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ClassEmailPreviewDialog
+        open={previewOpen}
+        loading={previewLoading}
+        error={previewError}
+        preview={emailPreview}
+        onClose={() => setPreviewOpen(false)}
+      />
 
     </div>
   )

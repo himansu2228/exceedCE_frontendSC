@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, BarChart3, Download, RefreshCw } from 'lucide-react'
+import { AlertTriangle, BarChart3, Download, MoreHorizontal, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
-import { getSalesAnalytics } from '@/lib/api'
+import { getCourseListOverrides, getSalesAnalytics, setCourseListOverride, type CourseListOverrides } from '@/lib/api'
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns'
 
 type ViewMode = 'sales' | 'orders'
@@ -73,7 +76,46 @@ export function SalesOutOfStatePage() {
   const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [rows, setRows] = useState<CourseRow[]>([])
+  const [allRows, setAllRows] = useState<CourseRow[]>([])
+  const [overrides, setOverrides] = useState<CourseListOverrides>({ included: [], excluded: [] })
+  const [addOpen, setAddOpen] = useState(false)
+  const [addSearch, setAddSearch] = useState('')
+  const [savingCourse, setSavingCourse] = useState('')
+  const [actionError, setActionError] = useState('')
+
+  // Rule-based courses minus removed ones, plus manually added ones (even with no sales in range).
+  const rows = useMemo<CourseRow[]>(() => {
+    const included = new Set(overrides.included)
+    const excluded = new Set(overrides.excluded)
+    const kept = allRows.filter((row) => included.has(row.courseName) || (isCBAOutOfStateCourse(row.courseName) && !excluded.has(row.courseName)))
+    const present = new Set(kept.map((row) => row.courseName))
+    const empty = overrides.included
+      .filter((name) => !present.has(name))
+      .map((name) => ({ courseName: name, monthlyStats: {}, totalRevenue: 0, totalQuantity: 0 }))
+    return [...kept, ...empty].sort((a, b) => a.courseName.localeCompare(b.courseName))
+  }, [allRows, overrides])
+
+  const addableCourses = useMemo(() => {
+    const current = new Set(rows.map((row) => row.courseName))
+    const query = addSearch.trim().toLowerCase()
+    return allRows
+      .map((row) => row.courseName)
+      .filter((name) => !current.has(name) && (!query || name.toLowerCase().includes(query)))
+  }, [allRows, rows, addSearch])
+
+  const changeCourse = async (course: string, add: boolean) => {
+    const auto = isCBAOutOfStateCourse(course)
+    const action = add ? (auto ? 'reset' : 'include') : (auto ? 'exclude' : 'reset')
+    setSavingCourse(course)
+    setActionError('')
+    try {
+      setOverrides(await setCourseListOverride('out-of-state', course, action))
+    } catch (saveError) {
+      setActionError(saveError instanceof Error ? saveError.message : 'Unable to update the course list.')
+    } finally {
+      setSavingCourse('')
+    }
+  }
   
   const months = useMemo(() => {
     const now = new Date()
@@ -108,7 +150,11 @@ export function SalesOutOfStatePage() {
           .catch(() => ({ revenueByCourse: [] })) // fallback for individual month failure
       )
       
-      const results = await Promise.all(promises)
+      const [results, courseOverrides] = await Promise.all([
+        Promise.all(promises),
+        getCourseListOverrides('out-of-state'),
+      ])
+      setOverrides(courseOverrides)
       
       const courseMap = new Map<string, CourseRow>()
       
@@ -117,8 +163,6 @@ export function SalesOutOfStatePage() {
         const courses = res.revenueByCourse || []
         
         courses.forEach(item => {
-          if (!isCBAOutOfStateCourse(item.course)) return
-          
           const matchedCourseName = item.course || 'Unknown Course'
 
           if (!courseMap.has(matchedCourseName)) {
@@ -144,7 +188,7 @@ export function SalesOutOfStatePage() {
         a.courseName.localeCompare(b.courseName)
       )
       
-      setRows(sortedRows)
+      setAllRows(sortedRows)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load out-of-state sales data')
     } finally {
@@ -239,6 +283,10 @@ export function SalesOutOfStatePage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => { setAddSearch(''); setActionError(''); setAddOpen(true) }} disabled={loading}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add course
+            </Button>
             <DateRangeFilter value={dateRange} onChange={setDateRange} showLabels={false} />
             <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
               <SelectTrigger className="w-[180px]">
@@ -293,7 +341,24 @@ export function SalesOutOfStatePage() {
                   {rows.map((row) => (
                     <tr key={row.courseName} className="transition-colors hover:bg-slate-50/50">
                       <td className="sticky left-0 z-10 bg-white px-5 py-3 font-medium text-slate-900 border-r shadow-[1px_0_0_0_rgba(241,245,249,1)] min-w-[280px] max-w-[400px] whitespace-normal">
-                        {row.courseName}
+                        <div className="flex items-start justify-between gap-2">
+                          <span>
+                            {row.courseName}
+                            {overrides.included.includes(row.courseName) ? <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-700">Added manually</span> : null}
+                          </span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" size="icon" variant="ghost" disabled={savingCourse === row.courseName} aria-label={`Actions for ${row.courseName}`} className="h-7 w-7 shrink-0 text-slate-500 hover:text-slate-900">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem onSelect={() => void changeCourse(row.courseName, false)} className="text-red-700 focus:text-red-800">
+                                <Trash2 className="mr-2 h-4 w-4" />Remove course
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </td>
                       {months.map(m => {
                         const stats = row.monthlyStats[m.key]
@@ -336,6 +401,29 @@ export function SalesOutOfStatePage() {
           )}
         </CardContent>
       </Card>
+
+      {actionError && !addOpen ? <p role="alert" className="text-sm text-red-700">{actionError}</p> : null}
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Add course to Out-of-State Sales</DialogTitle>
+            <DialogDescription>Courses with sales in the selected period that are not in this list. Removed courses also appear here.</DialogDescription>
+          </DialogHeader>
+          <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input value={addSearch} onChange={(event) => setAddSearch(event.target.value)} placeholder="Search courses" className="h-10 pl-9" /></div>
+          {actionError ? <p role="alert" className="text-xs text-red-700">{actionError}</p> : null}
+          <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
+            {addableCourses.slice(0, 100).map((name) => (
+              <div key={name} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0 break-words text-slate-800">{name}</span>
+                <Button type="button" size="sm" variant="outline" disabled={savingCourse === name} onClick={() => void changeCourse(name, true)}><Plus className="mr-1.5 h-3.5 w-3.5" />Add</Button>
+              </div>
+            ))}
+            {addableCourses.length === 0 ? <p className="px-3 py-6 text-center text-sm text-slate-500">No matching courses.</p> : null}
+          </div>
+          {addableCourses.length > 100 ? <p className="text-xs text-slate-500">Showing the first 100 of {addableCourses.length}. Narrow the search to see more.</p> : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
