@@ -48,11 +48,14 @@ import {
   Mail,
   ClipboardList,
   Star,
+  Upload,
 } from 'lucide-react'
 import {
   apiUrl,
   authFetch,
+  downloadMichiganWorksheetFile,
   downloadNevadaSubmissionFile,
+  getMichiganWorksheetFiles,
   getNevadaSubmissionFiles,
   getPipelineFlow,
   getRosterPipelineHistory,
@@ -64,6 +67,7 @@ import {
   stopRosterPipeline,
   type AutomationStepState,
   type Course,
+  type MichiganWorksheetFile,
   type NevadaSubmissionFile,
   type StateAutomationFlow,
 } from '@/lib/api'
@@ -186,6 +190,10 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
 // Nevada: the "Email Division" switch sits between these two roster steps.
 const NV_EMAIL_GATE_AFTER_KEY = 'build-evaluation'
 const NV_EMAIL_DIVISION_STORAGE_KEY = 'exceedce-nv-email-division'
+
+// Michigan: the "Upload" switch sits between Build Worksheet and Upload Worksheet.
+const MI_UPLOAD_GATE_AFTER_KEY = 'build-worksheet'
+const MI_UPLOAD_STORAGE_KEY = 'exceedce-mi-upload'
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -400,8 +408,6 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const emailDivisionRef = useRef(emailDivisionEnabled)
   const isNevadaRef = useRef(isNevada)
   useEffect(() => { isNevadaRef.current = isNevada }, [isNevada])
-  // Only Nevada honours the switch; other states keep their default submission behaviour
-  const nevadaSendEmailsOption = () => (isNevadaRef.current ? { sendEmails: emailDivisionRef.current } : {})
   const [nvFiles, setNvFiles] = useState<NevadaSubmissionFile[]>([])
   const [nvFilesLoading, setNvFilesLoading] = useState(false)
   const [nvLastRunFiles, setNvLastRunFiles] = useState<string[]>([])
@@ -452,6 +458,77 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       .catch((err) => console.error('Failed to load Nevada files:', err))
     return () => { cancelled = true }
   }, [isNevada])
+
+  // Michigan: when off, the roster phase stops after Build Worksheet and worksheets are offered for download.
+  // When on (and Dry Run is off) the worksheet is uploaded and "Accept Finalize" is clicked.
+  const isMichigan = activeStateCode === 'MI'
+  const [miUploadEnabled, setMiUploadEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(MI_UPLOAD_STORAGE_KEY) === 'on'
+    } catch {
+      return false
+    }
+  })
+  const miUploadRef = useRef(miUploadEnabled)
+  const isMichiganRef = useRef(isMichigan)
+  useEffect(() => { isMichiganRef.current = isMichigan }, [isMichigan])
+  useEffect(() => { miUploadRef.current = miUploadEnabled }, [miUploadEnabled])
+  const [miFiles, setMiFiles] = useState<MichiganWorksheetFile[]>([])
+  const [miFilesLoading, setMiFilesLoading] = useState(false)
+  const [miLastRunFiles, setMiLastRunFiles] = useState<string[]>([])
+
+  const handleMiUploadChange = useCallback((enabled: boolean) => {
+    setMiUploadEnabled(enabled)
+    try {
+      localStorage.setItem(MI_UPLOAD_STORAGE_KEY, enabled ? 'on' : 'off')
+    } catch {
+      // storage unavailable; keep in-memory value
+    }
+  }, [])
+
+  const loadMichiganFiles = useCallback(async () => {
+    setMiFilesLoading(true)
+    try {
+      setMiFiles(await getMichiganWorksheetFiles(50))
+    } catch (err) {
+      console.error('Failed to load Michigan worksheets:', err)
+    } finally {
+      setMiFilesLoading(false)
+    }
+  }, [])
+
+  const handleDownloadMichiganFile = useCallback(async (fileName: string) => {
+    setDownloadingFile(fileName)
+    try {
+      await downloadMichiganWorksheetFile(fileName)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed')
+    } finally {
+      setDownloadingFile(null)
+    }
+  }, [])
+
+  const handleDownloadMichiganLastRun = useCallback(async () => {
+    for (const fileName of miLastRunFiles) {
+      await handleDownloadMichiganFile(fileName)
+    }
+  }, [miLastRunFiles, handleDownloadMichiganFile])
+
+  useEffect(() => {
+    if (!isMichigan) return
+    let cancelled = false
+    getMichiganWorksheetFiles(50)
+      .then((files) => { if (!cancelled) setMiFiles(files) })
+      .catch((err) => console.error('Failed to load Michigan worksheets:', err))
+    return () => { cancelled = true }
+  }, [isMichigan])
+
+  // State-specific gate switch sent with the roster start request (NV Email Division, MI Upload)
+  const rosterGateOption = () => (
+    isNevadaRef.current ? { sendEmails: emailDivisionRef.current }
+      : isMichiganRef.current ? { upload: miUploadRef.current }
+        : {}
+  )
   
   // SSE connection refs (one for each pipeline)
   const xmlEventSourceRef = useRef<EventSource | null>(null)
@@ -659,6 +736,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     setCurrentPhase('idle')
     setLiveRosterFeed([])
     setNvLastRunFiles([])
+    setMiLastRunFiles([])
   }, [flow])
 
   // Load the active state's configured automation flow and any in-progress run snapshot
@@ -688,7 +766,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
           setRunNotice(lastRosterRun.message)
           setLatestCompletionOnFile(lastRosterRun.latestCompletionOnFile || null)
           setLastRun(new Date(lastRosterRun.completedAt))
-          setNvLastRunFiles(lastRosterRun.files || [])
+          setNvLastRunFiles(loaded.stateCode === 'NV' ? lastRosterRun.files || [] : [])
+          setMiLastRunFiles(loaded.stateCode === 'MI' ? lastRosterRun.files || [] : [])
         }
       })
       .catch((loadError) => {
@@ -891,6 +970,14 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 setNvLastRunFiles(files)
                 loadNevadaFiles()
               }
+
+              if (isMichiganRef.current && Array.isArray(data.summary.roster_submissions)) {
+                const files = (data.summary.roster_submissions as Array<{ worksheet_filename?: string }>)
+                  .map(sub => sub.worksheet_filename)
+                  .filter((name): name is string => Boolean(name))
+                setMiLastRunFiles(files)
+                loadMichiganFiles()
+              }
             }
             // A step still active here is where the run ended (early exit or final step)
             {
@@ -929,7 +1016,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       es.close()
       rosterEventSourceRef.current = null
     }
-  }, [loadNevadaFiles])
+  }, [loadNevadaFiles, loadMichiganFiles])
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -992,7 +1079,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         toDate: dateRange.toDate || undefined,
         dryRun,
         courseIds: selectedCourses === 'all' ? undefined : [Number(selectedCourses)],
-        ...nevadaSendEmailsOption(),
+        ...rosterGateOption(),
       })
     } catch (err) {
       console.error('Failed to start roster-only pipeline:', err)
@@ -1015,7 +1102,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
         toDate: dateRangeRef.current.toDate || undefined,
         dryRun: dryRunRef.current,
         courseIds: selectedCoursesRef.current === 'all' ? undefined : [Number(selectedCoursesRef.current)],
-        ...nevadaSendEmailsOption(),
+        ...rosterGateOption(),
       })
     } catch (err) {
       console.error('Failed to start roster pipeline:', err)
@@ -1114,8 +1201,15 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const xmlSteps = pipelineSteps.filter(s => s.phase === 'xml')
   const rosterSteps = pipelineSteps.filter(s => s.phase === 'roster')
   const nvGateIndex = isNevada ? rosterSteps.findIndex(s => s.key === NV_EMAIL_GATE_AFTER_KEY) : -1
-  const isStepSkippedByGate = (index: number) => nvGateIndex >= 0 && !emailDivisionEnabled && index > nvGateIndex
+  const miGateIndex = isMichigan ? rosterSteps.findIndex(s => s.key === MI_UPLOAD_GATE_AFTER_KEY) : -1
+  const gateIndex = nvGateIndex >= 0 ? nvGateIndex : miGateIndex
+  const gateEnabled = nvGateIndex >= 0 ? emailDivisionEnabled : miUploadEnabled
+  const gateLastRunFiles = nvGateIndex >= 0 ? nvLastRunFiles : miLastRunFiles
+  const handleGateDownloadLastRun = nvGateIndex >= 0 ? handleDownloadLastRun : handleDownloadMichiganLastRun
+  const gateFilesAnchor = nvGateIndex >= 0 ? '#nv-generated-files' : '#mi-generated-files'
+  const isStepSkippedByGate = (index: number) => gateIndex >= 0 && !gateEnabled && index > gateIndex
   const nvLastRunFileSet = new Set(nvLastRunFiles)
+  const miLastRunFileSet = new Set(miLastRunFiles)
   const xmlPhase = flow?.phases.find(p => p.id === 'xml')
   const rosterPhase = flow?.phases.find(p => p.id === 'roster')
   const portal = flow?.stateCode === activeStateCode ? flow.portal : null
@@ -1519,7 +1613,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 <div className="flex items-center justify-between overflow-x-auto pb-4 px-2">
                   {rosterSteps.map((step, index) => {
                     const skipped = isStepSkippedByGate(index)
-                    const isGateStep = index === nvGateIndex
+                    const isGateStep = index === gateIndex
                     return (
                     <div key={`${step.phase}-${step.stepId}`} className="flex items-center">
                       {/* Step Card */}
@@ -1565,26 +1659,26 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                           </Badge>
                         )}
 
-                        {/* Download point: generated 785A + 612D files */}
-                        {isGateStep && (nvLastRunFiles.length > 0 || !emailDivisionEnabled) && (
-                          nvLastRunFiles.length > 0 ? (
+                        {/* Download point: NV 785A + 612D files, MI attendance worksheets */}
+                        {isGateStep && (gateLastRunFiles.length > 0 || !gateEnabled) && (
+                          gateLastRunFiles.length > 0 ? (
                             <Button
                               size="sm"
-                              variant={emailDivisionEnabled ? 'outline' : 'default'}
+                              variant={gateEnabled ? 'outline' : 'default'}
                               className="mt-2 h-7 px-2 text-xs"
                               disabled={downloadingFile !== null}
-                              onClick={handleDownloadLastRun}
+                              onClick={handleGateDownloadLastRun}
                             >
                               {downloadingFile ? (
                                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                               ) : (
                                 <Download className="h-3 w-3 mr-1" />
                               )}
-                              Download ({nvLastRunFiles.length})
+                              Download ({gateLastRunFiles.length})
                             </Button>
                           ) : (
                             <a
-                              href="#nv-generated-files"
+                              href={gateFilesAnchor}
                               className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
                             >
                               <Download className="h-3 w-3" />
@@ -1594,9 +1688,31 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                         )}
                       </div>
 
-                      {/* Connector: Nevada Email Division switch, otherwise a plain arrow */}
+                      {/* Connector: NV Email Division / MI Upload switch, otherwise a plain arrow */}
                       {index < rosterSteps.length - 1 && (
-                        isGateStep ? (
+                        isGateStep && isMichigan ? (
+                          <div
+                            className={`
+                              mx-2 flex shrink-0 flex-col items-center gap-1.5 rounded-lg border-2 px-2 py-2 transition-colors
+                              ${miUploadEnabled ? 'border-blue-300 bg-blue-50' : 'border-amber-300 bg-amber-50'}
+                            `}
+                            title={miUploadEnabled
+                              ? 'On: flow uploads the worksheet, verifies the roster and clicks Accept Finalize'
+                              : 'Off: flow stops after Build Worksheet; download the worksheet instead'}
+                          >
+                            <Upload className={`h-4 w-4 ${miUploadEnabled ? 'text-blue-600' : 'text-amber-600'}`} />
+                            <Switch
+                              id="mi-upload"
+                              checked={miUploadEnabled}
+                              onCheckedChange={handleMiUploadChange}
+                              disabled={isRunning}
+                              aria-label="Continue to Upload Worksheet"
+                            />
+                            <Label htmlFor="mi-upload" className="text-[10px] font-semibold uppercase tracking-wide text-center leading-tight">
+                              {miUploadEnabled ? 'Upload On' : 'Upload Off'}
+                            </Label>
+                          </div>
+                        ) : isGateStep ? (
                           <div
                             className={`
                               mx-2 flex shrink-0 flex-col items-center gap-1.5 rounded-lg border-2 px-2 py-2 transition-colors
@@ -1637,6 +1753,78 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                       ? 'Email Division is ON: the run emails the 785A roster to education@red.nv.gov and the 612D evaluation to Evals@red.nv.gov, then completes.'
                       : 'Email Division is OFF: the run stops after Build 612D Evaluations. Nothing is emailed; download the 785A / 612D files below.'}
                   </p>
+                )}
+                {miGateIndex >= 0 && (
+                  <p className="text-xs text-muted-foreground px-2">
+                    {!miUploadEnabled
+                      ? 'Upload is OFF: the run stops after Build Worksheet. Nothing is uploaded; download the worksheets below to check them.'
+                      : dryRun
+                        ? 'Upload is ON, but Dry Run is also on: worksheets are built and nothing is uploaded. Turn Dry Run off to upload.'
+                        : 'Upload is ON: the run uploads each worksheet to CE Marketplace, verifies the roster count and clicks Accept Finalize (cannot be undone).'}
+                  </p>
+                )}
+              </div>
+              )}
+
+              {/* Michigan generated attendance worksheets */}
+              {isMichigan && (
+              <div id="mi-generated-files" className="mt-6 rounded-lg border bg-white/60 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                      Generated Attendance Worksheets
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Worksheets built by recent Michigan runs. Latest run files are highlighted.
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={loadMichiganFiles} disabled={miFilesLoading}>
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${miFilesLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+                {miFiles.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    {miFilesLoading ? 'Loading worksheets...' : 'No worksheets generated yet. Run the pipeline to build attendance worksheets.'}
+                  </p>
+                ) : (
+                  <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                    {miFiles.map((file) => {
+                      const isLatest = miLastRunFileSet.has(file.fileName)
+                      return (
+                        <div
+                          key={file.fileName}
+                          className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 ${isLatest ? 'border-blue-300 bg-blue-50' : 'bg-white'}`}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FileSpreadsheet className="h-4 w-4 shrink-0 text-green-600" />
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-medium" title={file.fileName}>{file.fileName}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Attendance Worksheet · {formatFileSize(file.size)} · {new Date(file.modifiedAt).toLocaleString()}
+                              </p>
+                            </div>
+                            {isLatest && <Badge variant="secondary" className="text-[10px]">Latest run</Badge>}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 shrink-0 px-2"
+                            disabled={downloadingFile === file.fileName}
+                            onClick={() => handleDownloadMichiganFile(file.fileName)}
+                            aria-label={`Download ${file.fileName}`}
+                          >
+                            {downloadingFile === file.fileName ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
               )}

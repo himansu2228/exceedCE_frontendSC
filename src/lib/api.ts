@@ -1149,7 +1149,7 @@ export async function startPipeline(options?: { courseIds?: number[], sinceDate?
   })
 }
 
-export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean, sendEmails?: boolean }): Promise<{ message: string }> {
+export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean, sendEmails?: boolean, upload?: boolean }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/roster-pipeline/start', {
     method: 'POST',
     body: JSON.stringify(options || {}),
@@ -1172,6 +1172,33 @@ export async function getNevadaSubmissionFiles(limit = 50): Promise<NevadaSubmis
 
 export async function downloadNevadaSubmissionFile(fileName: string): Promise<void> {
   const response = await authFetch(apiUrl(`/api/roster-pipeline/nv/files/${encodeURIComponent(fileName)}`), { cache: 'no-store' })
+  if (!response.ok) throw new Error(`Download failed: ${response.status}`)
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export interface MichiganWorksheetFile {
+  fileName: string
+  type: 'worksheet'
+  size: number
+  modifiedAt: string
+}
+
+export async function getMichiganWorksheetFiles(limit = 50): Promise<MichiganWorksheetFile[]> {
+  const response = await authFetch(apiUrl(`/api/roster-pipeline/mi/files?limit=${limit}`), { cache: 'no-store' })
+  if (!response.ok) throw new Error(`Failed to load Michigan worksheets: ${response.status}`)
+  const payload = await response.json()
+  return Array.isArray(payload.files) ? payload.files : []
+}
+
+export async function downloadMichiganWorksheetFile(fileName: string): Promise<void> {
+  const response = await authFetch(apiUrl(`/api/roster-pipeline/mi/files/${encodeURIComponent(fileName)}`), { cache: 'no-store' })
   if (!response.ok) throw new Error(`Download failed: ${response.status}`)
   const url = URL.createObjectURL(await response.blob())
   const link = document.createElement('a')
