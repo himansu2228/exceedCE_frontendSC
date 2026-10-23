@@ -1,5 +1,19 @@
 import { Badge } from '@/components/ui/badge'
 
+export const STATE_OPTIONS: Array<{ code: string; name: string }> = [
+  { code: 'AL', name: 'Alabama' },
+  { code: 'CA', name: 'California' },
+  { code: 'HI', name: 'Hawaii' },
+  { code: 'ID', name: 'Idaho' },
+  { code: 'IL', name: 'Illinois' },
+  { code: 'MI', name: 'Michigan' },
+  { code: 'MO', name: 'Missouri' },
+  { code: 'NC', name: 'North Carolina' },
+  { code: 'NV', name: 'Nevada' },
+  { code: 'SC', name: 'South Carolina' },
+  { code: 'WA', name: 'Washington' },
+]
+
 export function formatCurrency(value: number, currency = 'USD'): string {
   try {
     return new Intl.NumberFormat('en-US', {

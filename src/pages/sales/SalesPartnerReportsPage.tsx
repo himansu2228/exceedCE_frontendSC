@@ -6,15 +6,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { AlertTriangle, DollarSign, Download, FileSpreadsheet, RefreshCw, Settings, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, DollarSign, Download, Eye, FileSpreadsheet, RefreshCw, Settings, Users, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import {
   getPartnerVendorsList,
   getPartnerReconciliationReportApi,
+  getPartnerReportEmailPreviewApi,
   getPartnerReportSettingsApi,
   updatePartnerReportSettingsApi,
   type PartnerConfig,
+  type PartnerEmailPreview,
   type PartnerReportResponse,
   type PartnerReportSettings,
   type ReportFrequency,
@@ -77,6 +79,29 @@ export function SalesPartnerReportsPage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const [settingsSaved, setSettingsSaved] = useState(false)
+
+  // Preview of the email a partner would receive (nothing is sent)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [emailPreview, setEmailPreview] = useState<PartnerEmailPreview | null>(null)
+
+  const openEmailPreview = useCallback(async () => {
+    setPreviewOpen(true)
+    setPreviewLoading(true)
+    setPreviewError(null)
+    setEmailPreview(null)
+    try {
+      setEmailPreview(await getPartnerReportEmailPreviewApi({
+        partner: settingsPartnerId,
+        frequency: settingsForm?.frequency,
+      }))
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : 'Failed to build email preview')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }, [settingsPartnerId, settingsForm?.frequency])
   const loadSettingsForPartner = useCallback(async (partnerId: string) => {
     setSettingsLoading(true)
     setSettingsError(null)
@@ -629,8 +654,69 @@ export function SalesPartnerReportsPage() {
             <Button variant="outline" onClick={() => setSettingsOpen(false)}>
               Close
             </Button>
+            <Button variant="outline" onClick={() => void openEmailPreview()} disabled={settingsLoading || !settingsForm}>
+              <Eye className="mr-2 h-4 w-4" />
+              Preview Email
+            </Button>
             <Button onClick={() => void saveSettings()} disabled={settingsLoading || settingsSaving || !settingsForm}>
               {settingsSaving ? 'Saving...' : 'Save Settings'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Email Preview</DialogTitle>
+            <DialogDescription>
+              This is how the report email for {settingsPartnerName} will look. Nothing has been sent.
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-72 w-full" />
+            </div>
+          ) : null}
+
+          {previewError ? (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {previewError}
+            </div>
+          ) : null}
+
+          {emailPreview ? (
+            <div className="space-y-3">
+              <div className="space-y-1 rounded-lg border bg-slate-50/60 p-3 text-xs text-slate-700">
+                <p><span className="font-semibold">To:</span> {emailPreview.to.length > 0 ? emailPreview.to.join(', ') : 'No notification email configured for this partner'}</p>
+                {emailPreview.cc.length > 0 ? <p><span className="font-semibold">Cc:</span> {emailPreview.cc.join(', ')}</p> : null}
+                <p><span className="font-semibold">Subject:</span> {emailPreview.subject}</p>
+                <p><span className="font-semibold">Period:</span> {emailPreview.window.fromDate} to {emailPreview.window.toDate}</p>
+                {emailPreview.attachments.map((attachment) => (
+                  <p key={attachment.filename}>
+                    <span className="font-semibold">Attachment:</span> {attachment.filename} ({Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB)
+                  </p>
+                ))}
+              </div>
+              {!emailPreview.hasRecipient ? (
+                <p className="text-xs font-medium text-amber-700">This partner has no notification email, so this report would be skipped when sending.</p>
+              ) : null}
+              <iframe
+                title="Partner report email preview"
+                sandbox=""
+                srcDoc={emailPreview.html}
+                className="h-[28rem] w-full rounded-lg border bg-white"
+              />
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatCurrency } from './shared'
+import { formatCurrency, STATE_OPTIONS } from './shared'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 interface ReportPreset {
@@ -76,6 +76,8 @@ const REPORT_PRESETS: ReportPreset[] = [
     description: 'Referred customer sales'
   },
 ]
+
+const ALL_STATES_VALUE = '__all__'
 
 function resolveDisplaySource(row: SalesReportRow): string {
   const feedback = (row.feedback || '').trim()
@@ -288,7 +290,29 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
                 className="lg:col-span-2"
                 showLabels={false}
               />
-              <Input placeholder="State" value={state} onChange={(e) => handleFilterChange(setState, e.target.value)} className="h-8 text-xs" />
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">State</label>
+                <Select
+                  value={state || ALL_STATES_VALUE}
+                  onValueChange={(value) => handleFilterChange(setState, value === ALL_STATES_VALUE ? '' : value)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="All states" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_STATES_VALUE}>All states</SelectItem>
+                    {/* Presets such as CRCBR set several states (e.g. "NC, SC"), which need their own option. */}
+                    {state && !STATE_OPTIONS.some((option) => option.code === state) ? (
+                      <SelectItem value={state}>{state}</SelectItem>
+                    ) : null}
+                    {STATE_OPTIONS.map((option) => (
+                      <SelectItem key={option.code} value={option.code}>
+                        {option.name} ({option.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
               <Input placeholder="Course" value={course} onChange={(e) => handleFilterChange(setCourse, e.target.value)} className="h-8 text-xs" />

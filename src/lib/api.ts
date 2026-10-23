@@ -545,6 +545,35 @@ export async function getQuizQuestionDetail(questionId: string): Promise<Pick<Lo
   return fetchApi<Pick<LowAccuracyQuizQuestion, 'question' | 'options' | 'correctAnswer'>>(`/sales/quiz-questions/${encodeURIComponent(questionId)}`, { timeoutMs: 60000 })
 }
 
+export interface ClassEmailPreview {
+  subject: string
+  to: string[]
+  cc: string[]
+  html: string
+  attachments: Array<{ filename: string; sizeBytes: number }>
+  hasRecipient: boolean
+  classTitle: string
+}
+
+export async function getNcClassEmailPreview(entryId: string): Promise<ClassEmailPreview> {
+  const response = await fetchApi<{ preview: ClassEmailPreview }>(
+    `/nc-class-rosters/${encodeURIComponent(entryId)}/email-preview`,
+    { timeoutMs: 60000 },
+  )
+  return response.preview
+}
+
+export async function getInstructorClassEmailPreview(
+  instructorId: InstructorUpcomingClass['instructorId'],
+  courseId: number,
+): Promise<ClassEmailPreview> {
+  const response = await fetchApi<{ preview: ClassEmailPreview }>(
+    `/instructor-class-rosters/${encodeURIComponent(instructorId)}/${courseId}/email-preview`,
+    { timeoutMs: 60000 },
+  )
+  return response.preview
+}
+
 export async function downloadNcClassRoster(entryId: string): Promise<Blob> {
   if (!getAccessToken()) throw new Error('AUTH_REQUIRED')
   const response = await fetch(`${API_BASE}/nc-class-rosters/${encodeURIComponent(entryId)}/roster.xlsx`, {
@@ -1425,6 +1454,7 @@ export interface SalesOrder {
   billingStateCode: string | null
   shippingStateCode: string | null
   source: string | null
+  refunds?: Array<{ amount: number; reason: string; type: string; status: string; createdOn: string | null }>
   customer: {
     id: number
     fullName: string
@@ -1595,8 +1625,10 @@ export async function getSalesOrders(filters?: {
   toDate?: string
   sortBy?: string
   sortDir?: 'asc' | 'desc'
+  state?: string
 }): Promise<PaginatedResponse<SalesOrder>> {
   const params = new URLSearchParams()
+  if (filters?.state) params.set('state', filters.state)
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
   if (filters?.search) params.set('search', filters.search)
@@ -1619,8 +1651,14 @@ export async function getSalesCustomers(filters?: {
   page?: number
   perPage?: number
   search?: string
+  sortBy?: string
+  sortDir?: 'asc' | 'desc'
+  state?: string
 }): Promise<PaginatedResponse<SalesCustomer>> {
   const params = new URLSearchParams()
+  if (filters?.sortBy) params.set('sortBy', filters.sortBy)
+  if (filters?.sortDir) params.set('sortDir', filters.sortDir)
+  if (filters?.state) params.set('state', filters.state)
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
   if (filters?.search) params.set('search', filters.search)
@@ -1677,6 +1715,31 @@ export async function getLicenseRenewals(filters?: {
 
   const query = params.toString()
   return fetchApi<LicenseRenewalsResponse>(`/sales/license-renewals${query ? `?${query}` : ''}`)
+}
+
+export interface CourseListOverrides {
+  included: string[]
+  excluded: string[]
+}
+
+export type CourseListKey = 'crcbr' | 'out-of-state'
+
+export async function getCourseListOverrides(listKey: CourseListKey): Promise<CourseListOverrides> {
+  const result = await fetchApi<CourseListOverrides>(`/sales/course-lists/${listKey}`)
+  return { included: result.included || [], excluded: result.excluded || [] }
+}
+
+export async function setCourseListOverride(
+  listKey: CourseListKey,
+  course: string,
+  action: 'include' | 'exclude' | 'reset',
+): Promise<CourseListOverrides> {
+  const result = await fetchApi<CourseListOverrides>(`/sales/course-lists/${listKey}`, {
+    method: 'PUT',
+    body: JSON.stringify({ course, action }),
+  })
+  invalidateApiCache(`/sales/course-lists/${listKey}`)
+  return { included: result.included || [], excluded: result.excluded || [] }
 }
 
 export async function updateLicenseRenewalCycle(stateCode: string, cycleYears: number): Promise<void> {
@@ -1952,6 +2015,14 @@ export interface CbaFunnelStudent {
   date_completed: string | null
 }
 
+export interface CbaFunnelCompletion {
+  user_id: number
+  full_name: string
+  email: string
+  course: string
+  date_completed: string | null
+}
+
 export interface CbaCompletionFunnel {
   cbaMembers: number
   cbaCourses: Array<{ id: number; name: string }>
@@ -1963,6 +2034,7 @@ export interface CbaCompletionFunnel {
     started: CbaFunnelStudent[]
     completed: CbaFunnelStudent[]
   }
+  completions?: CbaFunnelCompletion[]
   meta: { note: string }
   syncedAt: string | null
   stale: boolean
@@ -2045,6 +2117,30 @@ export interface PartnerReportResponse {
 export async function getPartnerVendorsList(): Promise<PartnerConfig[]> {
   const res = await fetchApi<{ success: boolean; count: number; partners: PartnerConfig[] }>('/sales/partners')
   return res.partners || []
+}
+
+export interface PartnerEmailPreview {
+  subject: string
+  to: string[]
+  cc: string[]
+  html: string
+  attachments: Array<{ filename: string; sizeBytes: number }>
+  partnerName: string
+  window: { fromDate: string; toDate: string }
+  hasRecipient: boolean
+}
+
+export async function getPartnerReportEmailPreviewApi(params: {
+  partner: string
+  frequency?: ReportFrequency
+}): Promise<PartnerEmailPreview> {
+  const queryParams = new URLSearchParams()
+  queryParams.set('partner', params.partner)
+  if (params.frequency) queryParams.set('frequency', params.frequency)
+  const res = await fetchApi<{ success: boolean; preview: PartnerEmailPreview }>(
+    `/sales/partner-reconciliation/preview?${queryParams.toString()}`,
+  )
+  return res.preview
 }
 
 export async function getPartnerReconciliationReportApi(params: {
