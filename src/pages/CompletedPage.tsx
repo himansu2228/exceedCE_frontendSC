@@ -58,7 +58,7 @@ import {
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getTenantAccessProfile, normalizeStateCode } from '@/lib/auth'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
-import { usesCombinedCompletedTab } from '@/lib/ceBrokerPipeline'
+import { getRosterSwitchOptions, usesCombinedCompletedTab } from '@/lib/ceBrokerPipeline'
 import { useActiveStateCode } from '@/lib/useActiveStateCode'
 
 const COMPLETED_ENTRIES_CACHE_KEY = 'exceedce.completed.entries.cache.v1'
@@ -362,6 +362,7 @@ export function CompletedPage() {
       const result = await postSelectedRosterEntries({
         entries: postable.map(toRosterEntry),
         dryRun,
+        ...getRosterSwitchOptions(activeStateCode),
         timeoutMs: POST_REQUEST_TIMEOUT_MS,
       })
       const done = result.summary?.successful ?? 0

@@ -1,8 +1,8 @@
 import { normalizeStateCode } from '@/lib/auth'
 
-export type PipelineStateCode = 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO'
+export type PipelineStateCode = 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO' | 'AL'
 
-const SUPPORTED_PIPELINE_STATES: PipelineStateCode[] = ['SC', 'HI', 'NC', 'NV', 'MI', 'MO']
+const SUPPORTED_PIPELINE_STATES: PipelineStateCode[] = ['SC', 'HI', 'NC', 'NV', 'MI', 'MO', 'AL']
 
 const PIPELINE_TAB_STATE_MAP: Record<PipelineStateCode, PipelineStateCode> = {
   SC: 'SC',
@@ -11,6 +11,7 @@ const PIPELINE_TAB_STATE_MAP: Record<PipelineStateCode, PipelineStateCode> = {
   MI: 'MI',
   MO: 'MO',
   HI: 'HI',
+  AL: 'AL',
 }
 
 const FALLBACK_STATE: PipelineStateCode = 'SC'
@@ -39,4 +40,29 @@ const COMBINED_COMPLETED_TAB_STATES = new Set(['SC'])
 
 export function usesCombinedCompletedTab(state: string | undefined | null): boolean {
   return COMBINED_COMPLETED_TAB_STATES.has(normalizeStateCode(state))
+}
+
+// Alabama: the "Commit" switch sits between Add Course Credit and Commit Credit. Off by default,
+// so a run only enters the licenses in Manage Course Credit until it is switched on.
+export const AL_COMMIT_STORAGE_KEY = 'exceedce-al-commit'
+
+export function readAlabamaCommitSwitch(): boolean {
+  try {
+    return localStorage.getItem(AL_COMMIT_STORAGE_KEY) === 'on'
+  } catch {
+    return false
+  }
+}
+
+export function saveAlabamaCommitSwitch(enabled: boolean): void {
+  try {
+    localStorage.setItem(AL_COMMIT_STORAGE_KEY, enabled ? 'on' : 'off')
+  } catch {
+    // storage unavailable; caller keeps the in-memory value
+  }
+}
+
+// Extra roster request options for states whose flow has a dashboard switch outside the pipeline page.
+export function getRosterSwitchOptions(state: string | undefined | null): { commit?: boolean } {
+  return normalizeStateCode(state) === 'AL' ? { commit: readAlabamaCommitSwitch() } : {}
 }

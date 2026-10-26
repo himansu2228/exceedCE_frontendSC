@@ -12,7 +12,7 @@ import {
   type RosterPipelineEntry,
 } from '@/lib/api'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
-import { toPipelineStateCode } from '@/lib/ceBrokerPipeline'
+import { getRosterSwitchOptions, toPipelineStateCode } from '@/lib/ceBrokerPipeline'
 import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
@@ -118,7 +118,7 @@ export function RosterPostingEntriesPage() {
     setPostingIds((prev) => ({ ...prev, [entry.id]: true }))
 
     try {
-      const result = await postSelectedRosterEntries({ entries: [entry], dryRun })
+      const result = await postSelectedRosterEntries({ entries: [entry], dryRun, ...getRosterSwitchOptions(activeStateCode) })
       const done = result.summary?.successful ?? 0
       const failed = result.summary?.failed ?? 0
       const skipped = result.summary?.skipped ?? 0
@@ -142,7 +142,7 @@ export function RosterPostingEntriesPage() {
     setSuccess(null)
 
     try {
-      const result = await postSelectedRosterEntries({ entries: selectedEntries, dryRun })
+      const result = await postSelectedRosterEntries({ entries: selectedEntries, dryRun, ...getRosterSwitchOptions(activeStateCode) })
       const done = result.summary?.successful ?? 0
       const failed = result.summary?.failed ?? 0
       const skipped = result.summary?.skipped ?? 0

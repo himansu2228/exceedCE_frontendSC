@@ -51,6 +51,7 @@ const AVAILABLE_STATES = [
   { code: 'MI', name: 'Michigan' },
   { code: 'NV', name: 'Nevada' },
   { code: 'MO', name: 'Missouri' },
+  { code: 'AL', name: 'Alabama' },
 ]
 
 function formatDateTime(value: string | null): string {
@@ -129,6 +130,7 @@ const STATE_NAME_MAP: Record<string, string> = {
   MI: 'Michigan',
   NV: 'Nevada',
   MO: 'Missouri',
+  AL: 'Alabama',
   ALL: 'All States',
 }
 

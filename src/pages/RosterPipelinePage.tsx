@@ -559,6 +559,7 @@ export function RosterPipelinePage() {
                     <AlertDescription>
                       Pipeline will perform real browser automation and post rosters{portal ? ` to ${portal.name}` : ''}.
                       {flow?.stateCode === 'SC' && ' Ensure VPN is connected for LLR SC lookup.'}
+                      {flow?.stateCode === 'AL' && ' The Alabama portal is reached through the US VPN/proxy; course credit is committed only when the Commit switch on the Pipeline page is on.'}
                     </AlertDescription>
                   </Alert>
                 )}

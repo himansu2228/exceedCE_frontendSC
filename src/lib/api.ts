@@ -1031,6 +1031,7 @@ export async function getRosterPipelineEntries(filters?: {
 export async function postSelectedRosterEntries(payload: {
   entries: RosterPipelineEntry[]
   dryRun?: boolean
+  commit?: boolean
   submissionMode?: 'api' | 'browser'
   apiVariant?: 'xml' | 'v2'
   timeoutMs?: number
@@ -1149,7 +1150,7 @@ export async function startPipeline(options?: { courseIds?: number[], sinceDate?
   })
 }
 
-export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean, sendEmails?: boolean, upload?: boolean }): Promise<{ message: string }> {
+export async function startRosterPipeline(options?: { courseIds?: number[], sinceDate?: string, fromDate?: string, toDate?: string, dryRun?: boolean, sendEmails?: boolean, upload?: boolean, commit?: boolean }): Promise<{ message: string }> {
   return fetchApi<{ message: string }>('/roster-pipeline/start', {
     method: 'POST',
     body: JSON.stringify(options || {}),

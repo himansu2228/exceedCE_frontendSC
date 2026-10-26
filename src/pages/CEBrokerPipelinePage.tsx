@@ -74,7 +74,7 @@ import {
 import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { getHiddenPipelineTabLabel, toPipelineStateCode } from '@/lib/ceBrokerPipeline'
+import { getHiddenPipelineTabLabel, toPipelineStateCode, readAlabamaCommitSwitch, saveAlabamaCommitSwitch, type PipelineStateCode } from '@/lib/ceBrokerPipeline'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 // ============== Types ==============
@@ -160,7 +160,7 @@ interface RosterFeedEntry {
 }
 
 interface CEBrokerPipelinePageProps {
-  forcedStateCode?: 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO'
+  forcedStateCode?: PipelineStateCode
 }
 
 // Presentation-only icon lookup keyed by backend step key; steps themselves come from the backend.
@@ -184,6 +184,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'match-courses': ClipboardList,
   'build-roster': FileSpreadsheet,
   'build-evaluation': Star,
+  'add-credits': UserPlus,
   complete: CheckCircle2,
 }
 
@@ -194,6 +195,9 @@ const NV_EMAIL_DIVISION_STORAGE_KEY = 'exceedce-nv-email-division'
 // Michigan: the "Upload" switch sits between Build Worksheet and Upload Worksheet.
 const MI_UPLOAD_GATE_AFTER_KEY = 'build-worksheet'
 const MI_UPLOAD_STORAGE_KEY = 'exceedce-mi-upload'
+
+// Alabama: the "Commit" switch sits between Add Course Credit and Commit Credit.
+const AL_COMMIT_GATE_AFTER_KEY = 'add-credits'
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -523,11 +527,26 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     return () => { cancelled = true }
   }, [isMichigan])
 
-  // State-specific gate switch sent with the roster start request (NV Email Division, MI Upload)
+  // Alabama: when off, the roster phase stops after Add Course Credit (licenses stay entered in
+  // Manage Course Credit). When on (and Dry Run is off) the entered credit is committed.
+  const isAlabama = activeStateCode === 'AL'
+  const [alCommitEnabled, setAlCommitEnabled] = useState<boolean>(readAlabamaCommitSwitch)
+  const alCommitRef = useRef(alCommitEnabled)
+  const isAlabamaRef = useRef(isAlabama)
+  useEffect(() => { isAlabamaRef.current = isAlabama }, [isAlabama])
+  useEffect(() => { alCommitRef.current = alCommitEnabled }, [alCommitEnabled])
+
+  const handleAlCommitChange = useCallback((enabled: boolean) => {
+    setAlCommitEnabled(enabled)
+    saveAlabamaCommitSwitch(enabled)
+  }, [])
+
+  // State-specific gate switch sent with the roster start request (NV Email Division, MI Upload, AL Commit)
   const rosterGateOption = () => (
     isNevadaRef.current ? { sendEmails: emailDivisionRef.current }
       : isMichiganRef.current ? { upload: miUploadRef.current }
-        : {}
+        : isAlabamaRef.current ? { commit: alCommitRef.current }
+          : {}
   )
   
   // SSE connection refs (one for each pipeline)
@@ -1202,8 +1221,11 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const rosterSteps = pipelineSteps.filter(s => s.phase === 'roster')
   const nvGateIndex = isNevada ? rosterSteps.findIndex(s => s.key === NV_EMAIL_GATE_AFTER_KEY) : -1
   const miGateIndex = isMichigan ? rosterSteps.findIndex(s => s.key === MI_UPLOAD_GATE_AFTER_KEY) : -1
-  const gateIndex = nvGateIndex >= 0 ? nvGateIndex : miGateIndex
-  const gateEnabled = nvGateIndex >= 0 ? emailDivisionEnabled : miUploadEnabled
+  const alGateIndex = isAlabama ? rosterSteps.findIndex(s => s.key === AL_COMMIT_GATE_AFTER_KEY) : -1
+  const gateIndex = nvGateIndex >= 0 ? nvGateIndex : miGateIndex >= 0 ? miGateIndex : alGateIndex
+  const gateEnabled = nvGateIndex >= 0 ? emailDivisionEnabled : miGateIndex >= 0 ? miUploadEnabled : alCommitEnabled
+  // Alabama produces no files, so its gate step has no download point.
+  const gateHasFiles = nvGateIndex >= 0 || miGateIndex >= 0
   const gateLastRunFiles = nvGateIndex >= 0 ? nvLastRunFiles : miLastRunFiles
   const handleGateDownloadLastRun = nvGateIndex >= 0 ? handleDownloadLastRun : handleDownloadMichiganLastRun
   const gateFilesAnchor = nvGateIndex >= 0 ? '#nv-generated-files' : '#mi-generated-files'
@@ -1402,6 +1424,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                     <AlertDescription>
                       Pipeline will POST real data{portal ? ` to ${portal.name}` : ''} and perform browser automation.
                       {activeStateCode === 'SC' && ' Ensure VPN is connected for protected lookup access.'}
+                      {activeStateCode === 'AL' && ' The Alabama portal is reached through the US VPN/proxy; course credit is committed only when the Commit switch is on.'}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -1660,7 +1683,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                         )}
 
                         {/* Download point: NV 785A + 612D files, MI attendance worksheets */}
-                        {isGateStep && (gateLastRunFiles.length > 0 || !gateEnabled) && (
+                        {isGateStep && gateHasFiles && (gateLastRunFiles.length > 0 || !gateEnabled) && (
                           gateLastRunFiles.length > 0 ? (
                             <Button
                               size="sm"
@@ -1688,9 +1711,31 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                         )}
                       </div>
 
-                      {/* Connector: NV Email Division / MI Upload switch, otherwise a plain arrow */}
+                      {/* Connector: NV Email Division / MI Upload / AL Commit switch, otherwise a plain arrow */}
                       {index < rosterSteps.length - 1 && (
-                        isGateStep && isMichigan ? (
+                        isGateStep && isAlabama ? (
+                          <div
+                            className={`
+                              mx-2 flex shrink-0 flex-col items-center gap-1.5 rounded-lg border-2 px-2 py-2 transition-colors
+                              ${alCommitEnabled ? 'border-blue-300 bg-blue-50' : 'border-amber-300 bg-amber-50'}
+                            `}
+                            title={alCommitEnabled
+                              ? 'On: flow clicks Commit so the entered course credit is submitted to AREC'
+                              : 'Off: flow stops after Add Course Credit; licenses stay entered but are not submitted'}
+                          >
+                            <Send className={`h-4 w-4 ${alCommitEnabled ? 'text-blue-600' : 'text-amber-600'}`} />
+                            <Switch
+                              id="al-commit"
+                              checked={alCommitEnabled}
+                              onCheckedChange={handleAlCommitChange}
+                              disabled={isRunning}
+                              aria-label="Continue to Commit Credit"
+                            />
+                            <Label htmlFor="al-commit" className="text-[10px] font-semibold uppercase tracking-wide text-center leading-tight">
+                              {alCommitEnabled ? 'Commit On' : 'Commit Off'}
+                            </Label>
+                          </div>
+                        ) : isGateStep && isMichigan ? (
                           <div
                             className={`
                               mx-2 flex shrink-0 flex-col items-center gap-1.5 rounded-lg border-2 px-2 py-2 transition-colors
@@ -1761,6 +1806,15 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                       : dryRun
                         ? 'Upload is ON, but Dry Run is also on: worksheets are built and nothing is uploaded. Turn Dry Run off to upload.'
                         : 'Upload is ON: the run uploads each worksheet to CE Marketplace, verifies the roster count and clicks Accept Finalize (cannot be undone).'}
+                  </p>
+                )}
+                {alGateIndex >= 0 && (
+                  <p className="text-xs text-muted-foreground px-2">
+                    {dryRun
+                      ? 'Dry Run is on: nothing is entered or committed in the Alabama portal. Turn Dry Run off to add course credit.'
+                      : !alCommitEnabled
+                        ? 'Commit is OFF: the run stops after Add Course Credit. License numbers are entered in Manage Course Credit but NOT submitted; turn Commit on and run again to submit them.'
+                        : 'Commit is ON: after Add Course Credit the run clicks Commit, submitting the course credit to AREC, and checks Course Credit History.'}
                   </p>
                 )}
               </div>
