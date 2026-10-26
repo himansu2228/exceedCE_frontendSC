@@ -192,6 +192,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'build-evaluation': Star,
   'add-credits': UserPlus,
   'add-entries': UserPlus,
+  'finalize-entries': ClipboardList,
   complete: CheckCircle2,
 }
 
