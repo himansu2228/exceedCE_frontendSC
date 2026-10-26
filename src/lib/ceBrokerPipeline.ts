@@ -81,6 +81,17 @@ export const PORTAL_SUBMIT_GATES: Partial<Record<PipelineStateCode, PortalSubmit
     dryRunHelp: 'Dry Run is on: nothing is added or submitted in the Illinois portal. Turn Dry Run off to add entries.',
     liveNote: ' Illinois entries are submitted to IDFPR only when the Submit switch is on.',
   },
+  MO: {
+    afterStepKey: 'build-ceu-files',
+    storageKey: 'exceedce-mo-submit',
+    label: 'Submit',
+    onTitle: 'On: after Build CEU Files the flow uploads each student file in MOPRO and clicks Submit, one by one',
+    offTitle: 'Off: flow stops after Build CEU Files; download the MREC files to check them. Nothing is uploaded',
+    onHelp: 'Submit is ON: after Build CEU Files the run uploads each MREC file (one per student per course) in Upload Student CEU Details and clicks Submit, one at a time.',
+    offHelp: 'Submit is OFF: the run stops after Build CEU Files. Nothing is uploaded; download the MREC files below to check them, then turn Submit on and run again.',
+    dryRunHelp: 'Dry Run is on: MREC files are built for download but nothing is uploaded to MOPRO. Turn Dry Run off to submit.',
+    liveNote: ' Missouri MREC files are submitted to MOPRO only when the Submit switch is on.',
+  },
 }
 
 export function getPortalSubmitGate(state: string | undefined | null): PortalSubmitGate | null {
@@ -118,6 +129,7 @@ const ROSTER_GATE_BY_STATE: Partial<Record<PipelineStateCode, { key: 'sendEmails
   MI: { key: 'upload', label: 'Upload' },
   AL: { key: 'commit', label: 'Commit' },
   IL: { key: 'commit', label: 'Submit' },
+  MO: { key: 'commit', label: 'Submit' },
 }
 
 export function getRosterGate(state: string | undefined | null) {

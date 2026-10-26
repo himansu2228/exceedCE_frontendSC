@@ -1237,20 +1237,29 @@ export async function downloadNevadaSubmissionFile(fileName: string): Promise<vo
 
 export interface MichiganWorksheetFile {
   fileName: string
-  type: 'worksheet'
+  type: 'worksheet' | 'ceu'
   size: number
   modifiedAt: string
 }
 
 export async function getMichiganWorksheetFiles(limit = 50): Promise<MichiganWorksheetFile[]> {
-  const response = await authFetch(apiUrl(`/api/roster-pipeline/mi/files?limit=${limit}`), { cache: 'no-store' })
-  if (!response.ok) throw new Error(`Failed to load Michigan worksheets: ${response.status}`)
+  return getGeneratedStateFiles('mi', limit)
+}
+
+export async function downloadMichiganWorksheetFile(fileName: string): Promise<void> {
+  return downloadGeneratedStateFile('mi', fileName)
+}
+
+// Files a state's roster run builds for download: MI attendance worksheets, MO MREC CEU CSVs.
+export async function getGeneratedStateFiles(statePath: 'mi' | 'mo', limit = 50): Promise<MichiganWorksheetFile[]> {
+  const response = await authFetch(apiUrl(`/api/roster-pipeline/${statePath}/files?limit=${limit}`), { cache: 'no-store' })
+  if (!response.ok) throw new Error(`Failed to load generated files: ${response.status}`)
   const payload = await response.json()
   return Array.isArray(payload.files) ? payload.files : []
 }
 
-export async function downloadMichiganWorksheetFile(fileName: string): Promise<void> {
-  const response = await authFetch(apiUrl(`/api/roster-pipeline/mi/files/${encodeURIComponent(fileName)}`), { cache: 'no-store' })
+export async function downloadGeneratedStateFile(statePath: 'mi' | 'mo', fileName: string): Promise<void> {
+  const response = await authFetch(apiUrl(`/api/roster-pipeline/${statePath}/files/${encodeURIComponent(fileName)}`), { cache: 'no-store' })
   if (!response.ok) throw new Error(`Download failed: ${response.status}`)
   const url = URL.createObjectURL(await response.blob())
   const link = document.createElement('a')

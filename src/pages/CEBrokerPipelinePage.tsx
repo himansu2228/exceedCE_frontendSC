@@ -53,9 +53,9 @@ import {
 import {
   apiUrl,
   authFetch,
-  downloadMichiganWorksheetFile,
+  downloadGeneratedStateFile,
   downloadNevadaSubmissionFile,
-  getMichiganWorksheetFiles,
+  getGeneratedStateFiles,
   getNevadaSubmissionFiles,
   getPipelineFlow,
   getRosterPipelineHistory,
@@ -192,6 +192,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'build-evaluation': Star,
   'add-credits': UserPlus,
   'add-entries': UserPlus,
+  'build-ceu-files': FileSpreadsheet,
   'finalize-entries': ClipboardList,
   complete: CheckCircle2,
 }
@@ -471,6 +472,10 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // Michigan: when off, the roster phase stops after Build Worksheet and worksheets are offered for download.
   // When on (and Dry Run is off) the worksheet is uploaded and "Accept Finalize" is clicked.
   const isMichigan = activeStateCode === 'MI'
+  // States whose roster run builds files for download (MI worksheets, MO MREC CSVs).
+  const generatedFilesPath: 'mi' | 'mo' | null = activeStateCode === 'MI' ? 'mi' : activeStateCode === 'MO' ? 'mo' : null
+  const generatedFilesPathRef = useRef(generatedFilesPath)
+  useEffect(() => { generatedFilesPathRef.current = generatedFilesPath }, [generatedFilesPath])
   const [miUploadEnabled, setMiUploadEnabled] = useState<boolean>(() => {
     try {
       return localStorage.getItem(MI_UPLOAD_STORAGE_KEY) === 'on'
@@ -498,7 +503,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const loadMichiganFiles = useCallback(async () => {
     setMiFilesLoading(true)
     try {
-      setMiFiles(await getMichiganWorksheetFiles(50))
+      const statePath = generatedFilesPathRef.current
+      setMiFiles(statePath ? await getGeneratedStateFiles(statePath, 50) : [])
     } catch (err) {
       console.error('Failed to load Michigan worksheets:', err)
     } finally {
@@ -509,7 +515,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const handleDownloadMichiganFile = useCallback(async (fileName: string) => {
     setDownloadingFile(fileName)
     try {
-      await downloadMichiganWorksheetFile(fileName)
+      const statePath = generatedFilesPathRef.current
+      if (statePath) await downloadGeneratedStateFile(statePath, fileName)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Download failed')
     } finally {
@@ -524,13 +531,17 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   }, [miLastRunFiles, handleDownloadMichiganFile])
 
   useEffect(() => {
-    if (!isMichigan) return
+    if (!generatedFilesPath) return
     let cancelled = false
-    getMichiganWorksheetFiles(50)
+    getGeneratedStateFiles(generatedFilesPath, 50)
       .then((files) => { if (!cancelled) setMiFiles(files) })
-      .catch((err) => console.error('Failed to load Michigan worksheets:', err))
-    return () => { cancelled = true }
-  }, [isMichigan])
+      .catch((err) => console.error('Failed to load generated files:', err))
+    return () => {
+      cancelled = true
+      // Files belong to one state; clear them when the state changes.
+      setMiFiles([])
+    }
+  }, [generatedFilesPath])
 
   // AL Commit / IL Submit: when off, the roster phase stops after the staging step (Add Course
   // Credit / Add Entries). When on (and Dry Run is off) the staged entries are submitted.
@@ -854,7 +865,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
           setLatestCompletionOnFile(lastRosterRun.latestCompletionOnFile || null)
           setLastRun(new Date(lastRosterRun.completedAt))
           setNvLastRunFiles(loaded.stateCode === 'NV' ? lastRosterRun.files || [] : [])
-          setMiLastRunFiles(loaded.stateCode === 'MI' ? lastRosterRun.files || [] : [])
+          setMiLastRunFiles(loaded.stateCode === 'MI' || loaded.stateCode === 'MO' ? lastRosterRun.files || [] : [])
         }
       })
       .catch((loadError) => {
@@ -1058,7 +1069,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 loadNevadaFiles()
               }
 
-              if (isMichiganRef.current && Array.isArray(data.summary.roster_submissions)) {
+              if (generatedFilesPathRef.current && Array.isArray(data.summary.roster_submissions)) {
                 const files = (data.summary.roster_submissions as Array<{ worksheet_filename?: string }>)
                   .map(sub => sub.worksheet_filename)
                   .filter((name): name is string => Boolean(name))
@@ -1309,8 +1320,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   const submitGateIndex = submitGate ? rosterSteps.findIndex(s => s.key === submitGate.afterStepKey) : -1
   const gateIndex = nvGateIndex >= 0 ? nvGateIndex : miGateIndex >= 0 ? miGateIndex : submitGateIndex
   const gateEnabled = nvGateIndex >= 0 ? emailDivisionEnabled : miGateIndex >= 0 ? miUploadEnabled : submitGateEnabled
-  // Alabama produces no files, so its gate step has no download point.
-  const gateHasFiles = nvGateIndex >= 0 || miGateIndex >= 0
+  // AL and IL produce no files, so their gate step has no download point.
+  const gateHasFiles = nvGateIndex >= 0 || miGateIndex >= 0 || (submitGateIndex >= 0 && Boolean(generatedFilesPath))
   const gateLastRunFiles = nvGateIndex >= 0 ? nvLastRunFiles : miLastRunFiles
   const handleGateDownloadLastRun = nvGateIndex >= 0 ? handleDownloadLastRun : handleDownloadMichiganLastRun
   const gateFilesAnchor = nvGateIndex >= 0 ? '#nv-generated-files' : '#mi-generated-files'
@@ -1946,16 +1957,18 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               )}
 
               {/* Michigan generated attendance worksheets */}
-              {isMichigan && (
+              {generatedFilesPath && (
               <div id="mi-generated-files" className="mt-6 rounded-lg border bg-white/60 p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div>
                     <p className="flex items-center gap-2 text-sm font-semibold">
                       <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                      Generated Attendance Worksheets
+                      {generatedFilesPath === 'mo' ? 'Generated MREC CEU Files' : 'Generated Attendance Worksheets'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Worksheets built by recent Michigan runs. Latest run files are highlighted.
+                      {generatedFilesPath === 'mo'
+                        ? 'One MREC CSV per student per course, built by recent Missouri runs. Latest run files are highlighted.'
+                        : 'Worksheets built by recent Michigan runs. Latest run files are highlighted.'}
                     </p>
                   </div>
                   <Button size="sm" variant="outline" onClick={loadMichiganFiles} disabled={miFilesLoading}>
@@ -1965,7 +1978,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 </div>
                 {miFiles.length === 0 ? (
                   <p className="py-4 text-center text-xs text-muted-foreground">
-                    {miFilesLoading ? 'Loading worksheets...' : 'No worksheets generated yet. Run the pipeline to build attendance worksheets.'}
+                    {miFilesLoading ? 'Loading files...' : generatedFilesPath === 'mo' ? 'No MREC files generated yet. Run the pipeline to build them.' : 'No worksheets generated yet. Run the pipeline to build attendance worksheets.'}
                   </p>
                 ) : (
                   <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
@@ -1981,7 +1994,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                             <div className="min-w-0">
                               <p className="truncate text-xs font-medium" title={file.fileName}>{file.fileName}</p>
                               <p className="text-[11px] text-muted-foreground">
-                                Attendance Worksheet · {formatFileSize(file.size)} · {new Date(file.modifiedAt).toLocaleString()}
+                                {file.type === 'ceu' ? 'MREC CEU File' : 'Attendance Worksheet'} · {formatFileSize(file.size)} · {new Date(file.modifiedAt).toLocaleString()}
                               </p>
                             </div>
                             {isLatest && <Badge variant="secondary" className="text-[10px]">Latest run</Badge>}
