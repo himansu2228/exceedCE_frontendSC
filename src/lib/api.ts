@@ -245,6 +245,7 @@ const GET_CACHE_OVERRIDES_MS: Array<{ test: RegExp; ttlMs: number }> = [
   { test: /^\/sales\/sync\/(logs|failures)(\?|$)/, ttlMs: 20000 },
   { test: /^\/notifications(\?|$)/, ttlMs: 5000 },
   { test: /^\/pipeline\/flow(\?|$)/, ttlMs: 0 },
+  { test: /^\/roster-pipeline\/scheduler(\?|$)/, ttlMs: 0 },
 ]
 
 const inFlightGetRequests = new Map<string, Promise<unknown>>()
@@ -1053,14 +1054,64 @@ export async function getRosterVerificationStatus(): Promise<RosterVerificationS
   return fetchApi<RosterVerificationStatus>('/roster-pipeline/verification-status')
 }
 
+export type RosterGateKey = 'sendEmails' | 'upload' | 'commit'
+
+export interface RosterSchedulerLastRun {
+  trigger: 'scheduled' | 'run-now' | string
+  status: string
+  message: string | null
+  startedAt: string
+  completedAt?: string
+  fromDate?: string
+  toDate?: string
+  dryRun?: boolean
+  gates?: Partial<Record<RosterGateKey, boolean>>
+  successful?: number
+  failed?: number
+  skipped?: number
+}
+
+export interface RosterSchedulerStatus {
+  stateCode?: string
+  enabled: boolean
+  schedule: string
+  timeZone?: string
+  dryRun: boolean
+  lookbackDays?: number
+  gateKey?: RosterGateKey | null
+  gates?: Partial<Record<RosterGateKey, boolean>>
+  nextRun: string | null
+  isRunning: boolean
+  runningTrigger?: string | null
+  lastRun: string | null
+  lastRunDetails?: RosterSchedulerLastRun | null
+  updatedAt?: string | null
+  updatedBy?: string | null
+}
+
 export async function getRosterPipelineSchedulerStatus(
   signal?: AbortSignal,
   timeoutMs?: number
-): Promise<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }> {
-  return fetchApi<{ enabled: boolean; schedule: string; isRunning: boolean; lastRun: string | null; nextRun: string; dryRun: boolean }>('/roster-pipeline/scheduler', {
+): Promise<RosterSchedulerStatus> {
+  return fetchApi<RosterSchedulerStatus>('/roster-pipeline/scheduler', {
     signal,
     timeoutMs,
   })
+}
+
+// Saves the active state's scheduler settings; scheduled runs use exactly what is saved here.
+export async function updateRosterSchedulerSettings(patch: {
+  enabled?: boolean
+  schedule?: string
+  dryRun?: boolean
+  lookbackDays?: number
+  gates?: Partial<Record<RosterGateKey, boolean>>
+}): Promise<RosterSchedulerStatus> {
+  const data = await fetchApi<{ success: boolean; status: RosterSchedulerStatus }>('/roster-pipeline/scheduler/update', {
+    method: 'POST',
+    body: JSON.stringify(patch),
+  })
+  return data.status
 }
 
 export async function getRosterPipelineHistory(options?: {

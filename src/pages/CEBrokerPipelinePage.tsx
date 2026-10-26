@@ -65,16 +65,29 @@ import {
   startRosterPipeline,
   stopPipeline,
   stopRosterPipeline,
+  updateRosterSchedulerSettings,
   type AutomationStepState,
   type Course,
   type MichiganWorksheetFile,
   type NevadaSubmissionFile,
+  type RosterSchedulerStatus,
   type StateAutomationFlow,
 } from '@/lib/api'
 import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { getHiddenPipelineTabLabel, toPipelineStateCode, getPortalSubmitGate, readPortalSubmitSwitch, savePortalSubmitSwitch, type PipelineStateCode } from '@/lib/ceBrokerPipeline'
+import {
+  describeSchedule,
+  formatInTimeZone,
+  getHiddenPipelineTabLabel,
+  getPortalSubmitGate,
+  getRosterGate,
+  readPortalSubmitSwitch,
+  savePortalSubmitSwitch,
+  shortTimeZoneName,
+  toPipelineStateCode,
+  type PipelineStateCode,
+} from '@/lib/ceBrokerPipeline'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 
 // ============== Types ==============
@@ -113,14 +126,7 @@ interface ProcessingStats {
 }
 
 // Scheduler status type
-interface SchedulerStatus {
-  enabled: boolean
-  schedule: string
-  isRunning: boolean
-  lastRun: string | null
-  nextRun: string
-  dryRun: boolean
-}
+type SchedulerStatus = RosterSchedulerStatus
 
 // History entry type
 interface HistoryEntry {
@@ -546,6 +552,67 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       : isMichiganRef.current ? { upload: miUploadRef.current }
         : submitGateOptionRef.current || {}
   )
+
+  // The switch value saved for scheduled runs ("Save" in Complete Pipeline Flow). Dashboard runs
+  // always use the switch as it is on screen; the scheduler uses only what was saved.
+  const rosterGate = getRosterGate(activeStateCode)
+  const currentGateValue: boolean | null = isNevada
+    ? emailDivisionEnabled
+    : isMichigan
+      ? miUploadEnabled
+      : submitGate
+        ? submitGateEnabled
+        : null
+  const [savingGate, setSavingGate] = useState(false)
+  const [gateSaveMessage, setGateSaveMessage] = useState<{ tone: 'success' | 'error'; text: string; stateCode: string } | null>(null)
+  const appliedSavedGatesRef = useRef(new Set<string>())
+
+  // Show the saved switch once per saved version, so later on-screen edits stay "unsaved".
+  const applySchedulerStatus = useCallback((status: SchedulerStatus) => {
+    setSchedulerStatus(status)
+    const code = String(status.stateCode || '').toUpperCase()
+    const key = status.gateKey
+    const saved = key ? status.gates?.[key] : undefined
+    if (!code || !key || typeof saved !== 'boolean') return
+    const version = `${code}:${status.updatedAt || ''}:${saved}`
+    if (appliedSavedGatesRef.current.has(version)) return
+    appliedSavedGatesRef.current.add(version)
+    if (code === 'NV') {
+      handleEmailDivisionChange(saved)
+    } else if (code === 'MI') {
+      handleMiUploadChange(saved)
+    } else if (getPortalSubmitGate(code)) {
+      setSubmitSwitches((previous) => ({ ...previous, [code]: saved }))
+      savePortalSubmitSwitch(code, saved)
+    }
+  }, [handleEmailDivisionChange, handleMiUploadChange])
+
+  const schedulerForState = schedulerStatus && String(schedulerStatus.stateCode || '').toUpperCase() === activeStateCode
+    ? schedulerStatus
+    : null
+  const savedGateValue = rosterGate && schedulerForState ? schedulerForState.gates?.[rosterGate.key] : undefined
+  const gateDirty = currentGateValue !== null && savedGateValue !== currentGateValue
+  const schedulerTzShort = shortTimeZoneName(schedulerForState?.timeZone)
+
+  const handleSaveGate = async () => {
+    if (!rosterGate || currentGateValue === null) return
+    const code = activeStateCode
+    setSavingGate(true)
+    setGateSaveMessage(null)
+    try {
+      const status = await updateRosterSchedulerSettings({ gates: { [rosterGate.key]: currentGateValue } })
+      applySchedulerStatus(status)
+      setGateSaveMessage({
+        tone: 'success',
+        stateCode: code,
+        text: `Saved. Scheduled runs will use ${rosterGate.label} ${currentGateValue ? 'ON' : 'OFF'}.`,
+      })
+    } catch (err) {
+      setGateSaveMessage({ tone: 'error', stateCode: code, text: err instanceof Error ? err.message : 'Could not save the switch' })
+    } finally {
+      setSavingGate(false)
+    }
+  }
   
   // SSE connection refs (one for each pipeline)
   const xmlEventSourceRef = useRef<EventSource | null>(null)
@@ -682,9 +749,9 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     }
   }, [activeStateCode])
 
-  // Load scheduler status only when scheduler tab is opened
+  // Load scheduler status for the Pipeline tab (saved switch + scheduler summary) and the Scheduler tab
   useEffect(() => {
-    if (activeTab !== 'scheduler') {
+    if (activeTab !== 'scheduler' && activeTab !== 'pipeline') {
       return
     }
 
@@ -696,7 +763,9 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       schedulerAbortRef.current = controller
 
       try {
-        setSchedulerStatus(await getRosterPipelineSchedulerStatus(controller.signal, PAGE_REQUEST_TIMEOUT_MS))
+        const status = await getRosterPipelineSchedulerStatus(controller.signal, PAGE_REQUEST_TIMEOUT_MS)
+        if (controller.signal.aborted) return
+        applySchedulerStatus(status)
       } catch (schedulerError) {
         if (schedulerError instanceof DOMException && schedulerError.name === 'AbortError') {
           return
@@ -709,7 +778,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     }
 
     loadScheduler()
-  }, [activeTab, activeStateCode])
+  }, [activeTab, activeStateCode, applySchedulerStatus])
 
   // Load history only when history tab is opened
   useEffect(() => {
@@ -1184,20 +1253,37 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
     }
   }
 
-  // Update scheduler
-  const handleUpdateScheduler = async (updates: Partial<SchedulerStatus>) => {
+  // Update scheduler (saved immediately; the scheduler picks the change up within ~30 seconds)
+  const handleUpdateScheduler = async (updates: { enabled?: boolean; schedule?: string; dryRun?: boolean }) => {
     try {
-      const res = await authFetch(apiUrl('/api/roster-pipeline/scheduler/update'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setSchedulerStatus(data.status)
-      }
+      applySchedulerStatus(await updateRosterSchedulerSettings(updates))
     } catch (err) {
       console.error('Failed to update scheduler:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update the scheduler')
+    }
+  }
+
+  const refreshSchedulerStatus = () => {
+    getRosterPipelineSchedulerStatus()
+      .then(applySchedulerStatus)
+      .catch((err) => console.error('Failed to load scheduler status:', err))
+  }
+
+  const handleSchedulerRunNow = async () => {
+    try {
+      const res = await authFetch(apiUrl('/api/roster-pipeline/scheduler/run-now'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { error?: string } | null
+        setError(body?.error || `Run Now failed (${res.status})`)
+        return
+      }
+      window.setTimeout(refreshSchedulerStatus, 1500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Run Now failed')
     }
   }
   
@@ -1491,15 +1577,61 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
 
           {/* Complete Pipeline Flow Visualization */}
           <Card>
-            <CardHeader>
-              <CardTitle>Complete Pipeline Flow</CardTitle>
-              <CardDescription>
-                {flow?.configured
-                  ? flow.description
-                  : flowLoading
-                    ? 'Loading automation flow...'
-                    : 'Automation flow for the active state'}
-              </CardDescription>
+            <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-1.5">
+                <CardTitle>Complete Pipeline Flow</CardTitle>
+                <CardDescription>
+                  {flow?.configured
+                    ? flow.description
+                    : flowLoading
+                      ? 'Loading automation flow...'
+                      : 'Automation flow for the active state'}
+                </CardDescription>
+              </div>
+
+              {/* Save the pipeline switch for scheduled runs */}
+              {rosterGate && flow?.configured && currentGateValue !== null && (
+                <div className="flex shrink-0 flex-col gap-1.5 sm:max-w-xs sm:items-end">
+                  <div className="flex items-center gap-2 sm:justify-end">
+                    <Badge
+                      variant={!schedulerForState ? 'outline' : gateDirty ? 'warning' : 'success'}
+                      className="text-[10px] uppercase tracking-wide"
+                      title={savedGateValue === undefined
+                        ? 'This switch has never been saved; scheduled runs use the server default.'
+                        : `Saved for scheduled runs: ${rosterGate.label} ${savedGateValue ? 'ON' : 'OFF'}`}
+                    >
+                      {!schedulerForState
+                        ? 'Loading'
+                        : savedGateValue === undefined
+                          ? 'Not saved'
+                          : gateDirty
+                            ? 'Unsaved changes'
+                            : `Saved · ${rosterGate.label} ${savedGateValue ? 'On' : 'Off'}`}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveGate}
+                      disabled={!schedulerForState || !gateDirty || savingGate || isRunning}
+                      aria-label={`Save the ${rosterGate.label} switch for scheduled runs`}
+                    >
+                      {savingGate ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                      Save
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground sm:text-right">
+                    {!schedulerForState
+                      ? 'Loading scheduler settings...'
+                      : !schedulerForState.enabled
+                        ? 'Scheduler is off. Turn it on in the Scheduler tab to run this flow automatically.'
+                        : `Scheduler on: ${describeSchedule(schedulerForState.schedule)} ${schedulerTzShort} · ${schedulerForState.dryRun ? 'Dry Run (nothing is posted)' : 'Live'}`}
+                  </p>
+                  {gateSaveMessage && gateSaveMessage.stateCode === activeStateCode && (
+                    <p className={`text-xs sm:text-right ${gateSaveMessage.tone === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                      {gateSaveMessage.text}
+                    </p>
+                  )}
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               {flowLoading ? (
@@ -2280,6 +2412,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                           const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
                           return `${hour12}:${minute.padStart(2, '0')} ${ampm} - ${days}`
                         })()}
+                        {schedulerStatus.timeZone ? ` (${shortTimeZoneName(schedulerStatus.timeZone)}, ${schedulerStatus.timeZone})` : ''}
                       </p>
                       <p className="text-xs text-blue-600 mt-1">
                         Cron: {schedulerStatus.schedule}
@@ -2330,23 +2463,53 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                       <div className="flex items-center justify-between p-3 bg-white rounded-lg">
                         <span className="text-sm text-muted-foreground">Next Run</span>
                         <span className="text-sm font-medium text-green-600">
-                          {schedulerStatus.nextRun}
+                          {schedulerStatus.enabled && schedulerStatus.nextRun
+                            ? formatInTimeZone(schedulerStatus.nextRun, schedulerStatus.timeZone)
+                            : '—'}
                         </span>
                       </div>
                       
                       <div className="flex items-center justify-between p-3 bg-white rounded-lg">
                         <span className="text-sm text-muted-foreground">Last Run</span>
+                        <span className="text-sm font-medium text-right">
+                          {schedulerStatus.lastRunDetails
+                            ? `${formatInTimeZone(schedulerStatus.lastRunDetails.startedAt, schedulerStatus.timeZone)} · ${schedulerStatus.lastRunDetails.status}`
+                            : 'Never'}
+                        </span>
+                      </div>
+
+                      {rosterGate && (
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                          <span className="text-sm text-muted-foreground">Saved {rosterGate.label} switch</span>
+                          <Badge variant={schedulerStatus.gates?.[rosterGate.key] ? 'success' : 'secondary'} className="text-xs">
+                            {typeof schedulerStatus.gates?.[rosterGate.key] === 'boolean'
+                              ? (schedulerStatus.gates?.[rosterGate.key] ? 'On' : 'Off')
+                              : 'Not saved (server default)'}
+                          </Badge>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                        <span className="text-sm text-muted-foreground">Completions covered</span>
                         <span className="text-sm font-medium">
-                          {schedulerStatus.lastRun || 'Never'}
+                          {schedulerStatus.lookbackDays
+                            ? `Last ${schedulerStatus.lookbackDays} day${schedulerStatus.lookbackDays === 1 ? '' : 's'} + today`
+                            : 'Today only'}
                         </span>
                       </div>
                     </div>
+
+                    {schedulerStatus.lastRunDetails?.message && (
+                      <p className="text-xs text-muted-foreground break-words">
+                        Last run: {schedulerStatus.lastRunDetails.message}
+                      </p>
+                    )}
 
                     {schedulerStatus.isRunning && (
                       <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
                         <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                         <span className="text-sm text-blue-800 font-medium">
-                          Pipeline is currently running...
+                          Pipeline is currently running{schedulerStatus.runningTrigger === 'scheduled' ? ' (scheduled run)' : ''}...
                         </span>
                       </div>
                     )}
@@ -2355,15 +2518,10 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   {/* Action Buttons */}
                   <div className="flex gap-3">
                     <Button
-                      onClick={async () => {
-                        await authFetch(apiUrl('/api/roster-pipeline/scheduler/run-now'), {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ dryRun: schedulerStatus.dryRun }),
-                        })
-                      }}
+                      onClick={handleSchedulerRunNow}
                       disabled={schedulerStatus.isRunning}
                       className="flex-1"
+                      title="Runs this state's scheduled job now, with the saved settings"
                     >
                       <Play className="h-4 w-4 mr-2" />
                       Run Now
@@ -2371,12 +2529,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                     
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        authFetch(apiUrl('/api/roster-pipeline/scheduler'))
-                          .then(res => res.json())
-                          .then(setSchedulerStatus)
-                          .catch(console.error)
-                      }}
+                      onClick={refreshSchedulerStatus}
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>

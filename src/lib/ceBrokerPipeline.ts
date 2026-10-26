@@ -111,3 +111,55 @@ export function savePortalSubmitSwitch(state: string | undefined | null, enabled
 export function getRosterSwitchOptions(state: string | undefined | null): { commit?: boolean } {
   return getPortalSubmitGate(state) ? { commit: readPortalSubmitSwitch(state) } : {}
 }
+
+// The pipeline switch each state's roster flow has, as sent to the backend (and saved for the scheduler).
+const ROSTER_GATE_BY_STATE: Partial<Record<PipelineStateCode, { key: 'sendEmails' | 'upload' | 'commit'; label: string }>> = {
+  NV: { key: 'sendEmails', label: 'Email Division' },
+  MI: { key: 'upload', label: 'Upload' },
+  AL: { key: 'commit', label: 'Commit' },
+  IL: { key: 'commit', label: 'Submit' },
+}
+
+export function getRosterGate(state: string | undefined | null) {
+  return ROSTER_GATE_BY_STATE[normalizeStateCode(state) as PipelineStateCode] || null
+}
+
+/** "0 18 * * 1-5" -> "6:00 PM on weekdays"; other cron shapes are returned as-is. */
+export function describeSchedule(schedule: string | undefined | null): string {
+  const parts = String(schedule || '').trim().split(/\s+/)
+  if (parts.length !== 5 || !/^\d+$/.test(parts[0]) || !/^\d+$/.test(parts[1]) || parts[2] !== '*' || parts[3] !== '*') {
+    return String(schedule || '')
+  }
+  const minute = Number(parts[0])
+  const hour = Number(parts[1])
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12
+  const time = `${hour12}:${String(minute).padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`
+  const days = parts[4] === '*' ? 'every day' : parts[4] === '1-5' ? 'on weekdays' : `on days ${parts[4]}`
+  return `${time} ${days}`
+}
+
+/** Short zone name such as "EDT" for an IANA zone, falling back to the zone id. */
+export function shortTimeZoneName(timeZone: string | undefined | null, at: Date = new Date()): string {
+  if (!timeZone) return ''
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' })
+      .formatToParts(at)
+      .find((p) => p.type === 'timeZoneName')
+    return part?.value || timeZone
+  } catch {
+    return timeZone
+  }
+}
+
+/** ISO time shown in the scheduler time zone, e.g. "Oct 26, 2026, 6:00 PM EDT". */
+export function formatInTimeZone(iso: string | null | undefined, timeZone: string | undefined | null): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return String(iso)
+  try {
+    const text = date.toLocaleString('en-US', { timeZone: timeZone || undefined, dateStyle: 'medium', timeStyle: 'short' })
+    return timeZone ? `${text} ${shortTimeZoneName(timeZone, date)}` : text
+  } catch {
+    return date.toLocaleString()
+  }
+}
