@@ -49,6 +49,7 @@ import {
   ClipboardList,
   Star,
   Upload,
+  FolderOpen,
 } from 'lucide-react'
 import {
   apiUrl,
@@ -182,6 +183,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'check-access': Shield,
   'lookup-profession': Globe,
   login: LogIn,
+  'open-manage-ce': FolderOpen,
   'fetch-portal-courses': Database,
   'enroll-attendees': UserPlus,
   'create-roster': FileEdit,
