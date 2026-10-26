@@ -31,6 +31,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { apiUrl, authFetch, getPipelineFlow, getRosterVerificationStatus, resolveRosterVerification, type RosterVerificationStatus, type StateAutomationFlow } from '@/lib/api'
+import { getPortalSubmitGate } from '@/lib/ceBrokerPipeline'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 
 // Roster Pipeline step type
@@ -559,7 +560,7 @@ export function RosterPipelinePage() {
                     <AlertDescription>
                       Pipeline will perform real browser automation and post rosters{portal ? ` to ${portal.name}` : ''}.
                       {flow?.stateCode === 'SC' && ' Ensure VPN is connected for LLR SC lookup.'}
-                      {flow?.stateCode === 'AL' && ' The Alabama portal is reached through the US VPN/proxy; course credit is committed only when the Commit switch on the Pipeline page is on.'}
+                      {getPortalSubmitGate(flow?.stateCode)?.liveNote}
                     </AlertDescription>
                   </Alert>
                 )}
