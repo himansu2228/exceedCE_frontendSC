@@ -41,35 +41,58 @@ function formatUSD(value: number): string {
   }).format(value)
 }
 
-function isCBAOutOfStateCourse(courseName: string): boolean {
-  const name = (courseName || '').toLowerCase().trim()
-  
-  // 1. Exclude WA specifically
-  if (name.startsWith('wa ') || name.includes('washington')) return false
-  
-  // 2. All US State abbreviations except WA
-  const outOfStates = [
-    'al ', 'ak ', 'az ', 'ar ', 'ca ', 'co ', 'ct ', 'de ', 'fl ', 'ga ', 
-    'hi ', 'id ', 'il ', 'in ', 'ia ', 'ks ', 'ky ', 'la ', 'me ', 'md ', 
-    'ma ', 'mi ', 'mn ', 'ms ', 'mo ', 'mt ', 'ne ', 'nv ', 'nh ', 'nj ', 
-    'nm ', 'ny ', 'nc ', 'nd ', 'oh ', 'ok ', 'or ', 'pa ', 'ri ', 'sc ', 
-    'sd ', 'tn ', 'tx ', 'ut ', 'vt ', 'va ', 'wv ', 'wi ', 'wy ',
-    'north carolina ', 'south carolina '
-  ]
-  
-  // 3. Check if the course starts with any out-of-state prefix
-  const hasStatePrefix = outOfStates.some(state => name.startsWith(state))
-  if (!hasStatePrefix) return false
-  
-  // 4. Ensure it's a CBA-related topic
-  const isCBATopic = name.includes('commercial') || 
-                     name.includes('syndication') || 
-                     name.includes('package') ||
-                     name.includes('real estate') ||
-                     name.includes('ethics')
-  
-  return isCBATopic
+// The exact CBA courses this report covers; names are compared ignoring case and extra spaces.
+const CBA_OUT_OF_STATE_COURSES = [
+  'AL Commercial Leasing Basics (3 Hours)',
+  'AL Introduction to Commercial Real Estate Sales (4 Hours)',
+  'Commercial Leasing Basics (Professional Development)',
+  'HI 20-Hour Commercial Renewal Package with Video Courses',
+  'HI Commercial Leasing Basics (3 Hours)',
+  'HI Introduction to Commercial Real Estate Sales (3 Hours)',
+  'HI The Art of Syndication (3 Hours)',
+  'ID Commercial Leasing Basics (3 hours)',
+  'ID Introduction to Commercial Real Estate Sales (4 hours)',
+  'ID The Art of Syndication (3 hours)',
+  'Introduction to Commercial Real Estate Sales (Professional Development)',
+  'MI 18-Hour Commercial Package',
+  'MI 6-Hour Commercial Package',
+  'MI Commercial Leasing Basics (3 Hours)',
+  'MI Introduction to Commercial Real Estate Sales (4 Hours)',
+  'MO Commercial Leasing Basics (3 Hours)',
+  'MO Introduction to Commercial Real Estate Sales (3 Hours)',
+  'MO The Art of Syndication (3 Hours)',
+  'NC Introduction to Commercial Real Estate Sales (4 Hours)',
+  'North Carolina CE: Introduction to Commercial Real Estate Sales',
+  'NV Commercial Leasing Basics (3 Hours)',
+  'NV Commercial Real Estate Package #1 (12 Hours)',
+  'NV Commercial Real Estate Package #2 (12 Hours)',
+  'NV Introduction to Commercial Real Estate Sales (4 Hours)',
+  'OR 30-Hour Commercial Renewal Package',
+  'OR Commercial Leasing Basics (3 Hours)',
+  'OR Introduction to Commercial Real Estate Sales (4 Hours)',
+  'OR The Art of Syndication (3 Hours)',
+  'PA Commercial Leasing Basics (3 Hours)',
+  'PA Introduction to Commercial Real Estate Sales (4 Hours)',
+  'PA The Art of Syndication (3 Hours)',
+  'SC 10-Hour Commercial Renewal Package Option 2',
+  'SC Commercial Leasing Basics (3 Hours)',
+  'SC Introduction to Commercial Real Estate Sales (4 Hours)',
+  'South Carolina CE: 10-Hour Commercial Package 2',
+  'South Carolina CE: Commercial Leasing Basics (3 Hours)',
+  'South Carolina CE: Introduction to Commercial Real Estate Sales (4 Hours)',
+  'The Art of Syndication (Professional Development)',
+]
+
+function normalizeCourseName(courseName: string): string {
+  return (courseName || '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
+
+const CBA_OUT_OF_STATE_SET = new Set(CBA_OUT_OF_STATE_COURSES.map(normalizeCourseName))
+
+function isCBAOutOfStateCourse(courseName: string): boolean {
+  return CBA_OUT_OF_STATE_SET.has(normalizeCourseName(courseName))
+}
+
 
 export function SalesOutOfStatePage() {
   const [viewMode, setViewMode] = useState<ViewMode>('sales')
@@ -88,10 +111,16 @@ export function SalesOutOfStatePage() {
     const included = new Set(overrides.included)
     const excluded = new Set(overrides.excluded)
     const kept = allRows.filter((row) => included.has(row.courseName) || (isCBAOutOfStateCourse(row.courseName) && !excluded.has(row.courseName)))
-    const present = new Set(kept.map((row) => row.courseName))
-    const empty = overrides.included
-      .filter((name) => !present.has(name))
-      .map((name) => ({ courseName: name, monthlyStats: {}, totalRevenue: 0, totalQuantity: 0 }))
+    const present = new Set(kept.map((row) => normalizeCourseName(row.courseName)))
+    // Listed or manually added courses with no sales in the selected period still get a row.
+    const emptyNames = [...CBA_OUT_OF_STATE_COURSES.filter((name) => !excluded.has(name)), ...overrides.included]
+      .filter((name) => {
+        const key = normalizeCourseName(name)
+        if (present.has(key)) return false
+        present.add(key)
+        return true
+      })
+    const empty = emptyNames.map((name) => ({ courseName: name, monthlyStats: {}, totalRevenue: 0, totalQuantity: 0 }))
     return [...kept, ...empty].sort((a, b) => a.courseName.localeCompare(b.courseName))
   }, [allRows, overrides])
 

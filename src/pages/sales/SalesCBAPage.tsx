@@ -40,9 +40,6 @@ import {
 
 import { getCbaTabularUsers, getCbaUserCompletion } from '@/lib/api'
 
-const CBA_SHEET_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/1Ybwii_XozjqthwI77fmalbWbmOWBcAXrXAsAFLd8UfA/gviz/tq?tqx=out:csv&sheet=Live_List'
-
 interface CbaRow {
   addedToCba: string
   id: string
@@ -67,48 +64,6 @@ interface CbaCompletionDetails {
 
 type SortKey = 'id' | 'firstName' | 'completion' | 'lastLogin'
 type SortDirection = 'asc' | 'desc'
-
-function parseCsvLine(line: string): string[] {
-  const values: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i]
-
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-      continue
-    }
-
-    if (char === ',' && !inQuotes) {
-      values.push(current)
-      current = ''
-      continue
-    }
-
-    current += char
-  }
-
-  values.push(current)
-  return values
-}
-
-function parseCsv(text: string): string[][] {
-  return text
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .map((line) => parseCsvLine(line))
-}
-
-function normalizeHeader(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ')
-}
 
 function parseCompletionValue(value: string): { done: number; total: number } {
   const match = value.match(/(\d+)\s*\/\s*(\d+)/)
@@ -138,46 +93,6 @@ function parseLastLoginAgeDays(value: string): number {
   if (unit.startsWith('month')) return amount * 30
   if (unit.startsWith('year')) return amount * 365
   return Number.POSITIVE_INFINITY
-}
-
-function mapSheetRows(rows: string[][]): CbaRow[] {
-  if (rows.length <= 1) return []
-
-  const headers = rows[0].map((col) => normalizeHeader(col))
-  const findIndex = (name: string): number => headers.indexOf(normalizeHeader(name))
-
-  const indexes = {
-    addedToCba: findIndex('Added to CBA'),
-    id: findIndex('ID'),
-    firstName: findIndex('First Name'),
-    lastName: findIndex('Last Name'),
-    email: findIndex('Email'),
-    completion: findIndex('Completion'),
-    lastLogin: findIndex('Last Login'),
-    removedFromCba: findIndex('Removed from CBA'),
-    emailUpdate: findIndex('Email Update'),
-    lockAcct: findIndex('Lock Acct'),
-    missingCourses: findIndex('Missing courses'),
-    addedLlProUpdate: findIndex('Added LL Pro Update'),
-  }
-
-  return rows
-    .slice(1)
-    .map((row) => ({
-      addedToCba: row[indexes.addedToCba] || '',
-      id: row[indexes.id] || '',
-      firstName: row[indexes.firstName] || '',
-      lastName: row[indexes.lastName] || '',
-      email: row[indexes.email] || '',
-      completion: row[indexes.completion] || '',
-      lastLogin: row[indexes.lastLogin] || '',
-      removedFromCba: row[indexes.removedFromCba] || '',
-      emailUpdate: row[indexes.emailUpdate] || '',
-      lockAcct: row[indexes.lockAcct] || '',
-      missingCourses: row[indexes.missingCourses] || '',
-      addedLlProUpdate: row[indexes.addedLlProUpdate] || '',
-    }))
-    .filter((row) => row.id || row.email || row.firstName || row.lastName)
 }
 
 function completionBadgeVariant(completion: string): 'success' | 'warning' | 'secondary' {
@@ -243,25 +158,8 @@ export function SalesCBAPage() {
     try {
       setLoading(true)
       setError(null)
-      try {
-        const { items } = await getCbaTabularUsers()
-        if (items && items.length > 0) {
-          setAllRows(items)
-          setPage(1)
-          return
-        }
-      } catch (apiErr) {
-        console.warn('CBA API fetch unavailable, using sheet fallback:', apiErr)
-      }
-
-      const response = await fetch(CBA_SHEET_CSV_URL, { cache: 'no-store' })
-      if (!response.ok) {
-        throw new Error(`Failed to load sheet (${response.status})`)
-      }
-      const text = await response.text()
-      const parsed = parseCsv(text)
-      const mappedRows = mapSheetRows(parsed)
-      setAllRows(mappedRows)
+      const { items } = await getCbaTabularUsers()
+      setAllRows(items)
       setPage(1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load CBA list')
@@ -381,7 +279,7 @@ export function SalesCBAPage() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground">CBA Master List</h1>
             <p className="text-sm text-muted-foreground">
-              Google Sheet aligned table for CBA learner tracking
+              Live CBA learner tracking from the ExceedCE portal
             </p>
           </div>
         </div>

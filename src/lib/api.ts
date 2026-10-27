@@ -1805,10 +1805,73 @@ export async function getCbaCompletionFunnel(): Promise<CbaCompletionFunnel> {
 export interface PartnerConfig {
   id: string
   name: string
-  partnerSharePct: number
+  partnerSharePct: number | null
+  defaultPartnerSharePct?: number | null
+  isCustomShare?: boolean
   referralFeePct: number
   frequency: string
   description?: string
+}
+
+export interface PartnerProduct {
+  productId: number
+  title: string
+  source: 'academy' | 'manual'
+  flatFee: number | null
+  feeSource: 'custom' | 'built-in' | null
+  noFee: boolean
+}
+
+export interface PartnerProductsResponse {
+  assigned: PartnerProduct[]
+  available: Array<{ productId: number; title: string }>
+}
+
+export async function getPartnerProductsApi(partnerId: string): Promise<PartnerProductsResponse> {
+  const res = await fetchApi<PartnerProductsResponse & { success: boolean }>(`/sales/partners/${encodeURIComponent(partnerId)}/products`, { timeoutMs: 60000 })
+  return { assigned: res.assigned || [], available: res.available || [] }
+}
+
+export async function setPartnerProductApi(
+  partnerId: string,
+  productId: number,
+  action: 'include' | 'exclude' | 'reset',
+  flatFee?: number | null,
+): Promise<PartnerProductsResponse> {
+  const res = await fetchApi<PartnerProductsResponse & { success: boolean }>(`/sales/partners/${encodeURIComponent(partnerId)}/products`, {
+    method: 'PUT',
+    body: JSON.stringify({ productId, action, flatFee: flatFee ?? null }),
+    timeoutMs: 60000,
+  })
+  invalidateApiCache(`/sales/partners/${encodeURIComponent(partnerId)}/products`)
+  return { assigned: res.assigned || [], available: res.available || [] }
+}
+
+export interface NewPartnerInput {
+  name: string
+  notificationEmail?: string
+  partnerSharePct: number
+  frequency: 'weekly' | 'biweekly' | 'monthly' | 'quarterly'
+  academyPartnerId?: number
+  description?: string
+}
+
+export async function createPartnerApi(input: NewPartnerInput): Promise<PartnerConfig> {
+  const res = await fetchApi<{ success: boolean; partner: PartnerConfig }>('/sales/partners', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  invalidateApiCache('/sales/partners')
+  return res.partner
+}
+
+export async function updatePartnerShareApi(partnerId: string, percentage: number | null): Promise<PartnerConfig> {
+  const res = await fetchApi<{ success: boolean; partner: PartnerConfig }>(`/sales/partner-share/${encodeURIComponent(partnerId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ percentage }),
+  })
+  invalidateApiCache('/sales/partners')
+  return res.partner
 }
 
 export type ReportFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly'
@@ -1852,6 +1915,7 @@ export interface PartnerReportItem {
   netSales: number
   state: string
   stripeFee: number
+  stripeChargeId?: string
   partnerShare: number | null
   remittanceFromStripe: number
   source?: string

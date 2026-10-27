@@ -6,17 +6,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { AlertTriangle, DollarSign, Download, Eye, FileSpreadsheet, RefreshCw, Settings, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, BookOpen, DollarSign, Download, Eye, FileSpreadsheet, Mail, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Settings, Trash2, Users, Wallet } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import {
+  createPartnerApi,
+  getPartnerProductsApi,
   getPartnerVendorsList,
   getPartnerReconciliationReportApi,
   getPartnerReportEmailPreviewApi,
   getPartnerReportSettingsApi,
+  setPartnerProductApi,
   updatePartnerReportSettingsApi,
+  updatePartnerShareApi,
   type PartnerConfig,
   type PartnerEmailPreview,
+  type PartnerProduct,
+  type PartnerProductsResponse,
   type PartnerReportResponse,
   type PartnerReportSettings,
   type ReportFrequency,
@@ -173,6 +180,144 @@ export function SalesPartnerReportsPage() {
 
   const selectedPartner = partners.find(p => p.id === selectedPartnerId) || partners[0]
 
+  // Add a new partner
+  const [manageOpen, setManageOpen] = useState(false)
+  const runManageAction = (action: () => void) => {
+    setManageOpen(false)
+    action()
+  }
+  const backToManage = (close: () => void, disabled = false) => (
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={disabled}
+      className="sm:mr-auto"
+      onClick={() => {
+        close()
+        setManageOpen(true)
+      }}
+    >
+      <ArrowLeft className="mr-2 h-4 w-4" />
+      Back
+    </Button>
+  )
+
+  const EMPTY_NEW_PARTNER = { name: '', email: '', share: '20', frequency: 'monthly' as ReportFrequency, academyId: '', description: '' }
+  const [addPartnerOpen, setAddPartnerOpen] = useState(false)
+  const [newPartner, setNewPartner] = useState(EMPTY_NEW_PARTNER)
+  const [addPartnerSaving, setAddPartnerSaving] = useState(false)
+  const [addPartnerError, setAddPartnerError] = useState<string | null>(null)
+
+  const openAddPartnerDialog = () => {
+    setNewPartner(EMPTY_NEW_PARTNER)
+    setAddPartnerError(null)
+    setAddPartnerOpen(true)
+  }
+
+  const saveNewPartner = async () => {
+    setAddPartnerSaving(true)
+    setAddPartnerError(null)
+    try {
+      const created = await createPartnerApi({
+        name: newPartner.name.trim(),
+        notificationEmail: newPartner.email.trim() || undefined,
+        partnerSharePct: Number(newPartner.share),
+        frequency: newPartner.frequency,
+        academyPartnerId: newPartner.academyId.trim() ? Number(newPartner.academyId) : undefined,
+        description: newPartner.description.trim() || undefined,
+      })
+      setPartners((current) => [...current, created])
+      setSelectedPartnerId(created.id)
+      setAddPartnerOpen(false)
+    } catch (saveError) {
+      setAddPartnerError(saveError instanceof Error ? saveError.message : 'Unable to add the partner.')
+    } finally {
+      setAddPartnerSaving(false)
+    }
+  }
+
+  // Manage the selected partner's courses and optional fixed fee per course
+  const [coursesOpen, setCoursesOpen] = useState(false)
+  const [coursesLoading, setCoursesLoading] = useState(false)
+  const [coursesError, setCoursesError] = useState<string | null>(null)
+  const [partnerCourses, setPartnerCourses] = useState<PartnerProductsResponse | null>(null)
+  const [feeDrafts, setFeeDrafts] = useState<Record<number, string>>({})
+  const [courseSearch, setCourseSearch] = useState('')
+  const [courseBusyId, setCourseBusyId] = useState<number | null>(null)
+  const [coursesChanged, setCoursesChanged] = useState(false)
+  const [coursesView, setCoursesView] = useState<'edit' | 'add'>('edit')
+
+  const openCoursesDialog = async (view: 'edit' | 'add') => {
+    if (!selectedPartner) return
+    setCoursesView(view)
+    setCoursesOpen(true)
+    setCoursesLoading(true)
+    setCoursesError(null)
+    setPartnerCourses(null)
+    setFeeDrafts({})
+    setCourseSearch('')
+    setCoursesChanged(false)
+    try {
+      setPartnerCourses(await getPartnerProductsApi(selectedPartner.id))
+    } catch (loadError) {
+      setCoursesError(loadError instanceof Error ? loadError.message : 'Unable to load the partner courses.')
+    } finally {
+      setCoursesLoading(false)
+    }
+  }
+
+  const closeCoursesDialog = () => {
+    setCoursesOpen(false)
+    if (coursesChanged) void loadReport()
+  }
+
+  const changeCourse = async (productId: number, action: 'include' | 'exclude' | 'reset', flatFee?: number | null) => {
+    if (!selectedPartner) return
+    setCourseBusyId(productId)
+    setCoursesError(null)
+    try {
+      setPartnerCourses(await setPartnerProductApi(selectedPartner.id, productId, action, flatFee))
+      setFeeDrafts((current) => {
+        const next = { ...current }
+        delete next[productId]
+        return next
+      })
+      setCoursesChanged(true)
+    } catch (saveError) {
+      setCoursesError(saveError instanceof Error ? saveError.message : 'Unable to update the partner courses.')
+    } finally {
+      setCourseBusyId(null)
+    }
+  }
+
+  const saveCourseFee = (course: PartnerProduct) => {
+    const draft = (feeDrafts[course.productId] ?? '').trim()
+    if (draft === '') {
+      // Blank means "use the share %": drop a custom fee, or fall back to the Academy default for linked courses.
+      void changeCourse(course.productId, course.source === 'academy' ? 'reset' : 'include', null)
+      return
+    }
+    void changeCourse(course.productId, 'include', Number(draft))
+  }
+
+  const removeCourse = (course: PartnerProduct) =>
+    changeCourse(course.productId, course.source === 'academy' ? 'exclude' : 'reset')
+
+  const addableCourses = (partnerCourses?.available ?? [])
+    .filter((course) => !courseSearch.trim() || course.title.toLowerCase().includes(courseSearch.trim().toLowerCase()))
+
+  // Edit the selected partner's default share % (course-specific flat fees are not affected)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareValue, setShareValue] = useState('')
+  const [shareSaving, setShareSaving] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+
+  const openShareDialog = () => {
+    setShareValue(selectedPartner?.partnerSharePct !== null && selectedPartner?.partnerSharePct !== undefined ? String(selectedPartner.partnerSharePct) : '')
+    setShareError(null)
+    setShareOpen(true)
+  }
+
   const loadReport = useCallback(async () => {
     if (!selectedPartnerId) return
     try {
@@ -196,6 +341,22 @@ export function SalesPartnerReportsPage() {
     void loadReport()
   }, [loadReport])
 
+  const saveShare = async (percentage: number | null) => {
+    if (!selectedPartner) return
+    setShareSaving(true)
+    setShareError(null)
+    try {
+      const updated = await updatePartnerShareApi(selectedPartner.id, percentage)
+      setPartners((current) => current.map((partner) => (partner.id === updated.id ? { ...partner, ...updated } : partner)))
+      setShareOpen(false)
+      await loadReport()
+    } catch (saveError) {
+      setShareError(saveError instanceof Error ? saveError.message : 'Unable to update the partner share.')
+    } finally {
+      setShareSaving(false)
+    }
+  }
+
   const exportExcel = async () => {
     const [XLSX, { formatDataWorksheet }] = await Promise.all([
       import('xlsx-js-style'),
@@ -217,6 +378,7 @@ export function SalesPartnerReportsPage() {
       'Stripe Fee ($)',
       'Partner Share ($)',
       'Remittance from Stripe ($)',
+      'Stripe Transaction ID',
     ]
 
     const dataRows = reportData.items.map(item => [
@@ -232,6 +394,7 @@ export function SalesPartnerReportsPage() {
       item.stripeFee,
       item.partnerShare ?? '',
       item.remittanceFromStripe,
+      item.stripeChargeId || '',
     ])
 
     const totalRefunds = reportData.items.reduce((sum, item) => sum + Number(item.refunds || 0), 0)
@@ -250,6 +413,7 @@ export function SalesPartnerReportsPage() {
       reportData.summary.totalStripeFees,
       reportData.summary.totalPartnerShare,
       reportData.summary.totalRemittanceFromStripe,
+      '',
     ]
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows, totalRow])
@@ -257,8 +421,9 @@ export function SalesPartnerReportsPage() {
       headerRow: 0,
       dataEndRow: dataRows.length + 1,
       totalRow: dataRows.length + 1,
-      columnWidths: [18, 26, 40, 10, 12, 16, 16, 16, 16, 16, 18, 24],
+      columnWidths: [18, 26, 40, 10, 12, 16, 16, 16, 16, 16, 18, 24, 34],
       currencyColumns: [5, 6, 7, 8, 9, 10, 11],
+      centerContent: true,
     })
 
     const workbook = XLSX.utils.book_new()
@@ -282,9 +447,9 @@ export function SalesPartnerReportsPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={openSettingsDialog}>
+          <Button variant="outline" onClick={() => setManageOpen(true)}>
             <Settings className="mr-2 h-4 w-4" />
-            Reconciliation Report Settings
+            Manage
           </Button>
           <Button variant="outline" onClick={exportExcel} disabled={loading || !reportData || reportData.items.length === 0}>
             <Download className="mr-2 h-4 w-4" />
@@ -302,7 +467,7 @@ export function SalesPartnerReportsPage() {
           <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3 lg:grid-cols-4 items-end">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
-                Select Partner (14 Vendors)
+                Select Partner ({partners.length} Vendors)
               </label>
               <Select value={selectedPartnerId} onValueChange={setSelectedPartnerId} disabled={partnersLoading}>
                 <SelectTrigger className="h-10 text-sm font-medium">
@@ -353,6 +518,11 @@ export function SalesPartnerReportsPage() {
               </div>
               <div className="h-4 w-px bg-blue-200" />
               <div>Partner Share is calculated from each course's vendor payment system rate.</div>
+              <div className="h-4 w-px bg-blue-200" />
+              <div>
+                Default share: <span className="font-semibold">{selectedPartner.partnerSharePct !== null && selectedPartner.partnerSharePct !== undefined ? `${selectedPartner.partnerSharePct}%` : 'Not set'}</span>
+                {selectedPartner.isCustomShare ? <span className="ml-1.5 rounded bg-blue-100 px-1.5 py-0.5 text-[11px] font-medium text-blue-800">Custom</span> : null}
+              </div>
             </div>
           )}
         </CardContent>
@@ -481,9 +651,241 @@ export function SalesPartnerReportsPage() {
         </CardContent>
       </Card>
 
+      {/* Manage Partner Courses Dialog */}
+      <Dialog open={coursesOpen} onOpenChange={(open) => { if (!open) closeCoursesDialog() }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{coursesView === 'add' ? 'Add course for' : 'Courses for'} {selectedPartner?.name}</DialogTitle>
+            <DialogDescription>
+              {coursesView === 'add'
+                ? 'Pick a course to assign to this partner. Its sales will be reported for them.'
+                : 'Sales of these courses are reported for this partner. A fixed fee replaces the share % for that course; leave it blank to use the share %.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {coursesLoading ? (
+            <div className="space-y-2">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}</div>
+          ) : null}
+          {coursesError ? <p role="alert" className="text-xs text-red-700">{coursesError}</p> : null}
+
+          {partnerCourses ? (
+            <div className="space-y-5">
+              {coursesView === 'edit' ? (
+              <section>
+                <h3 className="mb-2 text-sm font-semibold">Assigned courses ({partnerCourses.assigned.length})</h3>
+                <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
+                  {partnerCourses.assigned.map((course) => {
+                    const draft = feeDrafts[course.productId]
+                    const currentFee = course.flatFee === null ? '' : String(course.flatFee)
+                    const dirty = draft !== undefined && draft.trim() !== currentFee
+                    return (
+                      <div key={course.productId} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words text-slate-900">{course.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {course.source === 'manual' ? 'Added manually' : 'From Academy assignment'}
+                            {course.feeSource === 'built-in' ? ' · built-in fixed fee' : ''}
+                            {course.noFee ? ' · no partner fee' : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">$</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            placeholder="Use %"
+                            aria-label={`Fixed fee for ${course.title}`}
+                            value={draft ?? currentFee}
+                            onChange={(event) => setFeeDrafts((current) => ({ ...current, [course.productId]: event.target.value }))}
+                            className="h-8 w-24 text-xs"
+                          />
+                          {dirty ? (
+                            <Button size="sm" className="h-8 px-2 text-xs" disabled={courseBusyId === course.productId} onClick={() => saveCourseFee(course)}>Save</Button>
+                          ) : null}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" size="icon" variant="ghost" disabled={courseBusyId === course.productId} aria-label={`Actions for ${course.title}`} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => void removeCourse(course)} className="text-red-700 focus:text-red-800">
+                                <Trash2 className="mr-2 h-4 w-4" />Remove course
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {partnerCourses.assigned.length === 0 ? <p className="px-3 py-6 text-center text-sm text-slate-500">No courses assigned yet.</p> : null}
+                </div>
+              </section>
+              ) : null}
+
+              {coursesView === 'add' ? (
+              <section>
+                <h3 className="mb-2 text-sm font-semibold">Add a course</h3>
+                <div className="relative mb-2"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input value={courseSearch} onChange={(event) => setCourseSearch(event.target.value)} placeholder="Search courses" className="h-10 pl-9" /></div>
+                <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
+                  {addableCourses.slice(0, 100).map((course) => (
+                    <div key={course.productId} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                      <span className="min-w-0 break-words text-slate-800">{course.title}</span>
+                      <Button type="button" size="sm" variant="outline" disabled={courseBusyId === course.productId} onClick={() => void changeCourse(course.productId, 'include', null)}><Plus className="mr-1.5 h-3.5 w-3.5" />Add</Button>
+                    </div>
+                  ))}
+                  {addableCourses.length === 0 ? <p className="px-3 py-6 text-center text-sm text-slate-500">No matching courses.</p> : null}
+                </div>
+                {addableCourses.length > 100 ? <p className="mt-1 text-xs text-slate-500">Showing the first 100 of {addableCourses.length}. Narrow the search to see more.</p> : null}
+              </section>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2 sm:space-x-0">
+            {backToManage(closeCoursesDialog)}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Dialog: entry point for all partner management actions */}
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage partners</DialogTitle>
+            <DialogDescription>
+              Selected partner: <span className="font-medium text-foreground">{selectedPartner?.name}</span>. Add Partner applies to everyone; the other options apply to the selected partner.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {[
+              { icon: Plus, label: 'Add partner', hint: 'Create a new partner', run: openAddPartnerDialog },
+              { icon: Pencil, label: 'Edit share %', hint: 'Change the default partner share', run: openShareDialog },
+              { icon: Plus, label: 'Add course', hint: 'Assign more courses to this partner', run: () => void openCoursesDialog('add') },
+              { icon: BookOpen, label: 'Edit courses', hint: 'Review assigned courses, set fixed fees or remove', run: () => void openCoursesDialog('edit') },
+              { icon: Mail, label: 'Reconciliation report', hint: 'Email schedule and preview', run: openSettingsDialog },
+            ].map((option) => (
+              <button
+                key={option.label}
+                type="button"
+                onClick={() => runManageAction(option.run)}
+                className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-700"><option.icon className="h-4 w-4" /></span>
+                <span>
+                  <span className="block text-sm font-medium text-slate-900">{option.label}</span>
+                  <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Partner Dialog */}
+      <Dialog open={addPartnerOpen} onOpenChange={setAddPartnerOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add partner</DialogTitle>
+            <DialogDescription>
+              New partners start with scheduled report emails turned off. Turn them on in Reconciliation Report Settings when ready.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-partner-name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Partner name *</Label>
+              <Input id="new-partner-name" value={newPartner.name} onChange={(event) => setNewPartner({ ...newPartner, name: event.target.value })} className="h-10" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-partner-email" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notification email</Label>
+              <Input id="new-partner-email" type="email" value={newPartner.email} onChange={(event) => setNewPartner({ ...newPartner, email: event.target.value })} className="h-10" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-partner-share" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Partner share (%) *</Label>
+                <Input id="new-partner-share" type="number" min={0} max={100} step={0.01} value={newPartner.share} onChange={(event) => setNewPartner({ ...newPartner, share: event.target.value })} className="h-10" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Report frequency</Label>
+                <Select value={newPartner.frequency} onValueChange={(value) => setNewPartner({ ...newPartner, frequency: value as ReportFrequency })}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Biweekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-partner-academy" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Academy partner ID</Label>
+              <Input id="new-partner-academy" type="number" min={1} value={newPartner.academyId} onChange={(event) => setNewPartner({ ...newPartner, academyId: event.target.value })} className="h-10" />
+              <p className="text-xs text-muted-foreground">Links the partner's courses from the Academy payout-partner list. Without it, sales are matched by the partner name in the order source.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-partner-description" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</Label>
+              <Input id="new-partner-description" value={newPartner.description} onChange={(event) => setNewPartner({ ...newPartner, description: event.target.value })} className="h-10" />
+            </div>
+            {addPartnerError ? <p role="alert" className="text-xs text-red-700">{addPartnerError}</p> : null}
+          </div>
+          <DialogFooter className="gap-2 sm:space-x-0">
+            {backToManage(() => setAddPartnerOpen(false), addPartnerSaving)}
+            <Button
+              disabled={addPartnerSaving || !newPartner.name.trim() || newPartner.share.trim() === '' || !Number.isFinite(Number(newPartner.share))}
+              onClick={() => void saveNewPartner()}
+            >
+              {addPartnerSaving ? 'Adding...' : 'Add partner'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Partner Share Dialog */}
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit partner share %</DialogTitle>
+            <DialogDescription>
+              Default share for {selectedPartner?.name}. It applies to courses without a fixed per-course fee; courses with a fixed fee keep that fee.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="partner-share-pct" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Partner share (%)</Label>
+            <Input
+              id="partner-share-pct"
+              type="number"
+              min={0}
+              max={100}
+              step={0.01}
+              value={shareValue}
+              onChange={(event) => setShareValue(event.target.value)}
+              className="h-10"
+            />
+            {selectedPartner?.defaultPartnerSharePct !== null && selectedPartner?.defaultPartnerSharePct !== undefined ? (
+              <p className="text-xs text-muted-foreground">Built-in rate: {selectedPartner.defaultPartnerSharePct}%</p>
+            ) : null}
+            {shareError ? <p role="alert" className="text-xs text-red-700">{shareError}</p> : null}
+          </div>
+          <DialogFooter className="gap-2 sm:space-x-0">
+            {backToManage(() => setShareOpen(false), shareSaving)}
+            {selectedPartner?.isCustomShare ? (
+              <Button variant="outline" disabled={shareSaving} onClick={() => void saveShare(null)}>Reset to built-in</Button>
+            ) : null}
+            <Button
+              disabled={shareSaving || shareValue.trim() === '' || !Number.isFinite(Number(shareValue))}
+              onClick={() => void saveShare(Number(shareValue))}
+            >
+              {shareSaving ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Reconciliation Report Settings Dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Reconciliation Report Settings</DialogTitle>
             <DialogDescription>
@@ -650,10 +1052,8 @@ export function SalesPartnerReportsPage() {
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSettingsOpen(false)}>
-              Close
-            </Button>
+          <DialogFooter className="gap-2 sm:flex-wrap sm:space-x-0">
+            {backToManage(() => setSettingsOpen(false))}
             <Button variant="outline" onClick={() => void openEmailPreview()} disabled={settingsLoading || !settingsForm}>
               <Eye className="mr-2 h-4 w-4" />
               Preview Email
@@ -716,7 +1116,8 @@ export function SalesPartnerReportsPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>
-              Close
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
             </Button>
           </DialogFooter>
         </DialogContent>

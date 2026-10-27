@@ -331,6 +331,7 @@ export function SalesDashboardPage() {
             onChange={setDateRange}
             onDone={(range) => void load(range)}
             showLabels={false}
+            showToday
             className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[300px]"
           />
         </div>
