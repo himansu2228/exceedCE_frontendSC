@@ -69,6 +69,7 @@ import {
   updateRosterSchedulerSettings,
   type AutomationStepState,
   type Course,
+  type GeneratedFilesState,
   type MichiganWorksheetFile,
   type NevadaSubmissionFile,
   type RosterSchedulerStatus,
@@ -195,6 +196,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   'add-credits': UserPlus,
   'add-entries': UserPlus,
   'build-ceu-files': FileSpreadsheet,
+  'upload-rosters': Upload,
   'finalize-entries': ClipboardList,
   complete: CheckCircle2,
 }
@@ -206,6 +208,30 @@ const NV_EMAIL_DIVISION_STORAGE_KEY = 'exceedce-nv-email-division'
 // Michigan: the "Upload" switch sits between Build Worksheet and Upload Worksheet.
 const MI_UPLOAD_GATE_AFTER_KEY = 'build-worksheet'
 const MI_UPLOAD_STORAGE_KEY = 'exceedce-mi-upload'
+
+const GENERATED_FILES_COPY: Record<GeneratedFilesState, { title: string; description: string; empty: string }> = {
+  mi: {
+    title: 'Generated Attendance Worksheets',
+    description: 'Worksheets built by recent Michigan runs. Latest run files are highlighted.',
+    empty: 'No worksheets generated yet. Run the pipeline to build attendance worksheets.',
+  },
+  mo: {
+    title: 'Generated MREC CEU Files',
+    description: 'One MREC CSV per student per course, built by recent Missouri runs. Latest run files are highlighted.',
+    empty: 'No MREC files generated yet. Run the pipeline to build them.',
+  },
+  nc: {
+    title: 'Generated NC Roster Files',
+    description: 'One NCREC roster .txt per course, instructor and date, built by recent North Carolina runs. Latest run files are highlighted.',
+    empty: 'No NC roster files generated yet. Run the pipeline to build them.',
+  },
+}
+
+const GENERATED_FILE_TYPE_LABELS: Record<string, string> = {
+  worksheet: 'Attendance Worksheet',
+  ceu: 'MREC CEU File',
+  roster: 'NCREC Roster File',
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -474,8 +500,9 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   // Michigan: when off, the roster phase stops after Build Worksheet and worksheets are offered for download.
   // When on (and Dry Run is off) the worksheet is uploaded and "Accept Finalize" is clicked.
   const isMichigan = activeStateCode === 'MI'
-  // States whose roster run builds files for download (MI worksheets, MO MREC CSVs).
-  const generatedFilesPath: 'mi' | 'mo' | null = activeStateCode === 'MI' ? 'mi' : activeStateCode === 'MO' ? 'mo' : null
+  // States whose roster run builds files for download (MI worksheets, MO MREC CSVs, NC roster .txt files).
+  const generatedFilesPath: GeneratedFilesState | null = activeStateCode === 'MI' ? 'mi' : activeStateCode === 'MO' ? 'mo' : activeStateCode === 'NC' ? 'nc' : null
+  const generatedFilesCopy = GENERATED_FILES_COPY[generatedFilesPath || 'mi']
   const generatedFilesPathRef = useRef(generatedFilesPath)
   useEffect(() => { generatedFilesPathRef.current = generatedFilesPath }, [generatedFilesPath])
   const [miUploadEnabled, setMiUploadEnabled] = useState<boolean>(() => {
@@ -867,7 +894,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
           setLatestCompletionOnFile(lastRosterRun.latestCompletionOnFile || null)
           setLastRun(new Date(lastRosterRun.completedAt))
           setNvLastRunFiles(loaded.stateCode === 'NV' ? lastRosterRun.files || [] : [])
-          setMiLastRunFiles(loaded.stateCode === 'MI' || loaded.stateCode === 'MO' ? lastRosterRun.files || [] : [])
+          setMiLastRunFiles(loaded.stateCode === 'MI' || loaded.stateCode === 'MO' || loaded.stateCode === 'NC' ? lastRosterRun.files || [] : [])
         }
       })
       .catch((loadError) => {
@@ -1965,12 +1992,10 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                   <div>
                     <p className="flex items-center gap-2 text-sm font-semibold">
                       <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                      {generatedFilesPath === 'mo' ? 'Generated MREC CEU Files' : 'Generated Attendance Worksheets'}
+                      {generatedFilesCopy.title}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {generatedFilesPath === 'mo'
-                        ? 'One MREC CSV per student per course, built by recent Missouri runs. Latest run files are highlighted.'
-                        : 'Worksheets built by recent Michigan runs. Latest run files are highlighted.'}
+                      {generatedFilesCopy.description}
                     </p>
                   </div>
                   <Button size="sm" variant="outline" onClick={loadMichiganFiles} disabled={miFilesLoading}>
@@ -1980,7 +2005,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                 </div>
                 {miFiles.length === 0 ? (
                   <p className="py-4 text-center text-xs text-muted-foreground">
-                    {miFilesLoading ? 'Loading files...' : generatedFilesPath === 'mo' ? 'No MREC files generated yet. Run the pipeline to build them.' : 'No worksheets generated yet. Run the pipeline to build attendance worksheets.'}
+                    {miFilesLoading ? 'Loading files...' : generatedFilesCopy.empty}
                   </p>
                 ) : (
                   <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
@@ -1996,7 +2021,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
                             <div className="min-w-0">
                               <p className="truncate text-xs font-medium" title={file.fileName}>{file.fileName}</p>
                               <p className="text-[11px] text-muted-foreground">
-                                {file.type === 'ceu' ? 'MREC CEU File' : 'Attendance Worksheet'} · {formatFileSize(file.size)} · {new Date(file.modifiedAt).toLocaleString()}
+                                {GENERATED_FILE_TYPE_LABELS[file.type] || 'Generated File'} · {formatFileSize(file.size)} · {new Date(file.modifiedAt).toLocaleString()}
                               </p>
                             </div>
                             {isLatest && <Badge variant="secondary" className="text-[10px]">Latest run</Badge>}

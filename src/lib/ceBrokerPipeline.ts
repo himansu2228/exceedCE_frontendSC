@@ -92,6 +92,17 @@ export const PORTAL_SUBMIT_GATES: Partial<Record<PipelineStateCode, PortalSubmit
     dryRunHelp: 'Dry Run is on: MREC files are built for download but nothing is uploaded to MOPRO. Turn Dry Run off to submit.',
     liveNote: ' Missouri MREC files are submitted to MOPRO only when the Submit switch is on.',
   },
+  NC: {
+    afterStepKey: 'upload-rosters',
+    storageKey: 'exceedce-nc-submit',
+    label: 'Submit',
+    onTitle: 'On: after Upload & Validate the flow certifies each roster and clicks Submit Roster',
+    offTitle: 'Off: flow stops after Upload & Validate; NCREC checks the rosters but nothing is submitted',
+    onHelp: 'Submit is ON: each roster file is uploaded, checked by NCREC, certified and submitted with Submit Roster. If NCREC asks for the roster fee, the run stops at the payment page and reports it.',
+    offHelp: 'Submit is OFF: the run uploads each roster file so NCREC validates every license, then stops. Nothing is submitted; download the roster files below to check them, then turn Submit on and run again.',
+    dryRunHelp: 'Dry Run is on: NC roster files are built for download but nothing is uploaded to NCREC. Turn Dry Run off to upload and validate them.',
+    liveNote: ' North Carolina rosters are submitted to NCREC only when the Submit switch is on.',
+  },
 }
 
 export function getPortalSubmitGate(state: string | undefined | null): PortalSubmitGate | null {
@@ -130,6 +141,7 @@ const ROSTER_GATE_BY_STATE: Partial<Record<PipelineStateCode, { key: 'sendEmails
   AL: { key: 'commit', label: 'Commit' },
   IL: { key: 'commit', label: 'Submit' },
   MO: { key: 'commit', label: 'Submit' },
+  NC: { key: 'commit', label: 'Submit' },
 }
 
 export function getRosterGate(state: string | undefined | null) {
