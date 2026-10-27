@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 
 type DateRangePreset =
   | 'custom'
+  | 'today'
   | 'last30Days'
   | 'last90Days'
   | 'last365Days'
@@ -41,11 +42,13 @@ interface DateRangeFilterProps {
   inputClassName?: string
   selectClassName?: string
   showLabels?: boolean
+  showToday?: boolean
   maxDate?: string
 }
 
 const PRESETS: Array<{ id: DateRangePreset; label: string }> = [
   { id: 'custom', label: 'Custom Range' },
+  { id: 'today', label: 'Today' },
   { id: 'last30Days', label: 'Last 30 days' },
   { id: 'last90Days', label: 'Last 90 days' },
   { id: 'last365Days', label: 'Last 365 days' },
@@ -72,6 +75,8 @@ function isSameRange(a: DateRangeValue, b: DateRangeValue): boolean {
 function getPresetRange(preset: DateRangePreset): DateRangeValue {
   const today = new Date()
   switch (preset) {
+    case 'today':
+      return { fromDate: toIsoDate(today), toDate: toIsoDate(today) }
     case 'last30Days':
       return { fromDate: toIsoDate(subDays(today, 29)), toDate: toIsoDate(today) }
     case 'last90Days':
@@ -112,6 +117,7 @@ export function DateRangeFilter({
   inputClassName,
   selectClassName,
   showLabels = true,
+  showToday = false,
   maxDate,
 }: DateRangeFilterProps) {
   const todayIso = useMemo(() => toIsoDate(new Date()), [])
@@ -127,11 +133,11 @@ export function DateRangeFilter({
 
   useEffect(() => {
     const matchedPreset = PRESETS.find((item) => {
-      if (item.id === 'custom') return false
+      if (item.id === 'custom' || (item.id === 'today' && !showToday)) return false
       return isSameRange(getPresetRange(item.id), value)
     })
     setPreset(matchedPreset?.id || 'custom')
-  }, [value])
+  }, [value, showToday])
 
   const rangeLabel = useMemo(() => {
     const from = calendarRange.from
@@ -194,7 +200,7 @@ export function DateRangeFilter({
                   Quick Ranges
                 </div>
                 <div className="space-y-1">
-                  {PRESETS.filter((item) => item.id !== 'custom').map((item) => (
+                  {PRESETS.filter((item) => item.id !== 'custom' && (item.id !== 'today' || showToday)).map((item) => (
                     <button
                       key={item.id}
                       type="button"

@@ -31,9 +31,11 @@ export function formatDataWorksheet(
     titleRow?: number
     columnWidths: number[]
     currencyColumns?: number[]
+    centerContent?: boolean
   }
 ) {
   const lastColumn = options.columnWidths.length - 1
+  const centered = options.centerContent ? { horizontal: 'center' } : {}
 
   if (options.titleRow !== undefined) {
     setRowStyle(worksheet, options.titleRow, lastColumn, {
@@ -51,7 +53,7 @@ export function formatDataWorksheet(
   setRowStyle(worksheet, options.headerRow, lastColumn, {
     fill: { patternType: 'solid', fgColor: { rgb: colors.blue } },
     font: { name: 'Aptos', sz: 10, bold: true, color: { rgb: colors.white } },
-    alignment: { vertical: 'center', horizontal: 'left', wrapText: true },
+    alignment: { vertical: 'center', horizontal: 'left', wrapText: true, ...centered },
     border: { bottom: { style: 'medium', color: { rgb: colors.navy } } },
   })
   worksheet['!rows'] = worksheet['!rows'] || []
@@ -60,7 +62,7 @@ export function formatDataWorksheet(
   for (let row = options.headerRow + 1; row <= options.dataEndRow; row += 1) {
     setRowStyle(worksheet, row, lastColumn, {
       font: { name: 'Aptos', sz: 10, color: { rgb: colors.ink } },
-      alignment: { vertical: 'center', wrapText: true },
+      alignment: { vertical: 'center', wrapText: true, ...centered },
       border: { bottom: { style: 'thin', color: { rgb: colors.border } } },
       ...(row % 2 === 0 ? { fill: { patternType: 'solid', fgColor: { rgb: colors.lightBlue } } } : {}),
     })
@@ -75,6 +77,7 @@ export function formatDataWorksheet(
       fill: { patternType: 'solid', fgColor: { rgb: colors.total } },
       font: { name: 'Aptos', sz: 10, bold: true, color: { rgb: colors.navy } },
       border: { top: { style: 'medium', color: { rgb: colors.blue } } },
+      ...(options.centerContent ? { alignment: { vertical: 'center', horizontal: 'center' } } : {}),
     })
   }
 
