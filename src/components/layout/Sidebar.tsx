@@ -102,6 +102,7 @@ const getSuperAdminSalesItems = (): NavItem[] => {
       children: [
         { path: '/sales/course-evaluations/analytics', label: 'Analytics' },
         { path: '/sales/course-evaluations/comparison', label: 'Comparison' },
+        { path: '/sales/course-evaluations/survey-report', label: 'Survey Report' },
       ],
     },
     { path: '/sales/quiz-questions', icon: HelpCircle, label: 'Quiz Questions' },

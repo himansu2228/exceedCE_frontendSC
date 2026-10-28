@@ -443,6 +443,38 @@ export async function getCourseEvaluations(refresh = false): Promise<CourseEvalu
   return fetchApi<CourseEvaluationsResponse>('/sales/course-evaluations', { timeoutMs: 120000 })
 }
 
+export interface SurveyCourse {
+  courseId: number
+  courseName: string
+  moduleId: number
+  surveyName: string
+  count: number
+}
+
+export interface SurveyReportResponse {
+  courseId: number
+  moduleId: number
+  courseName: string
+  surveyName: string
+  total: number
+  questions: string[]
+  responses: Array<{ id: string; name: string; email: string; answers: Record<string, string> }>
+}
+
+export async function getSurveyCourses(refresh = false): Promise<SurveyCourse[]> {
+  const endpoint = `/sales/course-evaluations/survey-courses${refresh ? '?refresh=true' : ''}`
+  if (refresh) invalidateApiCache(endpoint)
+  const response = await fetchApi<{ courses: SurveyCourse[] }>(endpoint, { timeoutMs: 120000 })
+  return response.courses || []
+}
+
+export async function getSurveyReport(courseId: number, moduleId: number, refresh = false): Promise<SurveyReportResponse> {
+  const query = new URLSearchParams({ courseId: String(courseId), moduleId: String(moduleId), ...(refresh ? { refresh: 'true' } : {}) })
+  const endpoint = `/sales/course-evaluations/survey-report?${query.toString()}`
+  if (refresh) invalidateApiCache(endpoint)
+  return fetchApi<SurveyReportResponse>(endpoint, { timeoutMs: 180000 })
+}
+
 export interface QuizOption {
   id: string
   name: string

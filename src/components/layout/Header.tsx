@@ -33,6 +33,7 @@ const pageTitles: Record<string, string> = {
   '/sales/course-evaluations': 'Course Evaluation',
   '/sales/course-evaluations/analytics': 'Course Evaluation Analytics',
   '/sales/course-evaluations/comparison': 'Course Evaluation Comparison',
+  '/sales/course-evaluations/survey-report': 'Course Evaluation Survey Report',
   '/sales/settings': 'Sales Settings',
 }
 
