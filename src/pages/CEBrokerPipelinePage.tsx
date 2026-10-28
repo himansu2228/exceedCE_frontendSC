@@ -62,6 +62,7 @@ import {
   getRosterPipelineHistory,
   getRosterPipelineSchedulerStatus,
   getTenantCoursesWithSignal,
+  invalidateApiCache,
   startPipeline,
   startRosterPipeline,
   stopPipeline,
@@ -76,6 +77,8 @@ import {
   type StateAutomationFlow,
 } from '@/lib/api'
 import { HawaiiClosedCoursesCard } from '@/components/roster/HawaiiClosedCoursesCard'
+import { LastRunDetailsCard } from '@/components/roster/LastRunDetailsCard'
+import { buildRosterRunReport, type RosterRunReport } from '@/lib/rosterRunReport'
 import { getActiveState, getTenantAccessProfile } from '@/lib/auth'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import {
@@ -412,6 +415,8 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
   
   // History
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [lastRunReport, setLastRunReport] = useState<RosterRunReport | null>(null)
+  const [lastRunLoading, setLastRunLoading] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPerPage, setHistoryPerPage] = useState(100)
   const [historyTotal, setHistoryTotal] = useState(0)
@@ -738,6 +743,25 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       console.error('Failed to load history:', err)
     }
   }, [historyPage, historyPerPage])
+
+  // Newest saved roster run for the active state, independent of the History tab's page.
+  const loadLastRun = useCallback(async () => {
+    setLastRunLoading(true)
+    try {
+      invalidateApiCache('/roster-pipeline/history')
+      const payload = await getRosterPipelineHistory({ page: 1, perPage: 1, timeoutMs: PAGE_REQUEST_TIMEOUT_MS })
+      setLastRunReport(buildRosterRunReport(Array.isArray(payload.items) ? payload.items[0] : null))
+    } catch (err) {
+      if (!isTransientBackendError(err)) console.error('Failed to load last run:', err)
+    } finally {
+      setLastRunLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    setLastRunReport(null)
+    loadLastRun()
+  }, [activeStateCode, loadLastRun])
 
   // ============== Load Initial Data ==============
 
@@ -1120,12 +1144,14 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
             }
 
             loadHistory().catch(() => {})
+            loadLastRun().catch(() => {})
             break
             
           case 'error':
             setError(data.message)
             setIsRunning(false)
             setCurrentPhase('idle')
+            loadLastRun().catch(() => {})
             setPipelineSteps(prev =>
               prev.map(step =>
                 step.phase === 'roster' && step.status === 'active' ? { ...step, status: 'error' } : step
@@ -1143,7 +1169,7 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
       es.close()
       rosterEventSourceRef.current = null
     }
-  }, [loadNevadaFiles, loadMichiganFiles])
+  }, [loadNevadaFiles, loadMichiganFiles, loadLastRun])
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -2115,6 +2141,11 @@ export function CEBrokerPipelinePage({ forcedStateCode }: CEBrokerPipelinePagePr
               )}
             </CardContent>
           </Card>
+
+          {/* Last run: errors, warnings and each student's result (kept across reloads) */}
+          {!isRunning && !automationUnavailable && (
+            <LastRunDetailsCard report={lastRunReport} loading={lastRunLoading} onRefresh={() => { loadLastRun().catch(() => {}) }} />
+          )}
 
           {/* Current Processing Details */}
           {isRunning && (
