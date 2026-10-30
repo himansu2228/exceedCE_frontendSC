@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Download, FileSpreadsheet, Pencil, Presentation, RefreshCw, Search } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Download, FileSpreadsheet, Pencil, Presentation, RefreshCw, Search } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,6 +28,7 @@ const courseValue = (course: SurveyCourse) => `${course.courseId}:${course.modul
 export function SalesSurveyReportPage() {
   const [courses, setCourses] = useState<SurveyCourse[]>([])
   const [query, setQuery] = useState('')
+  const [listSearch, setListSearch] = useState('')
   const [typing, setTyping] = useState(false)
   const [listOpen, setListOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
@@ -40,6 +41,7 @@ export function SalesSurveyReportPage() {
   const [detailCommentKey, setDetailCommentKey] = useState<string | null>(null)
   const [editingLabel, setEditingLabel] = useState(false)
   const skipLabelSave = useRef(false)
+  const reportRequest = useRef(0)
   const [loadingCourses, setLoadingCourses] = useState(true)
   const [loadingReport, setLoadingReport] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -55,22 +57,40 @@ export function SalesSurveyReportPage() {
   const loadReport = async (value: string, refresh = false) => {
     const course = courses.find((item) => courseValue(item) === value)
     if (!course) return
+    const request = ++reportRequest.current
     setLoadingReport(true)
     setError('')
     try {
-      setReport(await getSurveyReport(course.courseId, course.moduleId, refresh))
+      const data = await getSurveyReport(course.courseId, course.moduleId, refresh)
+      if (request === reportRequest.current) setReport(data)
     } catch (cause) {
+      if (request !== reportRequest.current) return
       setReport(null)
       setError(cause instanceof Error ? cause.message : 'Unable to load the survey report.')
     } finally {
-      setLoadingReport(false)
+      if (request === reportRequest.current) setLoadingReport(false)
     }
+  }
+
+  const goBack = () => {
+    reportRequest.current += 1
+    setSelected('')
+    setReport(null)
+    setError('')
+    setLoadingReport(false)
+    setQuery('')
+    setCategoryFilter('All')
+    setDetailQuestion(null)
+    setDetailCommentKey(null)
   }
 
   const visibleCourses = useMemo(() => courses
     .filter((course) => course.count > 0 && (!typing || course.courseName.toLowerCase().includes(query.trim().toLowerCase())))
     .sort((left, right) => left.courseName.localeCompare(right.courseName)), [courses, query, typing])
   const selectedCourse = courses.find((course) => courseValue(course) === selected)
+  const listCourses = useMemo(() => courses
+    .filter((course) => course.count > 0 && course.courseName.toLowerCase().includes(listSearch.trim().toLowerCase()))
+    .sort((left, right) => left.courseName.localeCompare(right.courseName)), [courses, listSearch])
 
   const chooseCourse = (course: SurveyCourse) => {
     const value = courseValue(course)
@@ -141,7 +161,8 @@ export function SalesSurveyReportPage() {
     <div className="space-y-6 pb-8 animate-fadeIn">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div><p className="text-xs font-semibold uppercase text-teal-700">Course Evaluation</p><h1 className="mt-1 text-2xl font-semibold text-slate-950">Survey Report</h1></div>
-        <div className="flex flex-wrap items-center gap-2">
+        {selected && <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={goBack}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
           <div className="relative w-full sm:w-[32rem]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
@@ -170,11 +191,21 @@ export function SalesSurveyReportPage() {
               <DropdownMenuItem onSelect={() => void exportReport('xlsx')}><FileSpreadsheet className="mr-2 h-4 w-4" />Excel (.xlsx)</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        </div>}
       </header>
 
       {error && <div role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
-      {!report && !loadingReport && <p className="py-12 text-center text-sm text-slate-500">Select a course to see its survey results.</p>}
+      {!selected && <section className="space-y-3" aria-label="Survey courses">
+        <div className="relative max-w-xl">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input className="pl-9" aria-label="Search courses" placeholder="Search courses" disabled={loadingCourses} value={listSearch} onChange={(event) => setListSearch(event.target.value)} />
+        </div>
+        {loadingCourses ? <p className="py-8 text-center text-sm text-slate-500">Loading courses…</p> : listCourses.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">No courses found</p> : (
+          <ul className="max-h-[70vh] divide-y divide-slate-100 overflow-auto rounded-md border border-slate-200">{listCourses.map((course) => (
+            <li key={courseValue(course)}><button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-slate-50" onClick={() => chooseCourse(course)}><span className="min-w-0 break-words font-medium text-slate-900">{course.courseName}</span><span className="shrink-0 text-slate-500">{course.count} responses</span></button></li>
+          ))}</ul>
+        )}
+      </section>}
       {loadingReport && <p className="py-12 text-center text-sm text-slate-500">Loading survey responses…</p>}
 
       {report && !loadingReport && <>

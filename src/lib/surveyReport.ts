@@ -106,7 +106,7 @@ export function lowRatingShare(rows: RatingRow[]): { low: number; total: number;
 }
 
 export function summarizeChoices(report: SurveyReportResponse, questions: string[], config: QuestionConfigMap): ChoiceRow[] {
-  return questions.map((question) => {
+  return questions.filter((question) => !config[question]?.hidden).map((question) => {
     const counts = new Map<string, number>()
     for (const response of report.responses) {
       const answer = (response.answers[question] || '').trim()
@@ -114,7 +114,11 @@ export function summarizeChoices(report: SurveyReportResponse, questions: string
       const key = answer.toLowerCase()
       counts.set(key, (counts.get(key) || 0) + 1)
     }
-    return { question, label: questionLabel(question, config), counts: [...counts.entries()].map(([answer, count]) => ({ answer, count })).sort((a, b) => b.count - a.count) }
+    // Always show both sides of a yes/no question, even when nobody picked one.
+    const isYesNo = counts.size > 0 && [...counts.keys()].every((key) => /^(yes|no)\.?$/.test(key))
+    if (isYesNo) for (const key of ['yes', 'no']) if (!counts.has(key)) counts.set(key, 0)
+    const ordered = [...counts.entries()].map(([answer, count]) => ({ answer: answer.charAt(0).toUpperCase() + answer.slice(1), count }))
+    return { question, label: questionLabel(question, config), counts: isYesNo ? ordered.sort((a, b) => b.answer.localeCompare(a.answer)) : ordered.sort((a, b) => b.count - a.count) }
   })
 }
 
