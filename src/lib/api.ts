@@ -458,7 +458,7 @@ export interface SurveyReportResponse {
   surveyName: string
   total: number
   questions: string[]
-  responses: Array<{ id: string; name: string; email: string; answers: Record<string, string> }>
+  responses: Array<{ id: string; name: string; email: string; date: string; answers: Record<string, string> }>
 }
 
 export async function getSurveyCourses(refresh = false): Promise<SurveyCourse[]> {

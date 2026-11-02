@@ -32,6 +32,7 @@ export interface CommentItem {
   question: string
   questionLabel: string
   text: string
+  date: string
   suggested: CommentCategory
 }
 
@@ -150,6 +151,7 @@ export function collectComments(report: SurveyReportResponse, questions: string[
         question,
         questionLabel: questionLabel(question, config),
         text,
+        date: response.date || '',
         suggested: suggestCategory(text),
       })
     }
