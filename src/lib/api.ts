@@ -495,7 +495,7 @@ export interface SurveyReportResponse {
   surveyName: string
   total: number
   questions: string[]
-  responses: Array<{ id: string; name: string; email: string; answers: Record<string, string> }>
+  responses: Array<{ id: string; name: string; email: string; date: string; answers: Record<string, string> }>
 }
 
 export async function getSurveyCourses(refresh = false): Promise<SurveyCourse[]> {
@@ -1776,17 +1776,23 @@ export async function getSalesCustomers(filters?: {
   sortBy?: string
   sortDir?: 'asc' | 'desc'
   state?: string
+  source?: string
 }): Promise<PaginatedResponse<SalesCustomer>> {
   const params = new URLSearchParams()
   if (filters?.sortBy) params.set('sortBy', filters.sortBy)
   if (filters?.sortDir) params.set('sortDir', filters.sortDir)
   if (filters?.state) params.set('state', filters.state)
+  if (filters?.source) params.set('source', filters.source)
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
   if (filters?.search) params.set('search', filters.search)
 
   const query = params.toString()
   return fetchApi<PaginatedResponse<SalesCustomer>>(`/sales/customers${query ? `?${query}` : ''}`)
+}
+
+export async function getSalesCustomerSources(): Promise<{ items: Array<{ source: string; count: number }> }> {
+  return fetchApi<{ items: Array<{ source: string; count: number }> }>('/sales/customers/sources')
 }
 
 export type LicenseRenewalStatus = 'outreach' | 'active' | 'expired' | 'no_license' | 'no_expiry'

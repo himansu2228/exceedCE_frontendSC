@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatusBadge, formatCurrency } from './shared'
-import { COUNT_SORT, DATE_SORT, NUMBER_SORT, SortHeader, StateHeader, TEXT_SORT, type SortDir } from './ColumnHeaderControls'
+import { COUNT_SORT, DATE_SORT, NUMBER_SORT, ORDER_STATUS_SORT, SortHeader, StateHeader, TEXT_SORT, type SortDir } from './ColumnHeaderControls'
 import { getSalesOrders } from '@/lib/api'
 import type { SalesOrder } from '@/lib/api'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -86,6 +86,8 @@ export function SalesOrdersPage() {
               <SelectItem value="COMPLETED">Completed</SelectItem>
               <SelectItem value="REFUNDED">Refunded</SelectItem>
               <SelectItem value="PENDING_PAYMENT">Pending payment</SelectItem>
+              <SelectItem value="FAILED">Failed</SelectItem>
+              <SelectItem value="CANCELLED">Cancelled</SelectItem>
             </SelectContent>
           </Select>
           <DateRangeFilter
@@ -109,7 +111,7 @@ export function SalesOrdersPage() {
                   <TableHead><SortHeader label="Order" sortKey="orderNumber" options={DATE_SORT} {...sortProps} /></TableHead>
                   <TableHead><SortHeader label="Date" sortKey="orderDate" options={DATE_SORT} {...sortProps} /></TableHead>
                   <TableHead><SortHeader label="Customer" sortKey="customer" options={TEXT_SORT} {...sortProps} /></TableHead>
-                  <TableHead><SortHeader label="Status" sortKey="status" options={TEXT_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SortHeader label="Status" sortKey="status" options={ORDER_STATUS_SORT} {...sortProps} /></TableHead>
                   <TableHead><SortHeader label="Amount" sortKey="amount" options={NUMBER_SORT} {...sortProps} /></TableHead>
                   <TableHead><SortHeader label="Tax" sortKey="tax" options={NUMBER_SORT} {...sortProps} /></TableHead>
                   <TableHead><SortHeader label="Discount" sortKey="discount" options={NUMBER_SORT} {...sortProps} /></TableHead>

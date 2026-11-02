@@ -172,13 +172,14 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   }
   const mostReviewed = [...courseRows].sort((a, b) => b.count - a.count).slice(0, 8)
   const commentShare = [{ name: 'Written comment', value: written }, { name: 'No written comment', value: records.length - written }]
-  const ratingStates = [...new Set(records.map((record) => courseState(record) || 'Unknown'))].sort()
+  const ratingStates = [...new Set(records.map((record) => courseState(record) || 'Others'))].sort()
   const stateAverages = ratingStates.map((state) => ({
     state,
-    ...evaluationSummary(records.filter((record) => (courseState(record) || 'Unknown') === state)),
+    ...evaluationSummary(records.filter((record) => (courseState(record) || 'Others') === state)),
   })).filter((state) => state.average !== null).sort((left, right) => (right.average ?? 0) - (left.average ?? 0))
+  const stateChartHeight = Math.max(288, stateAverages.length * 30 + 40)
   const courseResponseRatings = courseRows.filter((course) => course.average !== null).sort((left, right) => right.rated - left.rated).slice(0, 8)
-  const stateRatingRecords = records.filter((record) => ratingState === 'all' || (courseState(record) || 'Unknown') === ratingState)
+  const stateRatingRecords = records.filter((record) => ratingState === 'all' || (courseState(record) || 'Others') === ratingState)
   const stateRatings = [1, 2, 3, 4, 5].map((rating) => ({
     label: `${rating} star${rating === 1 ? '' : 's'}`,
     count: stateRatingRecords.filter((record) => { const value = score(record); return value !== null && Math.round(value) === rating }).length,
@@ -268,20 +269,20 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
               <Bar dataKey="withoutComments" name="No comment" stackId="feedback" fill="#cbd5e1" cursor="pointer" onClick={(_entry, index) => openMonth(index, false)} />
             </BarChart>
           </ChartPanel>
-          <ChartPanel title="Average rating by state" detail="Response-weighted average for each course state">
+          <ChartPanel title="Average rating by state" detail="Response-weighted average for each course state" chartHeight={stateChartHeight}>
             <BarChart layout="vertical" data={stateAverages} margin={{ top: 8, right: 20, bottom: 8, left: 4 }} style={{ cursor: 'pointer' }} onClick={(chart) => {
               if (chart.activeTooltipIndex == null) return
               const state = stateAverages[Number(chart.activeTooltipIndex)]?.state
-              if (state) setDetails({ title: `${state} evaluations`, records: records.filter((record) => (courseState(record) || 'Unknown') === state) })
+              if (state) setDetails({ title: `${state} evaluations`, records: records.filter((record) => (courseState(record) || 'Others') === state) })
             }}>
               <CartesianGrid stroke="#e2e8f0" horizontal={false} />
               <XAxis type="number" domain={[0, 5]} />
-              <YAxis type="category" dataKey="state" width={65} tick={{ fontSize: 12 }} />
+              <YAxis type="category" dataKey="state" width={65} interval={0} tick={{ fontSize: 12 }} />
               <Tooltip formatter={(value) => Number(value).toFixed(2)} />
               <Bar dataKey="average" name="Average rating" fill="#2563eb" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ChartPanel>
-          <ChartPanel title="Course ratings and response volume" detail="Eight most-rated versions: responses and average score">
+          <ChartPanel title="Course ratings and response volume" detail="Eight most-rated versions: responses and average score" chartHeight={stateChartHeight}>
             <ComposedChart data={courseResponseRatings} margin={{ top: 12, right: 4, bottom: 4, left: 0 }} style={{ cursor: 'pointer' }} onClick={(chart) => {
               if (chart.activeTooltipIndex == null) return
               const course = courseResponseRatings[Number(chart.activeTooltipIndex)]

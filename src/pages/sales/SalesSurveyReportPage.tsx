@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ChevronDown, Download, FileSpreadsheet, Pencil, Presentation, RefreshCw, Search } from 'lucide-react'
+import { ArrowLeft, ArrowUpDown, ChevronDown, Download, FileSpreadsheet, Pencil, Presentation, RefreshCw, Search } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getSurveyCourses, getSurveyReport, type SurveyCourse, type SurveyReportResponse } from '@/lib/api'
 import {
   COMMENT_CATEGORIES, RATING_LEVELS, classifyQuestion, collectComments, defaultQuestionLabel, lowRatingShare, parseRating,
@@ -37,6 +38,7 @@ export function SalesSurveyReportPage() {
   const [config, setConfig] = useStoredState<QuestionConfigMap>(CONFIG_KEY, {})
   const [categoryOverrides, setCategoryOverrides] = useStoredState<Record<string, CommentCategory>>(CATEGORY_KEY, {})
   const [categoryFilter, setCategoryFilter] = useState<'All' | CommentCategory>('All')
+  const [commentSort, setCommentSort] = useState<'newest' | 'oldest'>('newest')
   const [detailQuestion, setDetailQuestion] = useState<string | null>(null)
   const [detailCommentKey, setDetailCommentKey] = useState<string | null>(null)
   const [editingLabel, setEditingLabel] = useState(false)
@@ -108,7 +110,12 @@ export function SalesSurveyReportPage() {
   const choiceRows = useMemo(() => report ? summarizeChoices(report, questionsOfKind('choice'), config) : [], [report, kinds, config]) // eslint-disable-line react-hooks/exhaustive-deps
   const comments = useMemo(() => (report ? collectComments(report, questionsOfKind('text'), config) : []).map((comment) => ({ ...comment, category: categoryOverrides[comment.key] || comment.suggested })), [report, kinds, config, categoryOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
   const low = lowRatingShare(ratingRows)
-  const visibleComments = comments.filter((comment) => categoryFilter === 'All' || comment.category === categoryFilter)
+  const visibleComments = comments
+    .filter((comment) => categoryFilter === 'All' || comment.category === categoryFilter)
+    .sort((left, right) => {
+      if (!left.date || !right.date) return left.date ? -1 : right.date ? 1 : 0
+      return commentSort === 'newest' ? right.date.localeCompare(left.date) : left.date.localeCompare(right.date)
+    })
 
   const chartData = ratingRows.map((row) => ({
     question: row.question,
@@ -233,7 +240,7 @@ export function SalesSurveyReportPage() {
                       return <text x={x} y={y} dy={4} textAnchor="end" fontSize={12} className="cursor-pointer fill-slate-700 hover:fill-teal-700" onClick={() => row && setDetailQuestion(row.question)}>{payload?.value}</text>
                     }} />
                     <Tooltip formatter={(value, name, item) => { const index = RATING_LEVELS.findIndex((level) => level.label === name) + 1; return `${Number(value).toFixed(1)}% (${(item.payload as Record<string, number>)[`n${index}`]})` }} />
-                    <Legend wrapperStyle={{ fontWeight: 700, fontSize: 13 }} />
+                    <Legend itemSorter={null} wrapperStyle={{ fontWeight: 700, fontSize: 13 }} />
                     {RATING_LEVELS.map((level) => (
                       <Bar key={level.value} dataKey={`p${level.value}`} name={level.label} stackId="ratings" fill={level.color}>
                         <LabelList dataKey={`p${level.value}`} position="center" fill="#ffffff" fontSize={11} formatter={(value) => Number(value) >= 6 ? `${Math.round(Number(value))}%` : ''} />
@@ -271,15 +278,21 @@ export function SalesSurveyReportPage() {
         </section>}
 
         <section className="space-y-3" aria-label="Student comments">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-lg font-semibold">Student comments ({visibleComments.length})</h2>
+            <Select value={commentSort} onValueChange={(value) => setCommentSort(value as 'newest' | 'oldest')}>
+              <SelectTrigger className="h-9 w-[10.5rem] gap-2 border-slate-200 bg-white text-sm" aria-label="Sort comments"><ArrowUpDown className="h-4 w-4 text-slate-500" /><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="newest">Latest first</SelectItem><SelectItem value="oldest">Oldest first</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-1">{(['All', ...COMMENT_CATEGORIES] as const).map((category) => (
               <button key={category} type="button" onClick={() => setCategoryFilter(category)} className={`rounded-sm px-3 py-1.5 text-sm font-medium ${categoryFilter === category ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{category} ({category === 'All' ? comments.length : comments.filter((comment) => comment.category === category).length})</button>
             ))}</div>
           </div>
           {visibleComments.length === 0 ? <p className="py-6 text-sm text-slate-500">No comments in this category.</p> : <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">{visibleComments.map((comment) => (
             <li key={comment.key} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-              <button type="button" className="min-w-0 flex-1 text-left hover:text-teal-700" onClick={() => setDetailCommentKey(comment.key)}><p className="text-sm">{comment.text}</p><p className="mt-1 text-xs text-slate-500">{comment.name} · {comment.questionLabel}</p></button>
+              <button type="button" className="min-w-0 flex-1 text-left hover:text-teal-700" onClick={() => setDetailCommentKey(comment.key)}><p className="text-sm">{comment.text}</p><p className="mt-1 text-xs text-slate-500">{comment.name} · {comment.questionLabel}{comment.date ? ` · ${comment.date}` : ''}</p></button>
               <select className="h-8 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-sm" value={comment.category} aria-label="Comment category" onChange={(event) => setCategoryOverrides((current) => ({ ...current, [comment.key]: event.target.value as CommentCategory }))}>{COMMENT_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select>
             </li>
           ))}</ul>}
