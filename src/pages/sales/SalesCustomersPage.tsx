@@ -5,10 +5,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationControls } from '@/components/ui/pagination-controls'
-import { getSalesCustomers } from '@/lib/api'
+import { getSalesCustomerSources, getSalesCustomers } from '@/lib/api'
 import type { SalesCustomer } from '@/lib/api'
 import { formatCurrency } from './shared'
-import { DATE_SORT, NUMBER_SORT, SortHeader, StateHeader, TEXT_SORT, type SortDir } from './ColumnHeaderControls'
+import { DATE_SORT, NUMBER_SORT, SortHeader, SourceHeader, StateHeader, TEXT_SORT, type SortDir, type SourceOption } from './ColumnHeaderControls'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 function formatDate(value: string | null): string {
@@ -29,6 +29,8 @@ export function SalesCustomersPage() {
   const [sortBy, setSortBy] = useState('spending')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [stateFilter, setStateFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
+  const [sourceOptions, setSourceOptions] = useState<SourceOption[]>([])
 
   const handleSortChange = (key: string, dir: SortDir) => {
     setSortBy(key)
@@ -48,6 +50,7 @@ export function SalesCustomersPage() {
         sortBy,
         sortDir,
         state: stateFilter || undefined,
+        source: sourceFilter || undefined,
       })
       setRows(result.items)
       setPage(result.page)
@@ -63,7 +66,11 @@ export function SalesCustomersPage() {
 
   useEffect(() => {
     void load(1, perPage)
-  }, [sortBy, sortDir, stateFilter])
+  }, [sortBy, sortDir, stateFilter, sourceFilter])
+
+  useEffect(() => {
+    getSalesCustomerSources().then((result) => setSourceOptions(result.items)).catch(() => setSourceOptions([]))
+  }, [])
 
   return (
     <div className="space-y-6 pb-8 animate-fadeIn">
@@ -90,14 +97,14 @@ export function SalesCustomersPage() {
         <CardContent className="p-0">
           {error ? <div className="m-5 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"><AlertTriangle className="h-4 w-4 shrink-0" />{error}</div> : null}
           {loading ? <div className="space-y-3 p-5">{Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-14 w-full" />)}</div> : null}
-          {!loading && !error && rows.length === 0 && !stateFilter ? <div className="flex min-h-64 flex-col items-center justify-center px-4 text-center"><div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-sky-50 text-sky-600"><Users className="h-5 w-5" /></div><p className="font-medium text-slate-900">No customers found</p><p className="mt-1 text-sm text-muted-foreground">Try a different name, email, or company search.</p></div> : null}
-          {!loading && (rows.length > 0 || stateFilter) ? <div className="overflow-x-auto">
+          {!loading && !error && rows.length === 0 && !stateFilter && !sourceFilter ? <div className="flex min-h-64 flex-col items-center justify-center px-4 text-center"><div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-sky-50 text-sky-600"><Users className="h-5 w-5" /></div><p className="font-medium text-slate-900">No customers found</p><p className="mt-1 text-sm text-muted-foreground">Try a different name, email, or company search.</p></div> : null}
+          {!loading && (rows.length > 0 || stateFilter || sourceFilter) ? <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-slate-50">
                 <TableRow>
                   <TableHead><SortHeader label="Customer" sortKey="customer" options={TEXT_SORT} {...sortProps} /></TableHead>
                   <TableHead><SortHeader label="Company" sortKey="company" options={TEXT_SORT} {...sortProps} /></TableHead>
-                  <TableHead><SortHeader label="Source" sortKey="source" options={TEXT_SORT} {...sortProps} /></TableHead>
+                  <TableHead><SourceHeader value={sourceFilter} options={sourceOptions} onChange={setSourceFilter} /></TableHead>
                   <TableHead><StateHeader value={stateFilter} onChange={setStateFilter} /></TableHead>
                   <TableHead><SortHeader label="Purchases" sortKey="purchases" options={NUMBER_SORT} {...sortProps} /></TableHead>
                   <TableHead><SortHeader label="Total Spending" sortKey="spending" options={NUMBER_SORT} {...sortProps} /></TableHead>
