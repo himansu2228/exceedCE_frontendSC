@@ -243,7 +243,12 @@ export function SalesSurveyReportPage() {
                     <Legend itemSorter={null} wrapperStyle={{ fontWeight: 700, fontSize: 13 }} />
                     {RATING_LEVELS.map((level) => (
                       <Bar key={level.value} dataKey={`p${level.value}`} name={level.label} stackId="ratings" fill={level.color}>
-                        <LabelList dataKey={`p${level.value}`} position="center" fill="#ffffff" fontSize={11} formatter={(value) => Number(value) >= 6 ? `${Math.round(Number(value))}%` : ''} />
+                        <LabelList dataKey={`p${level.value}`} content={({ x, y, width, height, value }) => {
+                          const pct = Number(value)
+                          const w = Number(width)
+                          if (!pct || w < 22) return null
+                          return <text x={Number(x) + w / 2} y={Number(y) + Number(height) / 2} dy={4} textAnchor="middle" fill="#ffffff" fontSize={11} fontWeight={700}>{`${Math.round(pct)}%`}</text>
+                        }} />
                       </Bar>
                     ))}
                     {low.share !== null && <ReferenceLine x={low.share * 100} stroke="#dc2626" strokeWidth={2} strokeDasharray="6 4" label={{ value: `${(low.share * 100).toFixed(1)}% low`, position: 'top', fill: '#dc2626', fontSize: 12 }} />}
