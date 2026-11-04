@@ -49,6 +49,7 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
   MO: 'Missouri',
   AL: 'Alabama',
   IL: 'Illinois',
+  ID: 'Idaho',
 }
 
 const DEFAULT_MULTI_TENANT_STATES = Object.values(STATE_NAME_BY_CODE)
@@ -95,6 +96,7 @@ export function normalizeStateCode(state: string | undefined | null): string {
   if (raw === 'MISSOURI' || raw.includes('MISSOURI')) return 'MO'
   if (raw === 'ALABAMA' || raw.includes('ALABAMA')) return 'AL'
   if (raw === 'ILLINOIS' || raw.includes('ILLINOIS')) return 'IL'
+  if (raw === 'IDAHO' || raw.includes('IDAHO')) return 'ID'
   return raw
 }
 

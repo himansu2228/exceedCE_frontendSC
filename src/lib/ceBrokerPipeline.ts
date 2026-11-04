@@ -1,8 +1,8 @@
 import { normalizeStateCode } from '@/lib/auth'
 
-export type PipelineStateCode = 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO' | 'AL' | 'IL'
+export type PipelineStateCode = 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO' | 'AL' | 'IL' | 'ID'
 
-const SUPPORTED_PIPELINE_STATES: PipelineStateCode[] = ['SC', 'HI', 'NC', 'NV', 'MI', 'MO', 'AL', 'IL']
+const SUPPORTED_PIPELINE_STATES: PipelineStateCode[] = ['SC', 'HI', 'NC', 'NV', 'MI', 'MO', 'AL', 'IL', 'ID']
 
 const PIPELINE_TAB_STATE_MAP: Record<PipelineStateCode, PipelineStateCode> = {
   SC: 'SC',
@@ -13,6 +13,7 @@ const PIPELINE_TAB_STATE_MAP: Record<PipelineStateCode, PipelineStateCode> = {
   HI: 'HI',
   AL: 'AL',
   IL: 'IL',
+  ID: 'ID',
 }
 
 const FALLBACK_STATE: PipelineStateCode = 'SC'
