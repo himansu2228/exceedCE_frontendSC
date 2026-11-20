@@ -7,6 +7,7 @@ import {
   parseISO,
   startOfMonth,
   startOfWeek,
+  startOfYear,
   subDays,
   subMonths,
   subWeeks,
@@ -28,6 +29,7 @@ type DateRangePreset =
   | 'lastWeek'
   | 'thisMonth'
   | 'lastMonth'
+  | 'yearToDate'
 
 export interface DateRangeValue {
   fromDate: string
@@ -44,6 +46,7 @@ interface DateRangeFilterProps {
   showLabels?: boolean
   showToday?: boolean
   maxDate?: string
+  modal?: boolean
 }
 
 const PRESETS: Array<{ id: DateRangePreset; label: string }> = [
@@ -56,6 +59,7 @@ const PRESETS: Array<{ id: DateRangePreset; label: string }> = [
   { id: 'lastWeek', label: 'Last week' },
   { id: 'thisMonth', label: 'This month' },
   { id: 'lastMonth', label: 'Last month' },
+  { id: 'yearToDate', label: 'Year to date' },
 ]
 
 function toIsoDate(date: Date): string {
@@ -103,6 +107,10 @@ function getPresetRange(preset: DateRangePreset): DateRangeValue {
       const end = endOfMonth(lastMonthRef)
       return { fromDate: toIsoDate(start), toDate: toIsoDate(end) }
     }
+    case 'yearToDate': {
+      const start = startOfYear(today)
+      return { fromDate: toIsoDate(start), toDate: toIsoDate(today) }
+    }
     case 'custom':
     default:
       return { fromDate: '', toDate: '' }
@@ -119,6 +127,7 @@ export function DateRangeFilter({
   showLabels = true,
   showToday = false,
   maxDate,
+  modal = false,
 }: DateRangeFilterProps) {
   const todayIso = useMemo(() => toIsoDate(new Date()), [])
   const effectiveMaxDate = maxDate || todayIso
@@ -174,7 +183,7 @@ export function DateRangeFilter({
     <div className={cn('flex flex-wrap items-end gap-2', className)}>
       <div className="min-w-[300px]">
         {showLabels ? <p className="mb-1 text-xs text-muted-foreground">Date Range</p> : null}
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <Popover open={isOpen} onOpenChange={setIsOpen} modal={modal}>
           <PopoverTrigger asChild>
             <Button
               type="button"

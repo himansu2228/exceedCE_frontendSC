@@ -39,3 +39,22 @@ export function StatusBadge({ status, displayStatus }: { status?: string; displa
   const label = displayStatus || status || 'N/A'
   return <Badge variant={statusVariant(status || label)}>{label}</Badge>
 }
+
+export function formatHeaderDate(isoDate: string): string {
+  if (!isoDate) return ''
+  const date = new Date(isoDate.length === 10 ? `${isoDate}T00:00:00` : isoDate)
+  if (Number.isNaN(date.getTime())) return isoDate
+  return date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+export function formatDateRangeLabel(fromDate?: string, toDate?: string): string {
+  if (!fromDate && !toDate) return ''
+  const from = fromDate ? formatHeaderDate(fromDate) : '...'
+  const to = toDate ? formatHeaderDate(toDate) : '...'
+  return `Showing data for ${from} - ${to}`
+}
+

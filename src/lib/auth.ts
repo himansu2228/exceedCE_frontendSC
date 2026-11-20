@@ -5,7 +5,7 @@ const AUTH_USER_STORAGE_KEY = 'exceedce-auth-user'
 const AUTH_TOKEN_STORAGE_KEY = 'exceedce-auth-token'
 const ACTIVE_STATE_KEY = 'exceedce-active-state'
 
-export const SESSION_TIMEOUT_MS = 30 * 60 * 1000
+export const SESSION_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
 
 const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
 
@@ -49,6 +49,7 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
   MO: 'Missouri',
   AL: 'Alabama',
   IL: 'Illinois',
+  ID: 'Idaho',
 }
 
 const DEFAULT_MULTI_TENANT_STATES = Object.values(STATE_NAME_BY_CODE)
@@ -95,6 +96,7 @@ export function normalizeStateCode(state: string | undefined | null): string {
   if (raw === 'MISSOURI' || raw.includes('MISSOURI')) return 'MO'
   if (raw === 'ALABAMA' || raw.includes('ALABAMA')) return 'AL'
   if (raw === 'ILLINOIS' || raw.includes('ILLINOIS')) return 'IL'
+  if (raw === 'IDAHO' || raw.includes('IDAHO')) return 'ID'
   return raw
 }
 

@@ -1,8 +1,8 @@
 import { normalizeStateCode } from '@/lib/auth'
 
-export type PipelineStateCode = 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO' | 'AL' | 'IL'
+export type PipelineStateCode = 'SC' | 'HI' | 'NC' | 'NV' | 'MI' | 'MO' | 'AL' | 'IL' | 'ID'
 
-const SUPPORTED_PIPELINE_STATES: PipelineStateCode[] = ['SC', 'HI', 'NC', 'NV', 'MI', 'MO', 'AL', 'IL']
+const SUPPORTED_PIPELINE_STATES: PipelineStateCode[] = ['SC', 'HI', 'NC', 'NV', 'MI', 'MO', 'AL', 'IL', 'ID']
 
 const PIPELINE_TAB_STATE_MAP: Record<PipelineStateCode, PipelineStateCode> = {
   SC: 'SC',
@@ -13,6 +13,7 @@ const PIPELINE_TAB_STATE_MAP: Record<PipelineStateCode, PipelineStateCode> = {
   HI: 'HI',
   AL: 'AL',
   IL: 'IL',
+  ID: 'ID',
 }
 
 const FALLBACK_STATE: PipelineStateCode = 'SC'
@@ -81,6 +82,17 @@ export const PORTAL_SUBMIT_GATES: Partial<Record<PipelineStateCode, PortalSubmit
     dryRunHelp: 'Dry Run is on: nothing is added or submitted in the Illinois portal. Turn Dry Run off to add entries.',
     liveNote: ' Illinois entries are submitted to IDFPR only when the Submit switch is on.',
   },
+  ID: {
+    afterStepKey: 'attendance-report',
+    storageKey: 'exceedce-id-submit',
+    label: 'Submit',
+    onTitle: 'On: the flow clicks Submit on the Confirm Attendance Report tab',
+    offTitle: 'Off: the flow stops on Confirm Attendance Report; attendance is not submitted',
+    onHelp: 'Submit is ON: after the attendance details are entered, the run clicks Submit on the Idaho Confirm Attendance Report tab.',
+    offHelp: 'Submit is OFF: the run stops on Confirm Attendance Report. Attendance is not submitted; turn Submit on and run again.',
+    dryRunHelp: 'Dry Run is on: nothing is entered or submitted in the Idaho portal. Turn Dry Run off to stage attendance.',
+    liveNote: ' Idaho attendance is submitted to DOPL only when the Submit switch is on.',
+  },
   MO: {
     afterStepKey: 'build-ceu-files',
     storageKey: 'exceedce-mo-submit',
@@ -140,6 +152,7 @@ const ROSTER_GATE_BY_STATE: Partial<Record<PipelineStateCode, { key: 'sendEmails
   MI: { key: 'upload', label: 'Upload' },
   AL: { key: 'commit', label: 'Commit' },
   IL: { key: 'commit', label: 'Submit' },
+  ID: { key: 'commit', label: 'Submit' },
   MO: { key: 'commit', label: 'Submit' },
   NC: { key: 'commit', label: 'Submit' },
 }

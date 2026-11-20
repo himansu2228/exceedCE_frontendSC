@@ -29,6 +29,7 @@ import {
   Star,
   HelpCircle,
   BadgeCheck,
+  Ticket,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useMemo, useState } from 'react'
@@ -80,6 +81,7 @@ const getSuperAdminSalesItems = (): NavItem[] => {
     { path: '/sales/revenue', icon: Wallet, label: 'Revenue' },
     { path: '/sales/transactions', icon: Receipt, label: 'Transactions' },
     { path: '/sales/refunds', icon: RotateCcw, label: 'Refunds' },
+    { path: '/sales/coupons', icon: Ticket, label: 'Coupons' },
   ]
 
   // Only show Sync Logs and Failed Syncs in development

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, BadgeCheck, Download, RefreshCw, Search } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,8 @@ import { PaginationControls } from '@/components/ui/pagination-controls'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getLicenseRenewals, updateLicenseRenewalCycle } from '@/lib/api'
 import type { LicenseRenewalCycle, LicenseRenewalRow, LicenseRenewalStatus, LicenseRenewalsResponse } from '@/lib/api'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+import { formatDateRangeLabel } from './shared'
 
 const STATUS_META: Record<LicenseRenewalStatus, { label: string; className: string }> = {
   outreach: { label: 'Renews within 12 mo', className: 'bg-amber-100 text-amber-800' },
@@ -50,6 +52,7 @@ function StateOptions({ placeholder }: { placeholder: string }) {
 
 export function SalesLicenseRenewalsPage() {
   const [rows, setRows] = useState<LicenseRenewalRow[]>([])
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [summary, setSummary] = useState<LicenseRenewalsResponse['summary'] | null>(null)
   const [cycles, setCycles] = useState<LicenseRenewalCycle[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,7 +70,14 @@ export function SalesLicenseRenewalsPage() {
   const [cycleError, setCycleError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
-  const load = async (targetPage = page, targetPerPage = perPage, overrides?: { status?: string; state?: string }) => {
+  const selectedRangeLabel = useMemo(() => formatDateRangeLabel(dateRange.fromDate, dateRange.toDate), [dateRange.fromDate, dateRange.toDate])
+
+  const load = async (
+    targetPage = page,
+    targetPerPage = perPage,
+    overrides?: { status?: string; state?: string },
+    range = dateRange
+  ) => {
     try {
       setLoading(true)
       setError(null)
@@ -77,6 +87,8 @@ export function SalesLicenseRenewalsPage() {
         search: search || undefined,
         state: (overrides?.state ?? stateFilter) || undefined,
         status: overrides?.status ?? status,
+        fromDate: range.fromDate || undefined,
+        toDate: range.toDate || undefined,
       })
       setRows(result.items)
       setPage(result.page)
@@ -94,13 +106,19 @@ export function SalesLicenseRenewalsPage() {
 
   useEffect(() => {
     void load(1, perPage)
-  }, [])
+  }, [dateRange])
 
   const exportExcel = async () => {
     try {
       setExporting(true)
       setError(null)
-      const filters = { search: search || undefined, state: stateFilter || undefined, status }
+      const filters = {
+        search: search || undefined,
+        state: stateFilter || undefined,
+        status,
+        fromDate: dateRange.fromDate || undefined,
+        toDate: dateRange.toDate || undefined,
+      }
       const pageSize = 200
       const first = await getLicenseRenewals({ ...filters, page: 1, perPage: pageSize })
       const rest = await Promise.all(
@@ -186,9 +204,22 @@ export function SalesLicenseRenewalsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-700">Sales Directory</p>
               <h1 className="mt-1 text-2xl font-semibold text-slate-950">Student License Renewals</h1>
               <p className="mt-1 text-sm text-slate-600">License expiry and next renewal date per student, based on the license stored in their ExceedCE profile and the renewal cycle for their state.</p>
+              {selectedRangeLabel ? (
+                <p className="mt-1 break-words text-xs font-medium text-sky-700">{selectedRangeLabel}</p>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-col gap-2 rounded-xl border border-sky-100 bg-white/80 p-1.5 sm:w-auto sm:flex-row sm:items-end">
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                onDone={(range) => void load(1, perPage, undefined, range)}
+                showLabels={false}
+                showToday
+                className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[300px]"
+              />
+            </div>
             <Button type="button" variant="outline" onClick={() => void exportExcel()} disabled={loading || exporting || total === 0} className="border-sky-200 bg-white text-sky-700 hover:bg-sky-50"><Download className={`mr-2 h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />{exporting ? 'Exporting...' : 'Export Excel'}</Button>
             <Button type="button" variant="outline" onClick={() => void load(1, perPage)} disabled={loading} className="border-sky-200 bg-white text-sky-700 hover:bg-sky-50"><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, RefreshCw, Search, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -7,7 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { getSalesCustomerSources, getSalesCustomers } from '@/lib/api'
 import type { SalesCustomer } from '@/lib/api'
-import { formatCurrency } from './shared'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+import { formatCurrency, formatDateRangeLabel } from './shared'
 import { DATE_SORT, NUMBER_SORT, SortHeader, SourceHeader, StateHeader, TEXT_SORT, type SortDir, type SourceOption } from './ColumnHeaderControls'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -19,6 +20,7 @@ function formatDate(value: string | null): string {
 
 export function SalesCustomersPage() {
   const [rows, setRows] = useState<SalesCustomer[]>([])
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -32,6 +34,8 @@ export function SalesCustomersPage() {
   const [sourceFilter, setSourceFilter] = useState('')
   const [sourceOptions, setSourceOptions] = useState<SourceOption[]>([])
 
+  const selectedRangeLabel = useMemo(() => formatDateRangeLabel(dateRange.fromDate, dateRange.toDate), [dateRange.fromDate, dateRange.toDate])
+
   const handleSortChange = (key: string, dir: SortDir) => {
     setSortBy(key)
     setSortDir(dir)
@@ -39,7 +43,7 @@ export function SalesCustomersPage() {
 
   const sortProps = { activeKey: sortBy, activeDir: sortDir, onChange: handleSortChange }
 
-  const load = async (targetPage = page, targetPerPage = perPage) => {
+  const load = async (targetPage = page, targetPerPage = perPage, range = dateRange) => {
     try {
       setLoading(true)
       setError(null)
@@ -51,6 +55,8 @@ export function SalesCustomersPage() {
         sortDir,
         state: stateFilter || undefined,
         source: sourceFilter || undefined,
+        fromDate: range.fromDate || undefined,
+        toDate: range.toDate || undefined,
       })
       setRows(result.items)
       setPage(result.page)
@@ -66,7 +72,7 @@ export function SalesCustomersPage() {
 
   useEffect(() => {
     void load(1, perPage)
-  }, [sortBy, sortDir, stateFilter, sourceFilter])
+  }, [sortBy, sortDir, stateFilter, sourceFilter, dateRange])
 
   useEffect(() => {
     getSalesCustomerSources().then((result) => setSourceOptions(result.items)).catch(() => setSourceOptions([]))
@@ -78,9 +84,28 @@ export function SalesCustomersPage() {
         <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between lg:p-6">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white shadow-[0_12px_28px_-12px_rgba(2,132,199,0.9)]"><Users className="h-6 w-6" /></div>
-            <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-700">Sales Directory</p><h1 className="mt-1 text-2xl font-semibold text-slate-950">Customers</h1><p className="mt-1 text-sm text-slate-600">Customer profiles, purchase activity, and lifetime spending in one place.</p></div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-700">Sales Directory</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-950">Customers</h1>
+              <p className="mt-1 text-sm text-slate-600">Customer profiles, purchase activity, and lifetime spending in one place.</p>
+              {selectedRangeLabel ? (
+                <p className="mt-1 break-words text-xs font-medium text-sky-700">{selectedRangeLabel}</p>
+              ) : null}
+            </div>
           </div>
-          <Button type="button" variant="outline" onClick={() => void load(1, perPage)} disabled={loading} className="border-sky-200 bg-white text-sky-700 hover:bg-sky-50"><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-col gap-2 rounded-xl border border-sky-100 bg-white/80 p-1.5 sm:w-auto sm:flex-row sm:items-end">
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                onDone={(range) => void load(1, perPage, range)}
+                showLabels={false}
+                showToday
+                className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[300px]"
+              />
+            </div>
+            <Button type="button" variant="outline" onClick={() => void load(1, perPage)} disabled={loading} className="border-sky-200 bg-white text-sky-700 hover:bg-sky-50"><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
+          </div>
         </div>
       </section>
 
