@@ -115,6 +115,17 @@ export const PORTAL_SUBMIT_GATES: Partial<Record<PipelineStateCode, PortalSubmit
     dryRunHelp: 'Dry Run is on: NC roster files are built for download but nothing is uploaded to NCREC. Turn Dry Run off to upload and validate them.',
     liveNote: ' North Carolina rosters are submitted to NCREC only when the Submit switch is on.',
   },
+  ID: {
+    afterStepKey: 'attendance-report',
+    storageKey: 'exceedce-id-submit',
+    label: 'Submit',
+    onTitle: 'On: after Attendance Report the flow confirms and clicks Submit',
+    offTitle: 'Off: flow stops after Attendance Report; attendance is staged on Confirm Attendance Report tab and not submitted',
+    onHelp: 'Submit is ON: after Attendance Report the run navigates to the Confirm Attendance Report tab and clicks Submit.',
+    offHelp: 'Submit is OFF: the run stops on the Confirm Attendance Report tab. Nothing is submitted; turn Submit on and run again to submit.',
+    dryRunHelp: 'Dry Run is on: no attendance is reported or submitted in the Idaho portal. Turn Dry Run off to report.',
+    liveNote: ' Idaho attendance is submitted to DOPL only when the Submit switch is on.',
+  },
 }
 
 export function getPortalSubmitGate(state: string | undefined | null): PortalSubmitGate | null {
@@ -155,6 +166,7 @@ const ROSTER_GATE_BY_STATE: Partial<Record<PipelineStateCode, { key: 'sendEmails
   ID: { key: 'commit', label: 'Submit' },
   MO: { key: 'commit', label: 'Submit' },
   NC: { key: 'commit', label: 'Submit' },
+  ID: { key: 'commit', label: 'Submit' },
 }
 
 export function getRosterGate(state: string | undefined | null) {
