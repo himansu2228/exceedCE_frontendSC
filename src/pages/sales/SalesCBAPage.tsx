@@ -39,6 +39,8 @@ import {
 } from 'lucide-react'
 
 import { getCbaTabularUsers, getCbaUserCompletion } from '@/lib/api'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+import { formatDateRangeLabel } from './shared'
 
 interface CbaRow {
   addedToCba: string
@@ -123,6 +125,7 @@ function getCourseProgress(record: Record<string, unknown>): number {
 
 export function SalesCBAPage() {
   const [allRows, setAllRows] = useState<CbaRow[]>([])
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -134,6 +137,8 @@ export function SalesCBAPage() {
   const [completionDetails, setCompletionDetails] = useState<CbaCompletionDetails | null>(null)
   const [completionDetailsLoading, setCompletionDetailsLoading] = useState(false)
   const [completionDetailsError, setCompletionDetailsError] = useState<string | null>(null)
+
+  const selectedRangeLabel = useMemo(() => formatDateRangeLabel(dateRange.fromDate, dateRange.toDate), [dateRange.fromDate, dateRange.toDate])
 
   const openCompletionDetails = async (row: CbaRow) => {
     if (!row.id) return
@@ -177,6 +182,13 @@ export function SalesCBAPage() {
     const searchText = search.trim().toLowerCase()
 
     return allRows.filter((row) => {
+      if (dateRange.fromDate && (!row.addedToCba || row.addedToCba < dateRange.fromDate)) {
+        return false
+      }
+      if (dateRange.toDate && (!row.addedToCba || row.addedToCba > dateRange.toDate)) {
+        return false
+      }
+
       if (showOnlyActive && !row.lastLogin.trim()) {
         return false
       }
@@ -198,7 +210,7 @@ export function SalesCBAPage() {
 
       return haystack.includes(searchText)
     })
-  }, [allRows, search, showOnlyActive])
+  }, [allRows, search, showOnlyActive, dateRange.fromDate, dateRange.toDate])
 
   const sortedRows = useMemo(() => {
     const rows = [...filteredRows]
@@ -269,7 +281,7 @@ export function SalesCBAPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, showOnlyActive, sortBy, sortDirection, perPage])
+  }, [search, showOnlyActive, sortBy, sortDirection, perPage, dateRange])
 
   return (
     <div className="space-y-4">
@@ -281,6 +293,9 @@ export function SalesCBAPage() {
             <p className="text-sm text-muted-foreground">
               Live CBA learner tracking from the ExceedCE portal
             </p>
+            {selectedRangeLabel ? (
+              <p className="mt-1 break-words text-xs font-medium text-amber-700">{selectedRangeLabel}</p>
+            ) : null}
           </div>
         </div>
 
@@ -299,7 +314,7 @@ export function SalesCBAPage() {
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-5">
+        <CardContent className="grid gap-3 lg:grid-cols-6">
           <div className="relative lg:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -309,6 +324,14 @@ export function SalesCBAPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            showLabels={false}
+            showToday
+            className="w-full [&>div]:w-full [&>div]:min-w-0"
+          />
 
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortKey)}>
             <SelectTrigger>

@@ -5,7 +5,7 @@ const AUTH_USER_STORAGE_KEY = 'exceedce-auth-user'
 const AUTH_TOKEN_STORAGE_KEY = 'exceedce-auth-token'
 const ACTIVE_STATE_KEY = 'exceedce-active-state'
 
-export const SESSION_TIMEOUT_MS = 30 * 60 * 1000
+export const SESSION_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
 
 const DEFAULT_PROD_API_ORIGIN = 'https://scexceedceapi.cognitiev.com'
 

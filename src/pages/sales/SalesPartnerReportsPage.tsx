@@ -367,6 +367,7 @@ export function SalesPartnerReportsPage() {
     const partnerName = selectedPartner?.name || 'Partner'
     const headers = [
       'Transaction Date',
+      'Order ID',
       'Customer',
       'Course Title',
       'State',
@@ -383,6 +384,7 @@ export function SalesPartnerReportsPage() {
 
     const dataRows = reportData.items.map(item => [
       item.date,
+      item.orderId ? `#${item.orderId}` : '',
       item.customer,
       item.productName,
       item.state,
@@ -406,6 +408,7 @@ export function SalesPartnerReportsPage() {
       '',
       '',
       '',
+      '',
       reportData.summary.totalGrossSale,
       totalDiscounts,
       totalRefunds,
@@ -421,8 +424,8 @@ export function SalesPartnerReportsPage() {
       headerRow: 0,
       dataEndRow: dataRows.length + 1,
       totalRow: dataRows.length + 1,
-      columnWidths: [18, 26, 40, 10, 12, 16, 16, 16, 16, 16, 18, 24, 34],
-      currencyColumns: [5, 6, 7, 8, 9, 10, 11],
+      columnWidths: [18, 14, 26, 40, 10, 12, 16, 16, 16, 16, 16, 18, 24, 34],
+      currencyColumns: [6, 7, 8, 9, 10, 11, 12],
       centerContent: true,
     })
 
@@ -598,6 +601,7 @@ export function SalesPartnerReportsPage() {
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold">Order ID</th>
                     <th className="px-4 py-3 text-left font-semibold">Customer</th>
                     <th className="px-4 py-3 text-left font-semibold max-w-[280px]">Course Title</th>
                     <th className="px-3 py-3 text-center font-semibold">State</th>
@@ -609,12 +613,16 @@ export function SalesPartnerReportsPage() {
                     <th className="px-4 py-3 text-right font-semibold text-amber-700">Stripe Fee</th>
                     <th className="px-4 py-3 text-right font-semibold text-blue-700">Partner Share</th>
                     <th className="px-4 py-3 text-right font-bold text-slate-900 bg-blue-50/50">Remittance</th>
+                    <th className="px-4 py-3 text-left font-semibold">Stripe Transaction ID</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {reportData.items.map((item, idx) => (
-                    <tr key={item.orderId || idx} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={item.itemId || item.orderId || idx} className="hover:bg-slate-50/60 transition-colors">
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{item.date}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
+                        {item.orderId ? `#${item.orderId}` : '—'}
+                      </td>
                       <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{item.customer}</td>
                       <td className="px-4 py-3 text-slate-700 max-w-[280px] truncate">{item.productName}</td>
                       <td className="px-3 py-3 text-center font-medium text-slate-600">{item.state}</td>
@@ -628,12 +636,13 @@ export function SalesPartnerReportsPage() {
                       <td className="px-4 py-3 text-right font-bold text-blue-700 bg-blue-50/30">
                         {formatUSD(item.remittanceFromStripe)}
                       </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{item.stripeChargeId || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200">
                   <tr>
-                    <td colSpan={5} className="px-4 py-3 text-slate-900">Total Summary</td>
+                    <td colSpan={6} className="px-4 py-3 text-slate-900">Total Summary</td>
                     <td className="px-4 py-3 text-right text-slate-900">{formatUSD(reportData.summary.totalGrossSale)}</td>
                     <td className="px-3 py-3 text-right text-slate-500">{formatUSD(reportData.items.reduce((sum, item) => sum + Number(item.discounts || 0), 0))}</td>
                     <td className="px-3 py-3 text-right text-slate-500">{formatUSD(reportData.items.reduce((sum, item) => sum + Number(item.refunds || 0), 0))}</td>
@@ -643,6 +652,7 @@ export function SalesPartnerReportsPage() {
                     <td className="px-4 py-3 text-right text-blue-700 bg-blue-100/60 font-extrabold text-sm">
                       {formatUSD(reportData.summary.totalRemittanceFromStripe)}
                     </td>
+                    <td className="px-4 py-3"></td>
                   </tr>
                 </tfoot>
               </table>

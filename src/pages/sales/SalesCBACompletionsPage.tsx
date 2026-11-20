@@ -3,6 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -260,8 +268,10 @@ export function SalesCBACompletionsPage() {
 
   const stageStudents = useMemo(() => funnel?.students?.[stage] ?? [], [funnel, stage])
 
-  const [currentRange, setCurrentRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
-  const [previousRange, setPreviousRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
+  const [comparisonRangeOne, setComparisonRangeOne] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
+  const [comparisonRangeTwo, setComparisonRangeTwo] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
+  const [comparisonDialogOpen, setComparisonDialogOpen] = useState(false)
 
   // Older cached snapshots lack per-course completion rows; fall back to one row per completed student.
   const completionRecords = useMemo<CbaFunnelCompletion[]>(() => {
@@ -275,27 +285,78 @@ export function SalesCBACompletionsPage() {
     }))
   }, [funnel])
 
-  const currentSummary = useMemo(() => summarizeCompletions(completionRecords, currentRange), [completionRecords, currentRange])
-  const previousSummary = useMemo(() => summarizeCompletions(completionRecords, previousRange), [completionRecords, previousRange])
+  const currentSummary = useMemo(() => summarizeCompletions(completionRecords, dateRange), [completionRecords, dateRange])
+  const comparisonSummaryOne = useMemo(() => summarizeCompletions(completionRecords, comparisonRangeOne), [completionRecords, comparisonRangeOne])
+  const comparisonSummaryTwo = useMemo(() => summarizeCompletions(completionRecords, comparisonRangeTwo), [completionRecords, comparisonRangeTwo])
 
   const courseComparison = useMemo(() => {
-    if (!currentSummary || !previousSummary) return []
-    const courses = new Set([...currentSummary.byCourse.keys(), ...previousSummary.byCourse.keys()])
+    if (!comparisonSummaryOne || !comparisonSummaryTwo) return []
+    const courses = new Set([...comparisonSummaryOne.byCourse.keys(), ...comparisonSummaryTwo.byCourse.keys()])
     return Array.from(courses)
       .map((course) => ({
         course,
-        current: currentSummary.byCourse.get(course) || 0,
-        previous: previousSummary.byCourse.get(course) || 0,
+        current: comparisonSummaryOne.byCourse.get(course) || 0,
+        previous: comparisonSummaryTwo.byCourse.get(course) || 0,
       }))
       .sort((a, b) => b.current + b.previous - (a.current + a.previous) || a.course.localeCompare(b.course))
-  }, [currentSummary, previousSummary])
+  }, [comparisonSummaryOne, comparisonSummaryTwo])
 
-  const setPreviousYear = () => {
-    if (!currentRange.fromDate || !currentRange.toDate) return
-    setPreviousRange({
-      fromDate: format(subYears(parseISO(currentRange.fromDate), 1), 'yyyy-MM-dd'),
-      toDate: format(subYears(parseISO(currentRange.toDate), 1), 'yyyy-MM-dd'),
+  const setComparisonPreviousYear = () => {
+    if (!comparisonRangeOne.fromDate || !comparisonRangeOne.toDate) return
+    setComparisonRangeTwo({
+      fromDate: format(subYears(parseISO(comparisonRangeOne.fromDate), 1), 'yyyy-MM-dd'),
+      toDate: format(subYears(parseISO(comparisonRangeOne.toDate), 1), 'yyyy-MM-dd'),
     })
+  }
+
+  const exportComparisonExcel = async () => {
+    if (!comparisonSummaryOne || !comparisonSummaryTwo) return
+    const [XLSX, { formatDataWorksheet }] = await Promise.all([
+      import('xlsx-js-style'),
+      import('@/lib/excelFormatting'),
+    ])
+    const firstRangeLabel = formatRangeLabel(comparisonRangeOne)
+    const secondRangeLabel = formatRangeLabel(comparisonRangeTwo)
+    const summaryRows = [
+      ['CBA Completion Comparison'],
+      [`First date range: ${firstRangeLabel}`],
+      [`Second date range: ${secondRangeLabel}`],
+      [],
+      ['Metric', firstRangeLabel, secondRangeLabel, 'Change', '% Change'],
+      ['Course completions', comparisonSummaryOne.completions, comparisonSummaryTwo.completions, formatChange(comparisonSummaryOne.completions, comparisonSummaryTwo.completions).delta, formatChange(comparisonSummaryOne.completions, comparisonSummaryTwo.completions).percent],
+      ['Unique students', comparisonSummaryOne.students, comparisonSummaryTwo.students, formatChange(comparisonSummaryOne.students, comparisonSummaryTwo.students).delta, formatChange(comparisonSummaryOne.students, comparisonSummaryTwo.students).percent],
+    ]
+    const summaryWorksheet = XLSX.utils.aoa_to_sheet(summaryRows)
+    formatDataWorksheet(summaryWorksheet, {
+      titleRow: 0,
+      headerRow: 4,
+      dataEndRow: 6,
+      columnWidths: [28, 28, 28, 14, 14],
+    })
+
+    const courseRows = [
+      ['Course Comparison'],
+      [],
+      ['Course', firstRangeLabel, secondRangeLabel, 'Change'],
+      ...courseComparison.map((row) => [
+        row.course,
+        row.current,
+        row.previous,
+        formatChange(row.current, row.previous).delta,
+      ]),
+    ]
+    const courseWorksheet = XLSX.utils.aoa_to_sheet(courseRows)
+    formatDataWorksheet(courseWorksheet, {
+      titleRow: 0,
+      headerRow: 2,
+      dataEndRow: courseRows.length - 1,
+      columnWidths: [48, 28, 28, 14],
+    })
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Summary')
+    XLSX.utils.book_append_sheet(workbook, courseWorksheet, 'Courses')
+    XLSX.writeFile(workbook, 'cba-completions-comparison.xlsx')
   }
 
   const exportExcel = async () => {
@@ -403,59 +464,153 @@ export function SalesCBACompletionsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Completions Comparison</CardTitle>
+          <CardTitle>Completions</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Compare completions in a date range against a previous range, e.g. April 2026 vs April 2025.
+            Filter completions by a date range or compare two separate date ranges.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             <div>
               <p className="mb-1 text-xs text-muted-foreground">Date range</p>
-              <DateRangeFilter value={currentRange} onChange={setCurrentRange} showLabels={false} />
-            </div>
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">Compare with</p>
-              <DateRangeFilter value={previousRange} onChange={setPreviousRange} showLabels={false} />
+              <DateRangeFilter value={dateRange} onChange={setDateRange} showLabels={false} />
             </div>
             <Button
+              type="button"
               variant="outline"
-              onClick={setPreviousYear}
-              disabled={!currentRange.fromDate || !currentRange.toDate}
+              onClick={() => setComparisonDialogOpen(true)}
               className="h-10"
             >
-              Same period last year
+              Compare dates
             </Button>
           </div>
 
           {funnelLoading ? <Badge variant="warning">Loading...</Badge> : null}
 
-          {!currentSummary || !previousSummary ? (
-            <p className="text-sm text-muted-foreground">Select both date ranges to see the comparison.</p>
+          {!currentSummary ? (
+            <p className="text-sm text-muted-foreground">Select a complete date range to view completions.</p>
           ) : (
             <>
+              <div className="overflow-x-auto rounded-lg border bg-card">
+                <Table className="min-w-[420px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Metric</TableHead>
+                      <TableHead className="text-right">{formatRangeLabel(dateRange)}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[
+                      { label: 'Course completions', value: currentSummary.completions },
+                      { label: 'Unique students', value: currentSummary.students },
+                    ].map((metric) => (
+                      <TableRow key={metric.label}>
+                        <TableCell className="font-medium">{metric.label}</TableCell>
+                        <TableCell className="text-right">{metric.value.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {currentSummary.byCourse.size > 0 ? (
+                <div className="overflow-x-auto rounded-lg border bg-card">
+                  <Table className="min-w-[420px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Course</TableHead>
+                        <TableHead className="text-right">Completions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from(currentSummary.byCourse.entries())
+                        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                        .map(([course, completions]) => (
+                          <TableRow key={course}>
+                            <TableCell className="font-medium">{course}</TableCell>
+                            <TableCell className="text-right">{completions.toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No completions found in this date range.</p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={comparisonDialogOpen} onOpenChange={setComparisonDialogOpen}>
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-6xl"
+          onInteractOutside={(event) => {
+            if (event.target instanceof Element && event.target.closest('[data-radix-popper-content-wrapper]')) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Compare completions</DialogTitle>
+            <DialogDescription>
+              Select two date ranges to compare completions. These ranges are independent of the page date filter.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">First date range</p>
+              <DateRangeFilter value={comparisonRangeOne} onChange={setComparisonRangeOne} showLabels={false} modal />
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">Second date range</p>
+              <DateRangeFilter value={comparisonRangeTwo} onChange={setComparisonRangeTwo} showLabels={false} modal />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={setComparisonPreviousYear}
+              disabled={!comparisonRangeOne.fromDate || !comparisonRangeOne.toDate}
+            >
+              Same period last year
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void exportComparisonExcel()}
+              disabled={!comparisonSummaryOne || !comparisonSummaryTwo}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export Excel
+            </Button>
+          </div>
+          {!comparisonSummaryOne || !comparisonSummaryTwo ? (
+            <p className="text-sm text-muted-foreground">Select both complete date ranges to see the comparison.</p>
+          ) : (
+            <div className="space-y-4">
               <div className="overflow-x-auto rounded-lg border bg-card">
                 <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Metric</TableHead>
-                      <TableHead className="text-right">{formatRangeLabel(currentRange)}</TableHead>
-                      <TableHead className="text-right">{formatRangeLabel(previousRange)}</TableHead>
+                      <TableHead className="text-right">{formatRangeLabel(comparisonRangeOne)}</TableHead>
+                      <TableHead className="text-right">{formatRangeLabel(comparisonRangeTwo)}</TableHead>
                       <TableHead className="text-right">Change</TableHead>
                       <TableHead className="text-right">% Change</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {[
-                      { label: 'Course completions', current: currentSummary.completions, previous: previousSummary.completions },
-                      { label: 'Unique students', current: currentSummary.students, previous: previousSummary.students },
+                      { label: 'Course completions', first: comparisonSummaryOne.completions, second: comparisonSummaryTwo.completions },
+                      { label: 'Unique students', first: comparisonSummaryOne.students, second: comparisonSummaryTwo.students },
                     ].map((metric) => {
-                      const change = formatChange(metric.current, metric.previous)
+                      const change = formatChange(metric.first, metric.second)
                       return (
                         <TableRow key={metric.label}>
                           <TableCell className="font-medium">{metric.label}</TableCell>
-                          <TableCell className="text-right">{metric.current.toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{metric.previous.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{metric.first.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{metric.second.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{change.delta}</TableCell>
                           <TableCell className="text-right">{change.percent}</TableCell>
                         </TableRow>
@@ -469,8 +624,8 @@ export function SalesCBACompletionsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={[
-                      { period: formatRangeLabel(currentRange), completions: currentSummary.completions },
-                      { period: formatRangeLabel(previousRange), completions: previousSummary.completions },
+                      { period: formatRangeLabel(comparisonRangeOne), completions: comparisonSummaryOne.completions },
+                      { period: formatRangeLabel(comparisonRangeTwo), completions: comparisonSummaryTwo.completions },
                     ]}
                     margin={{ top: 16, right: 24, bottom: 8, left: 8 }}
                     barCategoryGap="40%"
@@ -494,8 +649,8 @@ export function SalesCBACompletionsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Course</TableHead>
-                        <TableHead className="text-right">Date range</TableHead>
-                        <TableHead className="text-right">Compare with</TableHead>
+                        <TableHead className="text-right">{formatRangeLabel(comparisonRangeOne)}</TableHead>
+                        <TableHead className="text-right">{formatRangeLabel(comparisonRangeTwo)}</TableHead>
                         <TableHead className="text-right">Change</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -514,10 +669,15 @@ export function SalesCBACompletionsPage() {
               ) : (
                 <p className="text-sm text-muted-foreground">No completions found in either range.</p>
               )}
-            </>
+            </div>
           )}
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button type="button" onClick={() => setComparisonDialogOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

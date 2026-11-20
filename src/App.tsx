@@ -32,6 +32,7 @@ import {
   SalesCourseEvaluationsPage,
   SalesSurveyReportPage,
   SalesQuizQuestionsPage,
+  SalesCouponsPage,
 } from "@/pages"
 import { getTenantAccessProfile, isAuthenticated, touchAuthSession } from "@/lib/auth"
 import { usesCombinedCompletedTab } from "@/lib/ceBrokerPipeline"
@@ -156,6 +157,7 @@ function App() {
               <Route path="sales/course-evaluations/comparison" element={<SalesCourseEvaluationsPage view="comparison" />} />
               <Route path="sales/course-evaluations/survey-report" element={<SalesSurveyReportPage />} />
               <Route path="sales/quiz-questions" element={<SalesQuizQuestionsPage />} />
+              <Route path="sales/coupons" element={<SalesCouponsPage />} />
               <Route path="sales/settings" element={<SalesSettingsPage />} />
             </Route>
 

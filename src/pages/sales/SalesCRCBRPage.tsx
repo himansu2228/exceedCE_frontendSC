@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationControls } from '@/components/ui/pagination-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getCourseListOverrides, getSalesAnalytics, setCourseListOverride, type CourseListOverrides } from '@/lib/api'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+import { formatDateRangeLabel } from './shared'
 
 type CRCBRRow = {
   courseName: string
@@ -40,6 +42,7 @@ function formatUSD(value: number): string {
 
 export function SalesCRCBRPage() {
   const [allCourses, setAllCourses] = useState<CourseSale[]>([])
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [overrides, setOverrides] = useState<CourseListOverrides>({ included: [], excluded: [] })
   const [addOpen, setAddOpen] = useState(false)
   const [addSearch, setAddSearch] = useState('')
@@ -52,12 +55,18 @@ export function SalesCRCBRPage() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(100)
 
-  const load = useCallback(async () => {
+  const selectedRangeLabel = useMemo(() => formatDateRangeLabel(dateRange.fromDate, dateRange.toDate), [dateRange.fromDate, dateRange.toDate])
+
+  const load = useCallback(async (range = dateRange) => {
     try {
       setLoading(true)
       setError(null)
       const [response, courseOverrides] = await Promise.all([
-        getSalesAnalytics({ limit: 'all' }),
+        getSalesAnalytics({
+          limit: 'all',
+          fromDate: range.fromDate || undefined,
+          toDate: range.toDate || undefined,
+        }),
         getCourseListOverrides('crcbr'),
       ])
       setAllCourses(response.revenueByCourse || [])
@@ -68,7 +77,7 @@ export function SalesCRCBRPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [dateRange])
 
   const rows = useMemo<CRCBRRow[]>(() => {
     const included = new Set(overrides.included)
@@ -153,9 +162,26 @@ export function SalesCRCBRPage() {
         <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between lg:p-6">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-[0_12px_28px_-12px_rgba(8,145,178,0.9)]"><Target className="h-6 w-6" /></div>
-            <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">Partner Performance</p><h1 className="mt-1 text-2xl font-semibold text-slate-950">CRCBR Sales</h1><p className="mt-1 text-sm text-slate-600">Course-level commissions for North Carolina and South Carolina partner sales.</p></div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">Partner Performance</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-950">CRCBR Sales</h1>
+              <p className="mt-1 text-sm text-slate-600">Course-level commissions for North Carolina and South Carolina partner sales.</p>
+              {selectedRangeLabel ? (
+                <p className="mt-1 break-words text-xs font-medium text-cyan-700">{selectedRangeLabel}</p>
+              ) : null}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-col gap-2 rounded-xl border border-cyan-100 bg-white/80 p-1.5 sm:w-auto sm:flex-row sm:items-end">
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                onDone={(range) => void load(range)}
+                showLabels={false}
+                showToday
+                className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[300px]"
+              />
+            </div>
             <Button type="button" onClick={() => { setAddSearch(''); setActionError(''); setAddOpen(true) }} disabled={loading} className="bg-cyan-600 hover:bg-cyan-700"><Plus className="mr-2 h-4 w-4" />Add course</Button>
             <Button type="button" variant="outline" onClick={() => void load()} disabled={loading} className="border-cyan-200 bg-white text-cyan-700 hover:bg-cyan-50"><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
           </div>

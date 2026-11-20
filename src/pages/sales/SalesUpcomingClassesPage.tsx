@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, parseISO, startOfMonth, startOfWeek, subMonths } from 'date-fns'
 import { CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Download, Eye, List, Mail, RefreshCw, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,8 @@ import {
   type InstructorUpcomingClass,
   type NcScheduledClass,
 } from '@/lib/api'
+import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+import { formatDateRangeLabel } from './shared'
 import { ClassEmailPreviewDialog } from './ClassEmailPreviewDialog'
 
 type InstructorFilter = 'nc' | 'donald-croteau' | 'cheryl-crawford'
@@ -79,6 +81,7 @@ function scheduleItemTitle(item: NcScheduledClass | InstructorUpcomingClass) {
 
 export function SalesUpcomingClassesPage() {
   const [classes, setClasses] = useState<NcScheduledClass[]>([])
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ fromDate: '', toDate: '' })
   const [instructorFilter, setInstructorFilter] = useState<InstructorFilter>('nc')
   const [scheduleView, setScheduleView] = useState<ScheduleView>('list')
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
@@ -96,19 +99,52 @@ export function SalesUpcomingClassesPage() {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [emailPreview, setEmailPreview] = useState<ClassEmailPreview | null>(null)
   const classRequestId = useRef(0)
+
+  const selectedRangeLabel = useMemo(() => formatDateRangeLabel(dateRange.fromDate, dateRange.toDate), [dateRange.fromDate, dateRange.toDate])
   const scheduledClasses: Array<NcScheduledClass | InstructorUpcomingClass> = instructorFilter === 'nc' ? classes : instructorClasses
+
+  const filteredScheduledClasses = useMemo(() => {
+    return scheduledClasses.filter((item) => {
+      if (!dateRange.fromDate && !dateRange.toDate) return true
+      const d = scheduledDate(item)
+      if (!d) return false
+      const day = format(d, 'yyyy-MM-dd')
+      return (!dateRange.fromDate || day >= dateRange.fromDate) && (!dateRange.toDate || day <= dateRange.toDate)
+    })
+  }, [scheduledClasses, dateRange.fromDate, dateRange.toDate])
+
+  const filteredClasses = useMemo(() => {
+    return classes.filter((item) => {
+      if (!dateRange.fromDate && !dateRange.toDate) return true
+      const d = scheduledDate(item)
+      if (!d) return false
+      const day = format(d, 'yyyy-MM-dd')
+      return (!dateRange.fromDate || day >= dateRange.fromDate) && (!dateRange.toDate || day <= dateRange.toDate)
+    })
+  }, [classes, dateRange.fromDate, dateRange.toDate])
+
+  const filteredInstructorClasses = useMemo(() => {
+    return instructorClasses.filter((item) => {
+      if (!dateRange.fromDate && !dateRange.toDate) return true
+      const d = scheduledDate(item)
+      if (!d) return false
+      const day = format(d, 'yyyy-MM-dd')
+      return (!dateRange.fromDate || day >= dateRange.fromDate) && (!dateRange.toDate || day <= dateRange.toDate)
+    })
+  }, [instructorClasses, dateRange.fromDate, dateRange.toDate])
+
   const calendarDays = eachDayOfInterval({
     start: startOfWeek(startOfMonth(calendarMonth)),
     end: endOfWeek(endOfMonth(calendarMonth)),
   })
   const calendarEvents = new Map<string, Array<NcScheduledClass | InstructorUpcomingClass>>()
-  for (const item of scheduledClasses) {
+  for (const item of filteredScheduledClasses) {
     const date = scheduledDate(item)
     if (!date) continue
     const key = format(date, 'yyyy-MM-dd')
     calendarEvents.set(key, [...(calendarEvents.get(key) || []), item])
   }
-  const unscheduledClasses = scheduledClasses.filter((item) => !scheduledDate(item))
+  const unscheduledClasses = filteredScheduledClasses.filter((item) => !scheduledDate(item))
   const loadClasses = useCallback(async () => {
     const requestId = ++classRequestId.current
     setLoading(true)
@@ -249,8 +285,18 @@ export function SalesUpcomingClassesPage() {
           <p className="text-xs font-semibold uppercase text-blue-700">Instructor rosters</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950">Upcoming classes</h1>
           <p className="mt-1 text-sm text-slate-600">NC calendar classes and automatically matched Donald/Cheryl courses with current LMS enrollments.</p>
+          {selectedRangeLabel ? (
+            <p className="mt-1 break-words text-xs font-medium text-blue-700">{selectedRangeLabel}</p>
+          ) : null}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            showLabels={false}
+            showToday
+            className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[300px]"
+          />
           <Button variant="outline" onClick={() => void loadClasses()} disabled={loading} aria-label="Refresh schedule">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
           </Button>
@@ -372,7 +418,7 @@ export function SalesUpcomingClassesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {classes.map((item) => (
+                {filteredClasses.map((item) => (
                   <tr key={item.id} className={item.instructorAvailable === false ? 'bg-red-50' : 'bg-white'}>
                     <td className="px-4 py-3">
                       <p className={`font-medium ${item.instructorAvailable === false ? 'text-red-900' : 'text-slate-900'}`}>{classTitle(item)}</p>
@@ -394,7 +440,7 @@ export function SalesUpcomingClassesPage() {
                     </td>
                   </tr>
                 ))}
-                {!loading && classes.length === 0 && (
+                {!loading && filteredClasses.length === 0 && (
                   <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No upcoming NC classes found.</td></tr>
                 )}
                 {loading && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading schedule and enrollment counts…</td></tr>}
@@ -412,7 +458,7 @@ export function SalesUpcomingClassesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {instructorClasses.map((item) => (
+                  {filteredInstructorClasses.map((item) => (
                     <tr key={item.courseId} className={item.instructorAvailable === false ? 'bg-red-50' : 'bg-white'}>
                       <td className={`px-4 py-3 font-medium ${item.instructorAvailable === false ? 'text-red-900' : 'text-slate-900'}`}>
                         {item.courseName}
@@ -434,7 +480,7 @@ export function SalesUpcomingClassesPage() {
                       </td>
                     </tr>
                   ))}
-                  {!loading && instructorClasses.length === 0 && (
+                  {!loading && filteredInstructorClasses.length === 0 && (
                     <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-600">No future ExceedCE courses matched this instructor&apos;s course-name rules.</td></tr>
                   )}
                   {loading && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading ExceedCE classes and enrollments…</td></tr>}

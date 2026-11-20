@@ -99,7 +99,7 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
   const [rows, setRows] = useState<SalesReportRow[]>([])
   const [grandTotal, setGrandTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(100)
+  const [perPage, setPerPage] = useState<number | 'all'>(100)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [preset, setPreset] = useState(initialPreset)
@@ -145,7 +145,7 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
     setPage(1)
   }
 
-  const load = useCallback(async (targetPage: number, targetPerPage: number) => {
+  const load = useCallback(async (targetPage: number, targetPerPage: number | 'all') => {
     try {
       setLoading(true)
       setError(null)
@@ -164,7 +164,7 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
       setTotalPages(response.totalPages)
       setGrandTotal(response.grandTotal)
       setPage(response.page)
-      setPerPage(response.perPage)
+      if (targetPerPage !== 'all') setPerPage(response.perPage)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load reports')
     } finally {
@@ -323,6 +323,11 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
         </CardContent>
       </Card>
 
+      <div className="flex items-center justify-between rounded-lg border bg-zinc-50 p-3 text-sm">
+        <span>Grand Total</span>
+        <strong>{formatCurrency(grandTotal)}</strong>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Report Rows</CardTitle>
@@ -376,22 +381,35 @@ export function SalesReportsPage({ initialPreset = 'all' }: SalesReportsPageProp
             </Table>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border bg-zinc-50 p-3 text-sm">
-            <span>Grand Total</span>
-            <strong>{formatCurrency(grandTotal)}</strong>
-          </div>
-
-          <PaginationControls
-            page={page}
-            totalPages={totalPages}
-            totalItems={total}
-            pageSize={perPage}
-            onPageChange={(targetPage) => void load(targetPage, perPage)}
-            onPageSizeChange={(size) => {
-              setPerPage(size)
-              setPage(1)
-            }}
-          />
+          {perPage === 'all' ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-sm text-muted-foreground">Showing all {total.toLocaleString()} sales on one page</span>
+              <Button variant="outline" onClick={() => { setPerPage(100); setPage(1) }}>
+                Show 100 per page
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                totalItems={total}
+                pageSize={perPage}
+                onPageChange={(targetPage) => void load(targetPage, perPage)}
+                onPageSizeChange={(size) => {
+                  setPerPage(size)
+                  setPage(1)
+                }}
+              />
+              <Button
+                variant="outline"
+                onClick={() => { setPerPage('all'); setPage(1) }}
+                disabled={total <= perPage}
+              >
+                Show all sales
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

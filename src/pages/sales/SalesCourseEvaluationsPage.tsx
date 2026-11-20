@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
+import { formatDateRangeLabel } from './shared'
 import { getCourseEvaluations, type CourseEvaluationRecord, type CourseEvaluationsResponse } from '@/lib/api'
 import { courseKey, courseName, courseState, evaluationSummary, reviewText, score, summarizeCourses } from '@/lib/courseEvaluations'
 
@@ -50,6 +51,8 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const selectedRangeLabel = useMemo(() => formatDateRangeLabel(dateRange.fromDate, dateRange.toDate), [dateRange.fromDate, dateRange.toDate])
+
   const load = async (refresh = false) => {
     setLoading(true)
     setError('')
@@ -74,12 +77,12 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   const courses = useMemo(() => summarizeCourses(stateRecords, data?.enrollmentByCourse), [stateRecords, data?.enrollmentByCourse])
   const records = useMemo(() => stateRecords.filter((record) => {
     if (selectedCourse !== 'all' && courseKey(record) !== selectedCourse) return false
-    if (view !== 'analytics' || (!dateRange.fromDate && !dateRange.toDate)) return true
+    if (!dateRange.fromDate && !dateRange.toDate) return true
     const date = new Date(record.submissionDate || record.created_at || '')
     if (Number.isNaN(date.getTime())) return false
     const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     return (!dateRange.fromDate || day >= dateRange.fromDate) && (!dateRange.toDate || day <= dateRange.toDate)
-  }), [stateRecords, selectedCourse, view, dateRange.fromDate, dateRange.toDate])
+  }), [stateRecords, selectedCourse, dateRange.fromDate, dateRange.toDate])
   const scored = records.map((record) => ({ record, rating: score(record) })).filter((item): item is { record: CourseEvaluationRecord; rating: number } => item.rating !== null)
   const average = scored.length ? scored.reduce((sum, item) => sum + item.rating, 0) / scored.length : null
   const written = records.filter((record) => reviewText(record)).length
@@ -106,7 +109,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   const visibleCourses = courseRows.filter((row) => row.course.toLowerCase().includes(courseSearch.toLowerCase()))
   const visibleCourseKeys = visibleCourses.map((row) => row.key)
   const allVisibleCoursesSelected = visibleCourseKeys.length > 0 && visibleCourseKeys.every((key) => selectedVersions.includes(key))
-  const combinedRecords = (data?.records || []).filter((record) => selectedVersions.includes(courseKey(record)))
+  const combinedRecords = records.filter((record) => selectedVersions.includes(courseKey(record)))
   const combined = evaluationSummary(combinedRecords)
   const combinedCourses = summarizeCourses(combinedRecords, data?.enrollmentByCourse)
   const comparisonCourseSeries = combinedCourses.map((course, index) => ({
@@ -206,7 +209,13 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
   return (
     <div className="space-y-6 pb-8 animate-fadeIn">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-semibold uppercase text-teal-700">Course Evaluation</p><h1 className="mt-1 text-2xl font-semibold text-slate-950">{view === 'analytics' ? 'Analytics' : 'Comparison'}</h1></div>
+        <div>
+          <p className="text-xs font-semibold uppercase text-teal-700">Course Evaluation</p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">{view === 'analytics' ? 'Analytics' : 'Comparison'}</h1>
+          {selectedRangeLabel ? (
+            <p className="mt-1 break-words text-xs font-medium text-teal-700">{selectedRangeLabel}</p>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={selectedState} onValueChange={(value) => { setSelectedState(value); setSelectedCourse('all') }}><SelectTrigger className="w-48" aria-label="Filter by course state"><SelectValue placeholder="All states" /></SelectTrigger><SelectContent><SelectItem value="all">All states</SelectItem>{states.map((code) => <SelectItem key={code} value={code}>{STATE_NAMES[code] ? `${STATE_NAMES[code]} (${code})` : code}</SelectItem>)}</SelectContent></Select>
           <Select value={selectedCourse} onValueChange={setSelectedCourse}><SelectTrigger className="w-56 max-w-full" aria-label="Filter by course"><SelectValue placeholder="All courses" /></SelectTrigger><SelectContent><SelectItem value="all">All courses</SelectItem>{courses.map((row) => <SelectItem key={row.key} value={row.key}>{row.course} {row.courseId !== undefined ? `(ID ${row.courseId})` : ''}</SelectItem>)}</SelectContent></Select>
@@ -214,15 +223,41 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
         </div>
       </header>
 
-      {view === 'analytics' && <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-        <p className="text-sm font-medium text-slate-600">Filter analytics by evaluation date</p>
-        <DateRangeFilter value={dateRange} onChange={setDateRange} showLabels={false} className="min-w-0" />
-      </div>}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <p className="text-sm font-medium text-slate-600">Filter evaluations by date</p>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} showLabels={false} showToday className="min-w-0" />
+      </div>
 
       {error && <div role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
       {loading && !data ? <p className="py-12 text-center text-sm text-slate-500">Loading evaluations…</p> : data && <>
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Evaluation summary">
-          {[['Evaluations', records.length.toLocaleString()], ['Average rating', average === null ? 'No ratings' : `${average.toFixed(2)} / 5`], ['Written reviews', written.toLocaleString()], ['Courses', courseRows.length.toLocaleString()], ['Course enrollments', enrollmentTotal?.toLocaleString() ?? 'Not available']].map(([label, value]) => <div key={label} className="border-t-2 border-teal-600 bg-slate-50 px-5 py-4"><p className="text-xs font-medium uppercase text-slate-500">{label}</p>{label === 'Course enrollments' ? <><p className="mt-2 text-xl font-semibold text-slate-900">{value}</p><p className="mt-1 text-xs leading-5 text-slate-500"></p></> : <button disabled={!records.length} onClick={() => setDetails({ title: 'Filtered evaluations', records: label === 'Written reviews' ? records.filter((record) => reviewText(record)) : records })} className="mt-2 flex items-center gap-2 text-left text-xl font-semibold text-slate-900 hover:text-teal-700 hover:underline disabled:no-underline" aria-label={`View ${label.toLowerCase()} records`}>{label === 'Average rating' && <Star className="h-4 w-4 fill-amber-400 text-amber-500" />}{value}</button>}</div>)}
+          {[
+            ['Evaluations', records.length.toLocaleString()],
+            ['Average rating', average === null ? 'No ratings' : `${average.toFixed(2)} / 5`],
+            ['Written reviews', written.toLocaleString()],
+            ['Courses', courseRows.length.toLocaleString()],
+            ['Course enrollments', enrollmentTotal?.toLocaleString() ?? 'Not available'],
+          ].map(([label, value]) => (
+            <div key={label} className="border-t-2 border-teal-600 bg-slate-50 px-5 py-4">
+              <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
+              {label === 'Course enrollments' ? (
+                <>
+                  <p className="mt-2 text-xl font-semibold text-slate-900">{value}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500"></p>
+                </>
+              ) : (
+                <button
+                  disabled={!records.length}
+                  onClick={() => setDetails({ title: 'Filtered evaluations', records: label === 'Written reviews' ? records.filter((record) => reviewText(record)) : records })}
+                  className="mt-2 flex items-center gap-2 text-left text-xl font-semibold text-slate-900 hover:text-teal-700 hover:underline disabled:no-underline"
+                  aria-label={`View ${label.toLowerCase()} records`}
+                >
+                  {label === 'Average rating' && <Star className="h-4 w-4 fill-amber-400 text-amber-500" />}
+                  {value}
+                </button>
+              )}
+            </div>
+          ))}
         </section>
         {view === 'comparison' && <><section className="space-y-3 border-y border-slate-200 py-5" aria-label="Combined course ratings">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Selected versions ({combinedCourses.length})</h2><Button variant="ghost" disabled={!selectedVersions.length} onClick={() => setSelectedVersions([])}><X className="mr-2 h-4 w-4" />Clear selection</Button></div>
@@ -233,7 +268,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
         </section>
         <section className="space-y-3" aria-label="Course versions">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Course versions</h2><div className="flex max-w-full flex-wrap gap-2"><Input className="w-60 max-w-full" placeholder="Search courses" aria-label="Search course versions" value={courseSearch} onChange={(event) => setCourseSearch(event.target.value)} /><Button type="button" variant="outline" disabled={!visibleCourseKeys.length} onClick={() => setSelectedVersions((current) => allVisibleCoursesSelected ? current.filter((key) => !visibleCourseKeys.includes(key)) : [...new Set([...current, ...visibleCourseKeys])])}>{allVisibleCoursesSelected ? 'Clear filtered' : 'Select all'}</Button><Button variant="outline" disabled={!records.length || exporting} onClick={() => void exportRecords(records, 'Filtered course evaluations')}><Download className="mr-2 h-4 w-4" />Export filtered</Button></div></div>
-          <div className="overflow-x-auto rounded-md border border-slate-200"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Combine</th><th className="px-4 py-3">Course / LMS ID</th><th className="px-4 py-3">Course state</th><th className="px-4 py-3">Enrolled</th><th className="px-4 py-3">Completed</th><th className="px-4 py-3">Evaluations</th><th className="px-4 py-3">Rated responses</th><th className="px-4 py-3">Average</th><th className="px-4 py-3">Comments</th></tr></thead><tbody className="divide-y divide-slate-100">{visibleCourses.map((row) => <tr key={row.key} className={selectedVersions.includes(row.key) ? 'bg-teal-50/50' : ''}><td className="px-4 py-3"><input type="checkbox" className="h-4 w-4 accent-teal-600" checked={selectedVersions.includes(row.key)} onChange={() => toggleVersion(row.key)} aria-label={`Combine ${row.course} (ID ${row.courseId ?? 'unknown'})`} /></td><td className="max-w-md px-4 py-3"><button onClick={() => openCourse(row.key)} className="text-left font-medium text-teal-700 hover:underline">{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-4 py-3">{row.state || 'Not identified'}</td><td className="px-4 py-3">{row.enrolled?.toLocaleString() ?? '—'}</td><td className="px-4 py-3">{row.completed?.toLocaleString() ?? '—'}</td><td className="px-4 py-3">{row.count}</td><td className="px-4 py-3">{row.rated}</td><td className="px-4 py-3"><button onClick={() => openCourse(row.key)} className="font-semibold text-teal-700 hover:underline">{row.average === null ? 'No ratings' : `${row.average.toFixed(2)} / 5`}</button></td><td className="px-4 py-3"><button onClick={() => { const matching = (data.records || []).filter((record) => courseKey(record) === row.key && reviewText(record)); setDetails({ title: `${row.course} comments`, records: matching }) }} className="text-teal-700 hover:underline">{row.comments}</button></td></tr>)}{!visibleCourses.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No matching course versions.</td></tr>}</tbody></table></div>
+          <div className="overflow-x-auto rounded-md border border-slate-200"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Combine</th><th className="px-4 py-3">Course / LMS ID</th><th className="px-4 py-3">Course state</th><th className="px-4 py-3">Enrolled</th><th className="px-4 py-3">Completed</th><th className="px-4 py-3">Evaluations</th><th className="px-4 py-3">Rated responses</th><th className="px-4 py-3">Average</th><th className="px-4 py-3">Comments</th></tr></thead><tbody className="divide-y divide-slate-100">{visibleCourses.map((row) => <tr key={row.key} className={selectedVersions.includes(row.key) ? 'bg-teal-50/50' : ''}><td className="px-4 py-3"><input type="checkbox" className="h-4 w-4 accent-teal-600" checked={selectedVersions.includes(row.key)} onChange={() => toggleVersion(row.key)} aria-label={`Combine ${row.course} (ID ${row.courseId ?? 'unknown'})`} /></td><td className="max-w-md px-4 py-3"><button onClick={() => openCourse(row.key)} className="text-left font-medium text-teal-700 hover:underline">{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-4 py-3">{row.state || 'Not identified'}</td><td className="px-4 py-3">{row.enrolled?.toLocaleString() ?? '—'}</td><td className="px-4 py-3">{row.completed?.toLocaleString() ?? '—'}</td><td className="px-4 py-3">{row.count}</td><td className="px-4 py-3">{row.rated}</td><td className="px-4 py-3"><button onClick={() => openCourse(row.key)} className="font-semibold text-teal-700 hover:underline">{row.average === null ? 'No ratings' : `${row.average.toFixed(2)} / 5`}</button></td><td className="px-4 py-3"><button onClick={() => { const matching = (data.records || []).filter((record) => courseKey(record) === row.key && reviewText(record)); setDetails({ title: `${row.course} comments`, records: matching }) }} className="text-teal-700 hover:underline">{row.comments}</button></td></tr>)}{!visibleCourses.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No matching course versions.</td></tr>}</tbody></table></div>
         </section></>}
         {view === 'analytics' && (records.length === 0 ? <p className="py-12 text-center text-sm text-slate-500">No evaluations found for this course.</p> : <div className="grid gap-4 xl:grid-cols-2">
           <ChartPanel title="Most evaluated courses" detail="Courses with the most learner feedback"><BarChart layout="vertical" data={mostReviewed} margin={{ top: 4, right: 16, bottom: 4, left: 12 }}><CartesianGrid stroke="#e2e8f0" horizontal={false} /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="course" width={125} tickFormatter={axisName} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="count" name="Evaluations" fill="#2563eb" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(_entry, index) => openCourse(mostReviewed[index].key)} /></BarChart></ChartPanel>
@@ -312,7 +347,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
             <button type="button" role="tab" aria-selected={comparisonView === 'analytics'} onClick={() => setComparisonView('analytics')} className={`rounded-sm px-3 py-2 text-sm font-medium ${comparisonView === 'analytics' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>View analytics</button>
           </div>
           {comparisonView === 'table' ? <div className="min-h-0 overflow-auto">
-            <table className="w-full min-w-[850px] text-left text-sm">
+            <table className="w-full min-w-[950px] text-left text-sm">
               <thead className="bg-slate-50"><tr>{['Course / LMS ID', 'State', 'Enrolled', 'Completed', 'Evaluations', 'Rated responses', 'Average / 5', 'Comments'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead>
               <tbody className="divide-y divide-slate-100">{combinedCourses.map((row) => <tr key={row.key}><td className="max-w-xs px-3 py-3"><button className="text-left font-medium text-teal-700 hover:underline" onClick={() => openComparisonDetails(`${row.course} evaluations`, combinedRecords.filter((record) => courseKey(record) === row.key))}>{row.course}</button><p className="mt-1 text-xs text-slate-500">LMS ID: {row.courseId ?? 'Not provided'}</p></td><td className="px-3 py-3">{row.state || 'Not identified'}</td><td className="px-3 py-3">{row.enrolled?.toLocaleString() ?? '—'}</td><td className="px-3 py-3">{row.completed?.toLocaleString() ?? '—'}</td><td className="px-3 py-3">{row.count}</td><td className="px-3 py-3">{row.rated}</td><td className="px-3 py-3 font-semibold">{row.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{row.comments}</td></tr>)}</tbody>
               <tfoot className="border-t-2 border-teal-600 bg-teal-50 font-semibold"><tr><td className="px-3 py-3">Selected-version totals</td><td className="px-3 py-3">Registrations may overlap</td><td className="px-3 py-3">{combinedCourses.some((row) => row.enrolled !== null) ? combinedCourses.reduce((sum, row) => sum + (row.enrolled ?? 0), 0).toLocaleString() : '—'}</td><td className="px-3 py-3">{combinedCourses.some((row) => row.completed !== null) ? combinedCourses.reduce((sum, row) => sum + (row.completed ?? 0), 0).toLocaleString() : '—'}</td><td className="px-3 py-3">{combined.count}</td><td className="px-3 py-3">{combined.rated}</td><td className="px-3 py-3">{combined.average?.toFixed(2) ?? 'No ratings'}</td><td className="px-3 py-3">{combined.comments}</td></tr></tfoot>

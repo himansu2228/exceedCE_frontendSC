@@ -472,7 +472,10 @@ export interface CourseEvaluationsResponse {
   records: CourseEvaluationRecord[]
   total: number
   truncated: boolean
-  enrollmentByCourse?: Record<string, { enrolled: number; completed: number }>
+  enrollmentByCourse?: Record<string, {
+    enrolled: number
+    completed: number
+  }>
 }
 
 export async function getCourseEvaluations(refresh = false): Promise<CourseEvaluationsResponse> {
@@ -512,6 +515,91 @@ export async function getSurveyReport(courseId: number, moduleId: number, refres
   return fetchApi<SurveyReportResponse>(endpoint, { timeoutMs: 180000 })
 }
 
+export interface CouponItem {
+  id: number | null
+  code: string
+  type: string
+  value: number | null
+  discountFormatted: string
+  totalLimit: string | number
+  expiredAt: string | null
+  status: 'active' | 'expired' | 'archived'
+  usageCount: number
+  totalRevenue: number
+  totalDiscount: number
+  firstUsed: string | null
+  lastUsed: string | null
+}
+
+export interface CouponSummary {
+  totalCoupons: number
+  activeCoupons: number
+  expiredCoupons: number
+  archivedCoupons: number
+  usedCoupons: number
+  unusedCoupons: number
+  totalRedemptions: number
+  totalRevenue: number
+  totalDiscounts: number
+}
+
+export interface CouponsReportResponse {
+  summary: CouponSummary
+  coupons: CouponItem[]
+  fetchedAt: string
+}
+
+export interface CouponOrder {
+  id: string
+  aomOrderId: string | null
+  orderDate: string | null
+  status: string
+  paymentStatus: string
+  subTotal: number
+  total: number
+  discountAmount: number
+  couponUsed: string
+  customerName: string
+  customerEmail: string
+  state: string
+  items: string
+}
+
+export interface CouponOrdersResponse {
+  code: string
+  totalOrders: number
+  orders: CouponOrder[]
+}
+
+export async function getCouponsReport(params?: {
+  fromDate?: string
+  toDate?: string
+  search?: string
+  refresh?: boolean
+}): Promise<CouponsReportResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.fromDate) searchParams.set('fromDate', params.fromDate)
+  if (params?.toDate) searchParams.set('toDate', params.toDate)
+  if (params?.search) searchParams.set('search', params.search)
+  if (params?.refresh) searchParams.set('refresh', 'true')
+  const endpoint = `/sales/coupons${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  if (params?.refresh) invalidateApiCache('/sales/coupons')
+  return fetchApi<CouponsReportResponse>(endpoint, { timeoutMs: 45000 })
+}
+
+export async function getCouponOrders(code: string, params?: {
+  fromDate?: string
+  toDate?: string
+  limit?: number
+}): Promise<CouponOrdersResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.fromDate) searchParams.set('fromDate', params.fromDate)
+  if (params?.toDate) searchParams.set('toDate', params.toDate)
+  if (params?.limit) searchParams.set('limit', String(params.limit))
+  const endpoint = `/sales/coupons/${encodeURIComponent(code)}/orders${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  return fetchApi<CouponOrdersResponse>(endpoint, { timeoutMs: 30000 })
+}
+
 export interface QuizOption {
   id: string
   name: string
@@ -529,7 +617,14 @@ export interface LowAccuracyQuizQuestion {
   question: string
   correctPercentage: number
   difficulty: string | null
-  options?: Array<{ id: string; text: string; isCorrect: boolean | null }>
+  options?: Array<{
+    id: string
+    text: string
+    isCorrect: boolean | null
+    responseCount: number | null
+    selectionPercentage: number | null
+  }>
+  totalResponses?: number | null
   correctAnswer?: string | null
 }
 
@@ -567,15 +662,30 @@ export async function getQuizCourseOptions(refresh = false): Promise<QuizCourseO
   return response.courses || []
 }
 
-export async function getLowAccuracyQuizQuestions(quizId = 'all', cursor = 0, refresh = false, courseId = 'all'): Promise<LowAccuracyQuizQuestionsResponse> {
-  const query = new URLSearchParams({ quizId, cursor: String(cursor), threshold: '60', courseId, ...(refresh ? { refresh: 'true' } : {}) })
+export async function getLowAccuracyQuizQuestions(
+  quizId = 'all',
+  cursor = 0,
+  refresh = false,
+  courseId = 'all',
+  fromDate?: string,
+  toDate?: string
+): Promise<LowAccuracyQuizQuestionsResponse> {
+  const query = new URLSearchParams({
+    quizId,
+    cursor: String(cursor),
+    threshold: '60',
+    courseId,
+    ...(fromDate ? { fromDate } : {}),
+    ...(toDate ? { toDate } : {}),
+    ...(refresh ? { refresh: 'true' } : {}),
+  })
   const endpoint = `/sales/quiz-questions?${query.toString()}`
   if (refresh) invalidateApiCache(endpoint)
   return fetchApi<LowAccuracyQuizQuestionsResponse>(endpoint, { timeoutMs: 300000 })
 }
 
-export async function getQuizQuestionDetail(questionId: string): Promise<Pick<LowAccuracyQuizQuestion, 'question' | 'options' | 'correctAnswer'>> {
-  return fetchApi<Pick<LowAccuracyQuizQuestion, 'question' | 'options' | 'correctAnswer'>>(`/sales/quiz-questions/${encodeURIComponent(questionId)}`, { timeoutMs: 60000 })
+export async function getQuizQuestionDetail(questionId: string): Promise<Pick<LowAccuracyQuizQuestion, 'question' | 'options' | 'totalResponses' | 'correctAnswer'>> {
+  return fetchApi<Pick<LowAccuracyQuizQuestion, 'question' | 'options' | 'totalResponses' | 'correctAnswer'>>(`/sales/quiz-questions/${encodeURIComponent(questionId)}`, { timeoutMs: 60000 })
 }
 
 export interface ClassEmailPreview {
@@ -1527,6 +1637,11 @@ export interface RevenueByCoursePoint {
   quantity: number
 }
 
+export interface SalesPackageCourse {
+  name: string
+  url: string
+}
+
 export interface TopCustomerPoint {
   id: number
   fullName: string
@@ -1716,6 +1831,11 @@ export async function getSalesAnalytics(filters?: {
   return fetchApi<SalesDashboardResponse>(`/sales/analytics${query ? `?${query}` : ''}`)
 }
 
+export async function getSalesPackageCourses(productTitle: string): Promise<{ courses: SalesPackageCourse[] }> {
+  const params = new URLSearchParams({ productTitle })
+  return fetchApi<{ courses: SalesPackageCourse[] }>(`/sales/revenue/package-courses?${params.toString()}`)
+}
+
 export async function getSalesCustomerCohort(filters?: {
   fromDate?: string
   toDate?: string
@@ -1777,6 +1897,8 @@ export async function getSalesCustomers(filters?: {
   sortDir?: 'asc' | 'desc'
   state?: string
   source?: string
+  fromDate?: string
+  toDate?: string
 }): Promise<PaginatedResponse<SalesCustomer>> {
   const params = new URLSearchParams()
   if (filters?.sortBy) params.set('sortBy', filters.sortBy)
@@ -1786,6 +1908,8 @@ export async function getSalesCustomers(filters?: {
   if (filters?.page) params.set('page', String(filters.page))
   if (filters?.perPage) params.set('perPage', String(filters.perPage))
   if (filters?.search) params.set('search', filters.search)
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
 
   const query = params.toString()
   return fetchApi<PaginatedResponse<SalesCustomer>>(`/sales/customers${query ? `?${query}` : ''}`)
@@ -1833,6 +1957,8 @@ export async function getLicenseRenewals(filters?: {
   search?: string
   state?: string
   status?: string
+  fromDate?: string
+  toDate?: string
 }): Promise<LicenseRenewalsResponse> {
   const params = new URLSearchParams()
   if (filters?.page) params.set('page', String(filters.page))
@@ -1840,6 +1966,8 @@ export async function getLicenseRenewals(filters?: {
   if (filters?.search) params.set('search', filters.search)
   if (filters?.state) params.set('state', filters.state)
   if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+  if (filters?.fromDate) params.set('fromDate', filters.fromDate)
+  if (filters?.toDate) params.set('toDate', filters.toDate)
 
   const query = params.toString()
   return fetchApi<LicenseRenewalsResponse>(`/sales/license-renewals${query ? `?${query}` : ''}`)
@@ -1879,7 +2007,7 @@ export async function updateLicenseRenewalCycle(stateCode: string, cycleYears: n
 
 export async function getSalesReports(filters?: {
   page?: number
-  perPage?: number
+  perPage?: number | 'all'
   fromDate?: string
   toDate?: string
   state?: string
@@ -2276,6 +2404,8 @@ export async function updatePartnerReportSettingsApi(
 
 export interface PartnerReportItem {
   orderId: number | string
+  aomOrderId?: number | string | null
+  itemId?: number | string
   date: string
   customer: string
   productName: string
