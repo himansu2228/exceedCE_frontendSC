@@ -28,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DateRangeFilter, type DateRangeValue } from '@/components/filters/DateRangeFilter'
 import { formatDateRangeLabel } from './shared'
 import {
@@ -87,14 +88,24 @@ function ChartPanel({
 function AccuracyDisplay({ percentage }: { percentage: number }) {
   const safePercentage = Math.max(0, Math.min(100, percentage))
   const isVeryLow = safePercentage < 40
+  const isModerate = safePercentage >= 40 && safePercentage <= 60
+
+  const badgeClass = isVeryLow
+    ? 'bg-red-50 text-red-800'
+    : isModerate
+    ? 'bg-amber-50 text-amber-800'
+    : 'bg-emerald-50 text-emerald-800'
+
+  const barClass = isVeryLow ? 'bg-red-500' : isModerate ? 'bg-amber-500' : 'bg-emerald-500'
+
   return (
     <div className="flex w-24 shrink-0 flex-col items-end gap-1.5" aria-label={`${percentage.toFixed(1)} percent correct`}>
-      <span className={`rounded-sm px-2 py-1 text-sm font-bold tabular-nums ${isVeryLow ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
+      <span className={`rounded-sm px-2 py-1 text-sm font-bold tabular-nums ${badgeClass}`}>
         {percentage.toFixed(1)}%
       </span>
       <span className="text-[11px] font-medium text-slate-500">correct</span>
       <span className="h-1 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
-        <span className={`block h-full rounded-full ${isVeryLow ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: `${safePercentage}%` }} />
+        <span className={`block h-full rounded-full ${barClass}`} style={{ width: `${safePercentage}%` }} />
       </span>
     </div>
   )
@@ -110,7 +121,9 @@ export function SalesQuizQuestionsPage() {
   const [nextCursor, setNextCursor] = useState<number | null>(null)
   const [hasNextPage, setHasNextPage] = useState(false)
   const [loadingPage, setLoadingPage] = useState<number | null>(1)
-  const [threshold, setThreshold] = useState(60)
+  const [threshold, setThreshold] = useState(100)
+  const [totalQuizzes, setTotalQuizzes] = useState(0)
+  const [compareMode, setCompareMode] = useState(false)
   const [unscoredQuestionCount, setUnscoredQuestionCount] = useState(0)
   const [failedQuizCount, setFailedQuizCount] = useState(0)
   const [selectedCourse, setSelectedCourse] = useState('all')
@@ -189,7 +202,8 @@ export function SalesQuizQuestionsPage() {
     requestedPage = 1,
     refresh = false,
     courseId = selectedCourse,
-    range = dateRange
+    range = dateRange,
+    thresholdValue = threshold
   ) => {
     const requestId = ++loadRequestId.current
     setLoading(true)
@@ -202,12 +216,14 @@ export function SalesQuizQuestionsPage() {
         refresh,
         courseId,
         range.fromDate || undefined,
-        range.toDate || undefined
+        range.toDate || undefined,
+        thresholdValue
       )
       if (requestId !== loadRequestId.current) return
       setQuestions(result.questions)
       setQualifyingQuizzes(result.quizzes)
       setThreshold(result.threshold)
+      setTotalQuizzes(result.totalQuizzes ?? 0)
       setPage(requestedPage)
       setNextCursor(result.nextCursor)
       setHasNextPage(result.hasNextPage)
@@ -262,8 +278,16 @@ export function SalesQuizQuestionsPage() {
   useEffect(() => {
     setPage(1)
     setPageCursors({ 1: 0 })
-    void load(selectedQuiz, 0, 1, false, selectedCourse, dateRange)
+    void load(selectedQuiz, 0, 1, false, selectedCourse, dateRange, threshold)
   }, [dateRange])
+
+  const handleThresholdChange = (newThreshold: number) => {
+    setThreshold(newThreshold)
+    setPage(1)
+    setPageCursors({ 1: 0 })
+    setComparisonQuizMap({})
+    void load(selectedQuiz, 0, 1, false, selectedCourse, dateRange, newThreshold)
+  }
 
   const handleQuizChange = (quizId: string) => {
     setSelectedQuiz(quizId)
@@ -272,7 +296,7 @@ export function SalesQuizQuestionsPage() {
     setQuizListScrollTop(0)
     setPage(1)
     setPageCursors({ 1: 0 })
-    void load(quizId, 0, 1, false, selectedCourse, dateRange)
+    void load(quizId, 0, 1, false, selectedCourse, dateRange, threshold)
   }
 
   const handleCourseChange = (courseId: string) => {
@@ -282,7 +306,7 @@ export function SalesQuizQuestionsPage() {
     setSelectedQuiz('all')
     setPage(1)
     setPageCursors({ 1: 0 })
-    void load('all', 0, 1, false, courseId, dateRange)
+    void load('all', 0, 1, false, courseId, dateRange, threshold)
   }
 
   const normalizedSearch = quizSearch.trim().toLocaleLowerCase()
@@ -310,17 +334,18 @@ export function SalesQuizQuestionsPage() {
   const selectedCourseName = selectedCourse === 'all'
     ? 'All courses'
     : courses.find((course) => course.id === selectedCourse)?.name || 'Select a course'
+  const totalPages = totalQuizzes > 0 ? Math.ceil(totalQuizzes / 20) : 1
   const hasPreviousPage = page > 1
   const goToNextPage = () => {
     if (nextCursor === null || loading) return
     const nextPage = page + 1
     setPageCursors((current) => ({ ...current, [nextPage]: nextCursor }))
-    void load('all', nextCursor, nextPage, false, selectedCourse, dateRange)
+    void load('all', nextCursor, nextPage, false, selectedCourse, dateRange, threshold)
   }
   const goToPreviousPage = () => {
     if (loading || !hasPreviousPage) return
     const previousPage = page - 1
-    void load('all', pageCursors[previousPage] ?? 0, previousPage, false, selectedCourse, dateRange)
+    void load('all', pageCursors[previousPage] ?? 0, previousPage, false, selectedCourse, dateRange, threshold)
   }
   const canExport = selectedQuiz === 'all'
     ? qualifyingQuizzes.length > 0 || hasNextPage
@@ -341,7 +366,8 @@ export function SalesQuizQuestionsPage() {
           false,
           selectedCourse,
           dateRange.fromDate || undefined,
-          dateRange.toDate || undefined
+          dateRange.toDate || undefined,
+          threshold
         )
         if (result.failedQuizCount > 0) {
           throw new Error(`Could not load ${result.failedQuizCount} quiz${result.failedQuizCount === 1 ? '' : 'zes'}; export canceled to avoid an incomplete file.`)
@@ -442,7 +468,8 @@ export function SalesQuizQuestionsPage() {
           false,
           selectedCourse,
           dateRange.fromDate || undefined,
-          dateRange.toDate || undefined
+          dateRange.toDate || undefined,
+          threshold
         )
         const quizMeta = quizzes.find((q) => String(q.id) === id)
         return {
@@ -596,7 +623,11 @@ export function SalesQuizQuestionsPage() {
         <div>
           <p className="text-xs font-semibold uppercase text-teal-700">Assessment review</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950">Quiz Questions</h1>
-          <p className="mt-1 text-sm text-slate-600">Questions answered correctly by {threshold}% or fewer of quiz respondents.</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {threshold >= 100
+              ? 'All quiz questions and percentage answered correctly.'
+              : `Questions answered correctly by ${threshold}% or fewer of quiz respondents.`}
+          </p>
           {selectedRangeLabel ? (
             <p className="mt-1 break-words text-xs font-medium text-teal-700">{selectedRangeLabel}</p>
           ) : null}
@@ -693,7 +724,11 @@ export function SalesQuizQuestionsPage() {
                 />
               </div>
               <div className="border-b px-3 py-2 text-xs text-muted-foreground">
-                {normalizedSearch ? `${matchingQuizzes.length.toLocaleString()} matching quizzes needing review` : 'Quizzes with questions at or below 60% correct'}
+                {normalizedSearch
+                  ? `${matchingQuizzes.length.toLocaleString()} matching quizzes`
+                  : threshold >= 100
+                  ? 'All quizzes'
+                  : `Quizzes with questions at or below ${threshold}% correct`}
               </div>
               <div
                 key={normalizedSearch}
@@ -727,105 +762,153 @@ export function SalesQuizQuestionsPage() {
               </div>
             </PopoverContent>
           </Popover>
-          <Popover open={comparePickerOpen} onOpenChange={(open) => { setComparePickerOpen(open); if (!open) setCompareSearch('') }}>
-            <PopoverTrigger asChild>
+          {!compareMode ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCompareMode(true)}
+              aria-label="Enter compare mode"
+            >
+              <GitCompareArrows className="mr-2 h-4 w-4" />
+              Compare
+            </Button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <Popover open={comparePickerOpen} onOpenChange={(open) => { setComparePickerOpen(open); if (!open) setCompareSearch('') }}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={selectedQuizIds.length >= 2 ? 'default' : 'outline'}
+                    className={selectedQuizIds.length >= 2 ? 'bg-teal-700 hover:bg-teal-800 text-white' : 'border-teal-300 text-teal-800 bg-teal-50/50'}
+                    aria-label="Compare quizzes"
+                  >
+                    <GitCompareArrows className="mr-2 h-4 w-4" />
+                    {selectedQuizIds.length >= 2
+                      ? `Compare (${selectedQuizIds.length})`
+                      : selectedQuizIds.length === 1
+                      ? 'Select 1 more'
+                      : 'Select quizzes'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-0">
+                  <div className="flex items-center border-b px-3">
+                    <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <Input
+                      autoFocus
+                      value={compareSearch}
+                      onChange={(e) => setCompareSearch(e.target.value)}
+                      placeholder="Search quizzes to compare…"
+                      className="h-10 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground">
+                    <span>{selectedQuizIds.length} of {quizzes.length} selected</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedQuizIds(matchingCompareQuizzes.map((q) => String(q.id)))}
+                        className="text-teal-700 hover:underline"
+                      >
+                        Select filtered
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedQuizIds([])}
+                        className="text-slate-500 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto p-1">
+                    {matchingCompareQuizzes.length > 0 ? (
+                      matchingCompareQuizzes.map((quiz) => {
+                        const isChecked = selectedQuizIds.includes(String(quiz.id))
+                        return (
+                          <button
+                            key={quiz.id}
+                            type="button"
+                            onClick={() => toggleQuizSelection(String(quiz.id))}
+                            className="flex h-9 w-full items-center justify-between rounded-sm px-3 text-left text-sm hover:bg-accent"
+                          >
+                            <span className="truncate pr-2">{quiz.name}</span>
+                            <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isChecked ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300'}`}>
+                              {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+                          </button>
+                        )
+                      })
+                    ) : (
+                      <p className="p-3 text-center text-xs text-slate-500">No matching quizzes</p>
+                    )}
+                  </div>
+                  <div className="border-t p-2">
+                    <Button
+                      className="w-full bg-teal-700 hover:bg-teal-800 text-white"
+                      size="sm"
+                      disabled={selectedQuizIds.length < 2}
+                      onClick={() => {
+                        setComparePickerOpen(false)
+                        setComparisonOpen(true)
+                      }}
+                    >
+                      <GitCompareArrows className="mr-2 h-4 w-4" />
+                      Compare Selected ({selectedQuizIds.length})
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Button
                 type="button"
-                variant={selectedQuizIds.length >= 2 ? 'default' : 'outline'}
-                className={selectedQuizIds.length >= 2 ? 'bg-teal-700 hover:bg-teal-800 text-white' : ''}
-                aria-label="Compare quizzes"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCompareMode(false)
+                  setSelectedQuizIds([])
+                }}
+                aria-label="Exit compare mode"
+                className="h-10 text-xs text-slate-500 hover:text-slate-800"
               >
-                <GitCompareArrows className="mr-2 h-4 w-4" />
-                Compare{selectedQuizIds.length > 0 ? ` (${selectedQuizIds.length})` : ''}
+                Done
               </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-0">
-              <div className="flex items-center border-b px-3">
-                <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                <Input
-                  autoFocus
-                  value={compareSearch}
-                  onChange={(e) => setCompareSearch(e.target.value)}
-                  placeholder="Search quizzes to compare…"
-                  className="h-10 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                />
-              </div>
-              <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground">
-                <span>{selectedQuizIds.length} of {quizzes.length} selected</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuizIds(matchingCompareQuizzes.map((q) => String(q.id)))}
-                    className="text-teal-700 hover:underline"
-                  >
-                    Select filtered
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuizIds([])}
-                    className="text-slate-500 hover:underline"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-              <div className="max-h-64 overflow-y-auto p-1">
-                {matchingCompareQuizzes.length > 0 ? (
-                  matchingCompareQuizzes.map((quiz) => {
-                    const isChecked = selectedQuizIds.includes(String(quiz.id))
-                    return (
-                      <button
-                        key={quiz.id}
-                        type="button"
-                        onClick={() => toggleQuizSelection(String(quiz.id))}
-                        className="flex h-9 w-full items-center justify-between rounded-sm px-3 text-left text-sm hover:bg-accent"
-                      >
-                        <span className="truncate pr-2">{quiz.name}</span>
-                        <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isChecked ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300'}`}>
-                          {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
-                        </div>
-                      </button>
-                    )
-                  })
-                ) : (
-                  <p className="p-3 text-center text-xs text-slate-500">No matching quizzes</p>
-                )}
-              </div>
-              <div className="border-t p-2">
-                <Button
-                  className="w-full bg-teal-700 hover:bg-teal-800 text-white"
-                  size="sm"
-                  disabled={selectedQuizIds.length < 2}
-                  onClick={() => {
-                    setComparePickerOpen(false)
-                    setComparisonOpen(true)
-                  }}
-                >
-                  <GitCompareArrows className="mr-2 h-4 w-4" />
-                  Compare Selected ({selectedQuizIds.length})
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+            </div>
+          )}
+          <Select
+            value={String(threshold)}
+            onValueChange={(val) => handleThresholdChange(Number(val))}
+          >
+            <SelectTrigger
+              className="h-10 w-full sm:w-44 bg-background border-input font-normal text-sm shadow-none"
+              aria-label="Filter questions by accuracy"
+            >
+              <SelectValue placeholder="Accuracy filter" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="100">All Questions</SelectItem>
+              <SelectItem value="60">≤ 60% Correct</SelectItem>
+            </SelectContent>
+          </Select>
           <DateRangeFilter
             value={dateRange}
             onChange={setDateRange}
-            onDone={(range) => void load(selectedQuiz, 0, 1, false, selectedCourse, range)}
+            onDone={(range) => void load(selectedQuiz, 0, 1, false, selectedCourse, range, threshold)}
             showLabels={false}
             showToday
             className="w-full sm:w-auto [&>div]:min-w-0 sm:[&>div]:min-w-[280px]"
           />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={loading || exporting || !canExport}
-            onClick={() => void exportExcel()}
-            aria-label="Export quiz questions to Excel"
-          >
-            <FileSpreadsheet className={`mr-2 h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />
-            {exporting ? 'Exporting...' : 'Export Excel'}
-          </Button>
-          <Button variant="outline" disabled={loading} onClick={() => void load(selectedQuiz, pageCursors[page] ?? 0, page, true, selectedCourse, dateRange)} aria-label="Refresh quiz questions">
+          {threshold === 60 && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading || exporting || !canExport}
+              onClick={() => void exportExcel()}
+              aria-label="Export quiz questions to Excel"
+            >
+              <FileSpreadsheet className={`mr-2 h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />
+              {exporting ? 'Exporting...' : 'Export Excel'}
+            </Button>
+          )}
+          <Button variant="outline" disabled={loading} onClick={() => void load(selectedQuiz, pageCursors[page] ?? 0, page, true, selectedCourse, dateRange, threshold)} aria-label="Refresh quiz questions">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
@@ -844,10 +927,13 @@ export function SalesQuizQuestionsPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setSelectedQuizIds([])}
+                onClick={() => {
+                  setSelectedQuizIds([])
+                  setCompareMode(false)
+                }}
                 className="text-xs text-slate-600 hover:text-slate-900"
               >
-                <X className="mr-1 h-3.5 w-3.5" /> Clear selection
+                <X className="mr-1 h-3.5 w-3.5" /> Clear & exit
               </Button>
               <Button
                 size="sm"
@@ -913,17 +999,19 @@ export function SalesQuizQuestionsPage() {
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <th scope="col" className="w-12 px-4 py-3 text-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded accent-teal-600 cursor-pointer"
-                    checked={allVisibleSelected}
-                    onChange={toggleAllVisible}
-                    aria-label="Select all visible quizzes"
-                  />
-                </th>
+                {compareMode && (
+                  <th scope="col" className="w-12 px-4 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded accent-teal-600 cursor-pointer"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      aria-label="Select all visible quizzes"
+                    />
+                  </th>
+                )}
                 <th scope="col" className="w-72 px-5 py-3 font-semibold">Quiz</th>
-                <th scope="col" className="px-5 py-3 font-semibold">Questions at or below {threshold}%</th>
+                <th scope="col" className="px-5 py-3 font-semibold">{threshold >= 100 ? 'All Quiz Questions' : `Questions at or below ${threshold}%`}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -931,18 +1019,24 @@ export function SalesQuizQuestionsPage() {
                 const isSelected = selectedQuizIds.includes(String(quiz.id))
                 return (
                   <tr key={quiz.id} className={`align-top transition-colors ${isSelected ? 'bg-teal-50/50' : 'hover:bg-slate-50/60'}`}>
-                    <td className="w-12 px-4 py-5 text-center">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded accent-teal-600 cursor-pointer"
-                        checked={isSelected}
-                        onChange={() => toggleQuizSelection(String(quiz.id))}
-                        aria-label={`Select ${quiz.name} for comparison`}
-                      />
-                    </td>
+                    {compareMode && (
+                      <td className="w-12 px-4 py-5 text-center">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded accent-teal-600 cursor-pointer"
+                          checked={isSelected}
+                          onChange={() => toggleQuizSelection(String(quiz.id))}
+                          aria-label={`Select ${quiz.name} for comparison`}
+                        />
+                      </td>
+                    )}
                     <th scope="row" className="w-72 bg-slate-50/40 px-5 py-5 text-left align-top">
                       <p className="break-words text-sm font-semibold leading-5 text-slate-900">{quiz.name}</p>
-                      <p className="mt-2 text-xs font-medium text-slate-500">{quiz.questions.length} flagged {quiz.questions.length === 1 ? 'question' : 'questions'}</p>
+                      <p className="mt-2 text-xs font-medium text-slate-500">
+                        {threshold >= 100
+                          ? `${quiz.questions.length} ${quiz.questions.length === 1 ? 'question' : 'questions'}`
+                          : `${quiz.questions.length} flagged ${quiz.questions.length === 1 ? 'question' : 'questions'}`}
+                      </p>
                     </th>
                     <td className="px-5 py-4 text-slate-900">
                       <ul className="divide-y divide-slate-100">
@@ -965,7 +1059,7 @@ export function SalesQuizQuestionsPage() {
         ) : questions.length === 0 ? (
           <div className="flex min-h-64 items-center justify-center gap-3 bg-white px-5 py-12 text-sm text-slate-600">
             <HelpCircle className="h-5 w-5 shrink-0 text-slate-400" />
-            <p>{unscoredQuestionCount > 0 ? 'Some question accuracy values could not be read.' : 'No questions at or below 60% correct were found for this quiz.'}</p>
+            <p>{unscoredQuestionCount > 0 ? 'Some question accuracy values could not be read.' : (threshold >= 100 ? 'No questions found for this quiz.' : `No questions at or below ${threshold}% correct were found for this quiz.`)}</p>
           </div>
         ) : (
         <div className="overflow-x-auto bg-white">
@@ -979,7 +1073,10 @@ export function SalesQuizQuestionsPage() {
               size="sm"
               variant={selectedQuizIds.includes(selectedQuiz) ? 'default' : 'outline'}
               className={selectedQuizIds.includes(selectedQuiz) ? 'bg-teal-700 hover:bg-teal-800 text-white' : ''}
-              onClick={() => toggleQuizSelection(selectedQuiz)}
+              onClick={() => {
+                toggleQuizSelection(selectedQuiz)
+                setCompareMode(true)
+              }}
             >
               <GitCompareArrows className="mr-1.5 h-3.5 w-3.5" />
               {selectedQuizIds.includes(selectedQuiz) ? 'Selected for comparison' : 'Add to comparison'}
@@ -1010,7 +1107,13 @@ export function SalesQuizQuestionsPage() {
       </section>
       {selectedQuiz === 'all' && (hasPreviousPage || hasNextPage || loading) && (
         <div className="flex items-center justify-end gap-3 border border-slate-200 bg-white px-4 py-3">
-          <span className="text-sm text-muted-foreground">{loading ? `Loading page ${loadingPage ?? page}` : `Page ${page}${hasNextPage ? ' - more results available' : ' - last page'}`}</span>
+          <span className="text-sm text-muted-foreground">
+            {loading
+              ? `Loading page ${loadingPage ?? page}`
+              : threshold >= 100 && totalPages > 0
+              ? `Page ${page} of ${totalPages} (${totalQuizzes} quizzes)`
+              : `Page ${page}${hasNextPage ? ' - more results available' : ' - last page'}`}
+          </span>
           <Button variant="outline" size="sm" disabled={loading || !hasPreviousPage} onClick={goToPreviousPage}>
             Previous
           </Button>

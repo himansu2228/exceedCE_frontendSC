@@ -640,6 +640,7 @@ export interface LowAccuracyQuizQuestionsResponse {
   threshold: number
   quizCount: number
   questionCount: number
+  totalQuizzes?: number
   unscoredQuestionCount: number
   failedQuizCount: number
   cursor: number
@@ -668,12 +669,13 @@ export async function getLowAccuracyQuizQuestions(
   refresh = false,
   courseId = 'all',
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  threshold: number | string = 100
 ): Promise<LowAccuracyQuizQuestionsResponse> {
   const query = new URLSearchParams({
     quizId,
     cursor: String(cursor),
-    threshold: '60',
+    threshold: String(threshold),
     courseId,
     ...(fromDate ? { fromDate } : {}),
     ...(toDate ? { toDate } : {}),

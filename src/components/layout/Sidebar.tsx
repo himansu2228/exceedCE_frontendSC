@@ -106,10 +106,10 @@ const getSuperAdminSalesItems = (): NavItem[] => {
     { path: '/sales/partner-reports', icon: FileSpreadsheet, label: 'Partner Reports' },
     { path: '/sales/upcoming-classes', icon: CalendarClock, label: 'Upcoming Classes' },
     {
-      icon: Star, label: 'Course Evaluation',
+      icon: Star, label: 'Course Ratings',
       children: [
-        { path: '/sales/course-evaluations/analytics', label: 'Analytics' },
-        { path: '/sales/course-evaluations/comparison', label: 'Comparison' },
+        { path: '/sales/course-evaluations/analytics', label: 'Ratings Analytics' },
+        { path: '/sales/course-evaluations/comparison', label: 'Rating Comparison' },
         { path: '/sales/course-evaluations/survey-report', label: 'Survey Report' },
       ],
     },
@@ -278,8 +278,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                   )}
                 >
                   <item.icon className={cn('h-5 w-5 shrink-0', isCbaActive && 'text-amber-300')} />
-                  <span>{item.label}</span>
-                  <ChevronDown className={cn('ml-auto h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
+                  <span className="truncate">{item.label}</span>
+                  <ChevronDown className={cn('ml-auto h-4 w-4 shrink-0 transition-transform', isExpanded && 'rotate-180')} />
                 </button>
                 {isExpanded && (
                   <div className="ml-5 mt-1 space-y-1 border-l border-white/15 pl-2">

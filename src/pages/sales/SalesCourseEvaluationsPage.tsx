@@ -210,7 +210,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
     <div className="space-y-6 pb-8 animate-fadeIn">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase text-teal-700">Course Evaluation</p>
+          <p className="text-xs font-semibold uppercase text-teal-700">Course Ratings & Reviews</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950">{view === 'analytics' ? 'Analytics' : 'Comparison'}</h1>
           {selectedRangeLabel ? (
             <p className="mt-1 break-words text-xs font-medium text-teal-700">{selectedRangeLabel}</p>
@@ -224,7 +224,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-        <p className="text-sm font-medium text-slate-600">Filter evaluations by date</p>
+        <p className="text-sm font-medium text-slate-600">Filter ratings by date</p>
         <DateRangeFilter value={dateRange} onChange={setDateRange} showLabels={false} showToday className="min-w-0" />
       </div>
 
@@ -232,7 +232,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
       {loading && !data ? <p className="py-12 text-center text-sm text-slate-500">Loading evaluations…</p> : data && <>
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Evaluation summary">
           {[
-            ['Evaluations', records.length.toLocaleString()],
+            ['Total ratings', records.length.toLocaleString()],
             ['Average rating', average === null ? 'No ratings' : `${average.toFixed(2)} / 5`],
             ['Written reviews', written.toLocaleString()],
             ['Courses', courseRows.length.toLocaleString()],
@@ -338,7 +338,7 @@ export function SalesCourseEvaluationsPage({ view = 'analytics' }: { view?: 'ana
           </ChartPanel>
         </div>)}
       </>}
-      <Dialog open={details !== null} onOpenChange={(open) => { if (!open) { setDetails(null); setDetailsReturnToComparison(false) } }}><DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden"><DialogHeader className="pr-6"><DialogTitle className="break-words leading-normal">{details?.title}</DialogTitle><DialogDescription>ExceedCE evaluation records</DialogDescription></DialogHeader>{detailsReturnToComparison && <Button variant="outline" className="w-fit" onClick={() => { setDetails(null); setDetailsReturnToComparison(false); setComparisonOpen(true) }}><ArrowLeft className="mr-2 h-4 w-4" />Back to comparison</Button>}{details && <EvaluationDetails records={details.records} exporting={exporting} onExport={(rows) => void exportRecords(rows, details.title)} />}</DialogContent></Dialog>
+      <Dialog open={details !== null} onOpenChange={(open) => { if (!open) { setDetails(null); setDetailsReturnToComparison(false) } }}><DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden"><DialogHeader className="pr-6"><DialogTitle className="break-words leading-normal">{details?.title}</DialogTitle><DialogDescription>ExceedCE course rating & review records</DialogDescription></DialogHeader>{detailsReturnToComparison && <Button variant="outline" className="w-fit" onClick={() => { setDetails(null); setDetailsReturnToComparison(false); setComparisonOpen(true) }}><ArrowLeft className="mr-2 h-4 w-4" />Back to comparison</Button>}{details && <EvaluationDetails records={details.records} exporting={exporting} onExport={(rows) => void exportRecords(rows, details.title)} />}</DialogContent></Dialog>
       <Dialog open={comparisonOpen} onOpenChange={setComparisonOpen}>
         <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-6xl flex-col overflow-hidden">
           <DialogHeader><DialogTitle>Course version comparison</DialogTitle><DialogDescription>{combinedCourses.length} selected versions · {combined.rated} rated responses</DialogDescription></DialogHeader>
@@ -441,7 +441,7 @@ function EvaluationDetails({ records, exporting, onExport }: { records: CourseEv
   return <>
     <p className="text-sm text-slate-600">Average: {summary.average === null ? 'No ratings' : `${summary.average.toFixed(2)} / 5`} · {summary.rated} rated responses · {summary.count} evaluations · {summary.comments} comments</p>
     <div className="flex flex-wrap items-center gap-3"><Input className="w-60 max-w-full" aria-label="Search evaluations" placeholder="Search comments, course or learner" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} /><Select value={rating} onValueChange={(value) => { setRating(value); setPage(1) }}><SelectTrigger className="w-36" aria-label="Filter evaluation rating"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All ratings</SelectItem>{[1, 2, 3, 4, 5].map((value) => <SelectItem key={value} value={String(value)}>{value} stars</SelectItem>)}</SelectContent></Select><label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-teal-600" checked={commentsOnly} onChange={(event) => { setCommentsOnly(event.target.checked); setPage(1) }} />Comments only</label><Button variant="outline" disabled={!filtered.length || exporting} onClick={() => onExport(filtered)}><Download className="mr-2 h-4 w-4" />Export records</Button></div>
-    <div className="min-h-0 flex-1 overflow-auto rounded-md border border-slate-200"><table className="w-full min-w-[720px] text-left text-sm"><thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>{['Evaluation ID', 'Course', 'Rating', 'Comment', 'Submitted by', 'Date'].map((heading) => <th key={heading} className="px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{visible.map((record, index) => <tr key={`${record.id ?? 'record'}-${index}`}><td className="px-3 py-3">{record.id ?? 'Not provided'}</td><td className="max-w-xs px-3 py-3 align-top">{courseName(record)}</td><td className="px-3 py-3 align-top">{score(record) ?? 'Not rated'}</td><td className="min-w-56 max-w-md whitespace-pre-wrap break-words px-3 py-3 align-top">{reviewText(record) || 'No written comment'}</td><td className="px-3 py-3 align-top">{record.userdisplayName || 'Not provided'}</td><td className="px-3 py-3 align-top">{record.submissionDate || record.created_at || 'Not provided'}</td></tr>)}{!filtered.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No matching evaluations.</td></tr>}</tbody></table></div>
+    <div className="min-h-0 flex-1 overflow-auto rounded-md border border-slate-200"><table className="w-full min-w-[720px] text-left text-sm"><thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>{['Rating ID', 'Course', 'Rating', 'Review / Comment', 'Submitted by', 'Date'].map((heading) => <th key={heading} className="px-3 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{visible.map((record, index) => <tr key={`${record.id ?? 'record'}-${index}`}><td className="px-3 py-3">{record.id ?? 'Not provided'}</td><td className="max-w-xs px-3 py-3 align-top">{courseName(record)}</td><td className="px-3 py-3 align-top">{score(record) ?? 'Not rated'}</td><td className="min-w-56 max-w-md whitespace-pre-wrap break-words px-3 py-3 align-top">{reviewText(record) || 'No written comment'}</td><td className="px-3 py-3 align-top">{record.userdisplayName || 'Not provided'}</td><td className="px-3 py-3 align-top">{record.submissionDate || record.created_at || 'Not provided'}</td></tr>)}{!filtered.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No matching evaluations.</td></tr>}</tbody></table></div>
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm"><span>{filtered.length} records · Page {currentPage} of {pages}</span><div className="flex gap-2"><Button variant="outline" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Previous</Button><Button variant="outline" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>Next</Button></div></div>
   </>
 }
